@@ -3014,8 +3014,7 @@ void DetectNACKbug() {
   *@param exitAfterNReads, exit simulation after n blocks have been read, 0 is inifite
 * (unless reader attack mode enabled then it runs util it gets enough nonces to recover all keys attmpted)
   */
-  /*
-void Mifare1ksim(uint8_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t *datain) {
+void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t *datain) {
 
     int cardSTATE = MFEMUL_NOFIELD;
     int _UID_LEN = 0;  // 4, 7, 10
@@ -3642,4 +3641,3 @@ void Mifare1ksim(uint8_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t *
     LEDsoff();
     set_tracing(false);
 }
-*/
