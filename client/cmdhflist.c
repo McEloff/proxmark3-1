@@ -1033,7 +1033,7 @@ void annotateMifare(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize, uint8
 
 }
 
-bool DecodeMifareData(uint8_t *cmd, uint8_t cmdsize, uint8_t *parity, bool isResponse, uint8_t *mfData, size_t *mfDataLen) {
+bool DecodeMifareData(uint8_t *cmd, uint8_t cmdsize, uint8_t *parity, bool isResponse, uint8_t *mfData, size_t *mfDataLen, uint32_t maxNested) {
     static struct Crypto1State *traceCrypto1;
     static uint64_t mfLastKey;
 
@@ -1096,7 +1096,7 @@ bool DecodeMifareData(uint8_t *cmd, uint8_t cmdsize, uint8_t *parity, bool isRes
             // nested
             if (!traceCrypto1 && validate_prng_nonce(AuthData.nt)) {
                 uint32_t ntx = prng_successor(AuthData.nt, 90);
-                for (int i = 0; i < 16383; i++) {
+                for (int i = 0; i < maxNested; i++) {
                     ntx = prng_successor(ntx, 1);
                     if (NTParityChk(&AuthData, ntx)) {
 
