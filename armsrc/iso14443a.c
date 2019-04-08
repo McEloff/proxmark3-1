@@ -770,7 +770,7 @@ static void EmLogTraceTag(uint8_t *tag_data, uint16_t tag_len, uint8_t *tag_Pari
 
 //-----------------------------------------------------------------------------
 // Wait for commands from reader
-// stop when button is pressed
+// stop when button is pressed or client usb connection resets
 // or return TRUE when command is captured
 //-----------------------------------------------------------------------------
 static int GetIso14443aCommandFromReader(uint8_t *received, uint8_t *par, int *len) {
@@ -786,7 +786,7 @@ static int GetIso14443aCommandFromReader(uint8_t *received, uint8_t *par, int *l
     // clear RXRDY:
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
 
-    while (!BUTTON_PRESS()) {
+    while (!BUTTON_PRESS() && !usb_poll_validate_length()) {
         WDT_HIT();
 
         if (AT91C_BASE_SSC->SSC_SR & (AT91C_SSC_RXRDY)) {
@@ -1076,10 +1076,8 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
         WDT_HIT();
 
         // Clean receive command buffer
-        if (!GetIso14443aCommandFromReader(receivedCmd, receivedCmdPar, &len)) {
-            Dbprintf("Emulator stopped.  Trace length: %d ", BigBuf_get_traceLen());
+        if (!GetIso14443aCommandFromReader(receivedCmd, receivedCmdPar, &len))
             break;
-        }
         p_response = NULL;
 
         // Okay, look at the command now.
@@ -1374,8 +1372,10 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
                 default: {
                     // Never seen this command before
                     LogTrace(receivedCmd, Uart.len, Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.parity, true);
-                    Dbprintf("Received unknown command (len=%d):", len);
-                    Dbhexdump(len, receivedCmd, false);
+                    if (MF_DBGLEVEL >= 4) {
+                        Dbprintf("Received unknown command (len=%d):", len);
+                        Dbhexdump(len, receivedCmd, false);
+                    }
                     // Do not respond
                     dynamic_response_info.response_n = 0;
                 }
@@ -1391,7 +1391,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
                 dynamic_response_info.response_n += 2;
 
                 if (prepare_tag_modulation(&dynamic_response_info, DYNAMIC_MODULATION_BUFFER_SIZE) == false) {
-                    DbpString("Error preparing tag response");
+                    if (MF_DBGLEVEL >= 4)    DbpString("Error preparing tag response");
                     LogTrace(receivedCmd, Uart.len, Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.parity, true);
                     break;
                 }
@@ -1426,6 +1426,8 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
         }
     }
 
+    Dbprintf("Emulator stopped.  Trace length: %d ", BigBuf_get_traceLen());
+    
     cmd_send(CMD_ACK, 1, 0, 0, 0, 0);
     switch_off();
 
@@ -3168,7 +3170,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
     LED_D_ON();
 
     bool finished = false;
-    while (!BUTTON_PRESS() && !finished && !usb_poll_validate_length()) {
+    while (!BUTTON_PRESS() && !usb_poll_validate_length()) {
         WDT_HIT();
 
         // find reader field
@@ -3194,7 +3196,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
 
         // REQ or WUP request in ANY state and WUP in HALTED state
         // this if-statement doesn't match the specification above. (iceman)
-        if (len == 1 && ((receivedCmd[0] == ISO14443A_CMD_REQA && cardSTATE != MFEMUL_HALTED) || receivedCmd[0] == ISO14443A_CMD_WUPA)) {
+        if (!finished && len == 1 && ((receivedCmd[0] == ISO14443A_CMD_REQA && cardSTATE != MFEMUL_HALTED) || receivedCmd[0] == ISO14443A_CMD_WUPA)) {
             selTimer = GetTickCount();
             EmSendCmd(atqa, sizeof(atqa));
             cardSTATE = MFEMUL_SELECT1;
@@ -3534,8 +3536,9 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                     EmSendCmdPar(response, 18, response_par);
                     numReads++;
                     if (exitAfterNReads > 0 && numReads >= exitAfterNReads) {
-                        Dbprintf("%d reads done, exiting", numReads);
+                        if (MF_DBGLEVEL >= 1)    Dbprintf("%d reads done, exiting", numReads);
                         finished = true;
+                        cardSTATE_TO_IDLE();
                     }
                     break;
                 }
@@ -3586,10 +3589,11 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                     emlSetMem(decryptedCmd, cardWRBL, 1);
                     numWrites++;
                     if (exitAfterNWrites > 0 && numWrites >= exitAfterNWrites) {
-                        // simulates timeout
-                        LogTrace(Uart.output, Uart.len, Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.parity, true);
-                        Dbprintf("%d writes done, last block %d (%02x), exiting", numWrites, cardWRBL, cardWRBL);
+						// many readers associates time out with success, do send NACK forced
+                        EmSend4bit(mf_crypto1_encrypt4bit(pcs, CARD_NACK_NA));
+                        if (MF_DBGLEVEL >= 1)    Dbprintf("%d writes done, last block %d (%02x), exiting", numWrites, cardWRBL, cardWRBL);
                         finished = true;
+                        cardSTATE_TO_IDLE();
                     } else {
                         EmSend4bit(mf_crypto1_encrypt4bit(pcs, CARD_ACK));
                         cardSTATE = MFEMUL_WORK;
@@ -3641,11 +3645,12 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
         }
     }
 
-    if (MF_DBGLEVEL >= 1)
-        Dbprintf("Emulator stopped. Trace length: %d ", BigBuf_get_traceLen());
+    Dbprintf("Emulator stopped. Trace length: %d ", BigBuf_get_traceLen());
 
     cmd_send(CMD_ACK, 1, 0, 0, 0, 0);
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();
     set_tracing(false);
+
+    BigBuf_free_keep_EM();
 }
