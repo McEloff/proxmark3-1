@@ -2036,7 +2036,7 @@ int iso14443a_select_card(uint8_t *uid_ptr, iso14a_card_select_t *p_card, uint32
     uint8_t rats[]       = { ISO14443A_CMD_RATS, 0x80, 0x00, 0x00 }; // FSD=256, FSDI=8, CID=0
     uint8_t resp[MAX_FRAME_SIZE] = {0}; // theoretically. A usual RATS will be much smaller
     uint8_t resp_par[MAX_PARITY_SIZE] = {0};
-    uint8_t uid_resp[4] = {0};
+    uint8_t uid_resp[5] = {0}; // UID + original BCC
     size_t uid_resp_len = 0;
 
     uint8_t sak = 0x04; // cascade uid
@@ -2073,6 +2073,7 @@ int iso14443a_select_card(uint8_t *uid_ptr, iso14a_card_select_t *p_card, uint32
     for (; sak & 0x04; cascade_level++) {
         // SELECT_* (L1: 0x93, L2: 0x95, L3: 0x97)
         sel_uid[0] = sel_all[0] = 0x93 + cascade_level * 2;
+		bool ignoreBCC = false;
 
         if (anticollision) {
             // SELECT_ALL
@@ -2080,7 +2081,7 @@ int iso14443a_select_card(uint8_t *uid_ptr, iso14a_card_select_t *p_card, uint32
             if (!ReaderReceive(resp, resp_par)) return 0;
 
             if (Demod.collisionPos) {            // we had a collision and need to construct the UID bit by bit
-                memset(uid_resp, 0, 4);
+                memset(uid_resp, 0, 5);
                 uint16_t uid_resp_bits = 0;
                 uint16_t collision_answer_offset = 0;
                 // anti-collision-loop:
@@ -2108,7 +2109,8 @@ int iso14443a_select_card(uint8_t *uid_ptr, iso14a_card_select_t *p_card, uint32
                 }
 
             } else {        // no collision, use the response to SELECT_ALL as current uid
-                memcpy(uid_resp, resp, 4);
+                memcpy(uid_resp, resp, 5); // UID + original BCC
+				ignoreBCC = true;
             }
 
         } else {
@@ -2127,8 +2129,12 @@ int iso14443a_select_card(uint8_t *uid_ptr, iso14a_card_select_t *p_card, uint32
 
         // Construct SELECT UID command
         sel_uid[1] = 0x70;                                              // transmitting a full UID (1 Byte cmd, 1 Byte NVB, 4 Byte UID, 1 Byte BCC, 2 Bytes CRC)
-        memcpy(sel_uid + 2, uid_resp, 4);                               // the UID received during anticollision, or the provided UID
-        sel_uid[6] = sel_uid[2] ^ sel_uid[3] ^ sel_uid[4] ^ sel_uid[5]; // calculate and add BCC
+        memcpy(sel_uid + 2, uid_resp, 5);                               // the UID received during anticollision with original BCC, or the provided UID
+		uint8_t bcc = sel_uid[2] ^ sel_uid[3] ^ sel_uid[4] ^ sel_uid[5]; // calculate BCC
+		if (ignoreBCC && sel_uid[6] != bcc)
+			Dbprintf("BCC%d incorrect, expected value: 0x%02x", cascade_level, bcc);
+		else
+			sel_uid[6] = bcc;
         AddCrc14A(sel_uid, 7);                                          // calculate and add CRC
         ReaderTransmit(sel_uid, sizeof(sel_uid), NULL);
 
