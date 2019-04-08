@@ -793,7 +793,6 @@ static int GetIso14443aCommandFromReader(uint8_t *received, uint8_t *par, int *l
             b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
             if (MillerDecoding(b, 0)) {
                 *len = Uart.len;
-                EmLogTraceReader();
                 return true;
             }
         }
@@ -1663,7 +1662,6 @@ int EmGetCmd(uint8_t *received, uint16_t *len, uint8_t *par) {
             b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
             if (MillerDecoding(b, 0)) {
                 *len = Uart.len;
-                EmLogTraceReader();
                 return 0;
             }
         }
