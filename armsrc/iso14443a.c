@@ -3010,9 +3010,10 @@ void DetectNACKbug() {
   * FLAG_UID_IN_EMUL           - use 4-byte UID from emulator memory
   * FLAG_NR_AR_ATTACK          - collect NR_AR responses for bruteforcing later
   *@param exitAfterNReads, exit simulation after n blocks have been read, 0 is inifite
+  *@param exitAfterNWrites, timeouts reader after n blocks have been written, 0 is infinite
 * (unless reader attack mode enabled then it runs util it gets enough nonces to recover all keys attmpted)
   */
-void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t *datain) {
+void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrites, uint8_t *datain) {
 
     int cardSTATE = MFEMUL_NOFIELD;
     int _UID_LEN = 0;  // 4, 7, 10
@@ -3033,6 +3034,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t 
     struct Crypto1State *pcs;
     pcs = &mpcs;
     uint32_t numReads = 0;    // Counts numer of times reader read a block
+    uint32_t numWrites = 0;   // Counts number of times reader write a block
     uint8_t receivedCmd[MAX_MIFARE_FRAME_SIZE] = {0x00};
     uint8_t decryptedCmd[MAX_MIFARE_FRAME_SIZE] = {0x00};
     uint8_t receivedCmd_par[MAX_MIFARE_PARITY_SIZE] = {0x00};
@@ -3582,8 +3584,16 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t 
                 if (len == 18) {
                     mf_crypto1_decryptEx(pcs, receivedCmd, len, decryptedCmd);
                     emlSetMem(decryptedCmd, cardWRBL, 1);
-                    EmSend4bit(mf_crypto1_encrypt4bit(pcs, CARD_ACK));
-                    cardSTATE = MFEMUL_WORK;
+                    numWrites++;
+                    if (exitAfterNWrites > 0 && numWrites >= exitAfterNWrites) {
+                        // simulates timeout
+                        LogTrace(Uart.output, Uart.len, Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.parity, true);
+                        Dbprintf("%d writes done, last block %d (%02x), exiting", numWrites, cardWRBL, cardWRBL);
+                        finished = true;
+                    } else {
+                        EmSend4bit(mf_crypto1_encrypt4bit(pcs, CARD_ACK));
+                        cardSTATE = MFEMUL_WORK;
+                    }
                 } else {
                     cardSTATE_TO_IDLE();
                     LogTrace(Uart.output, Uart.len, Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.parity, true);

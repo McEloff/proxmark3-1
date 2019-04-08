@@ -74,6 +74,7 @@ int usage_hf14_mf1ksim(void) {
     PrintAndLogEx(NORMAL, "                        1 = MIFARE Classic 2k");
     PrintAndLogEx(NORMAL, "                        4 = MIFARE Classic 4k");
     PrintAndLogEx(NORMAL, "      n    (Optional) Automatically exit simulation after <numreads> blocks have been read by reader. 0 = infinite");
+    PrintAndLogEx(NORMAL, "      w    (Optional) Automatically exit simulation after <numreads> blocks have been written by reader. 0 = infinite");
     PrintAndLogEx(NORMAL, "      i    (Optional) Interactive, means that console will not be returned until simulation finishes or is aborted");
     PrintAndLogEx(NORMAL, "      x    (Optional) Crack, performs the 'reader attack', nr/ar attack against a reader");
     PrintAndLogEx(NORMAL, "      e    (Optional) Fill simulator keys from found keys");
@@ -2136,6 +2137,7 @@ int CmdHF14AMf1kSim(const char *Cmd) {
 
     uint8_t uid[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     uint8_t exitAfterNReads = 0;
+    uint8_t exitAfterNWrites = 0;
     uint16_t flags = (FLAG_UID_IN_EMUL | FLAG_4B_UID_IN_DATA);
     int uidlen = 0;
     uint8_t cmdp = 0;
@@ -2183,6 +2185,10 @@ int CmdHF14AMf1kSim(const char *Cmd) {
                 }
                 cmdp += 2;
                 break;
+            case 'w':
+                exitAfterNWrites = param_get8(Cmd, cmdp + 1);
+                cmdp += 2;
+                break;
             case 'u':
                 param_gethex_ex(Cmd, cmdp + 1, uid, &uidlen);
                 switch (uidlen) {
@@ -2217,13 +2223,14 @@ int CmdHF14AMf1kSim(const char *Cmd) {
     //Validations
     if (errors) return usage_hf14_mf1ksim();
 
-    PrintAndLogEx(NORMAL, " uid:%s, numreads:%d, flags:%d (0x%02x) "
+    PrintAndLogEx(NORMAL, " uid:%s, numreads:%d, numwrites:%d, flags:%d (0x%02x) "
                   , (uidlen == 0) ? "N/A" : sprint_hex(uid, uidlen >> 1)
                   , exitAfterNReads
+                  , exitAfterNWrites
                   , flags
                   , flags);
 
-    UsbCommand c = {CMD_SIMULATE_MIFARE_CARD, {flags, exitAfterNReads, 0}};
+    UsbCommand c = {CMD_SIMULATE_MIFARE_CARD, {flags, exitAfterNReads, exitAfterNWrites}};
     memcpy(c.d.asBytes, uid, sizeof(uid));
     clearCommandBuffer();
     SendCommand(&c);
