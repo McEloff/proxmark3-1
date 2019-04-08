@@ -712,7 +712,9 @@ int CmdHF14ASim(const char *Cmd) {
     bool useUIDfromEML = true;
     bool setEmulatorMem = false;
     bool verbose = false;
-    nonces_t data[1];
+#define MAX_NONCES 32
+    nonces_t data[MAX_NONCES];
+    int noncesCount = 0;
 
     while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
         switch (param_getchar(Cmd, cmdp)) {
@@ -790,8 +792,11 @@ int CmdHF14ASim(const char *Cmd) {
         if (!(flags & FLAG_NR_AR_ATTACK)) break;
         if ((resp.arg[0] & 0xffff) != CMD_SIMULATE_MIFARE_CARD) break;
 
-        memcpy(data, resp.d.asBytes, sizeof(data));
-        readerAttack(data[0], setEmulatorMem, verbose);
+        if (noncesCount < MAX_NONCES)
+            memcpy(&data[noncesCount++], resp.d.asBytes, sizeof(nonces_t));
+    }
+    for (int i = 0; i < noncesCount; i++) {
+        readerAttack(data[i], setEmulatorMem, verbose);
     }
     showSectorTable();
     return 0;

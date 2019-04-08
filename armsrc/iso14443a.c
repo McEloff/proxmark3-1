@@ -3365,6 +3365,8 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                         default:
                             break;
                     }
+                    // we need only collects nonces, no check keys
+                    break;
                 }
 
                 crypto1_word(pcs, nr, 1);
