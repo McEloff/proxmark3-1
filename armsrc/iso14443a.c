@@ -740,34 +740,6 @@ static void Code4bitAnswerAsTag(uint8_t cmd) {
     ToSendMax++;
 }
 
-static uint8_t *LastReaderTraceTime = NULL;
-
-void EmLogTraceReader(void) {
-    // remember last reader trace start to fix timing info later
-    LastReaderTraceTime = BigBuf_get_addr() + BigBuf_get_traceLen();
-    LogTrace(Uart.output, Uart.len, Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.parity, true);
-}
-
-static void FixLastReaderTraceTime(uint32_t tag_StartTime) {
-    uint32_t reader_EndTime = Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG;
-    uint32_t reader_StartTime = Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG;
-    uint16_t reader_modlen = reader_EndTime - reader_StartTime;
-    uint16_t approx_fdt = tag_StartTime - reader_EndTime;
-    uint16_t exact_fdt = (approx_fdt - 20 + 32) / 64 * 64 + 20;
-    reader_StartTime = tag_StartTime - exact_fdt - reader_modlen;
-    LastReaderTraceTime[0] = (reader_StartTime >> 0) & 0xff;
-    LastReaderTraceTime[1] = (reader_StartTime >> 8) & 0xff;
-    LastReaderTraceTime[2] = (reader_StartTime >> 16) & 0xff;
-    LastReaderTraceTime[3] = (reader_StartTime >> 24) & 0xff;
-}
-
-static void EmLogTraceTag(uint8_t *tag_data, uint16_t tag_len, uint8_t *tag_Parity, uint32_t ProxToAirDuration) {
-    uint32_t tag_StartTime = LastTimeProxToAirStart * 16 + DELAY_ARM2AIR_AS_TAG;
-    uint32_t tag_EndTime = (LastTimeProxToAirStart + ProxToAirDuration) * 16 + DELAY_ARM2AIR_AS_TAG;
-    LogTrace(tag_data, tag_len, tag_StartTime, tag_EndTime, tag_Parity, false);
-    FixLastReaderTraceTime(tag_StartTime);
-}
-
 //-----------------------------------------------------------------------------
 // Wait for commands from reader
 // stop when button is pressed or client usb connection resets
@@ -1782,12 +1754,22 @@ int EmSendCmdEx(uint8_t *resp, uint16_t respLen, bool collision) {
     return EmSendCmdParEx(resp, respLen, par, collision);
 }
 
-int EmSendPrecompiledCmd(tag_response_info_t *response_info) {
-    int ret = EmSendCmd14443aRaw(response_info->modulation, response_info->modulation_n);
-
+int EmSendPrecompiledCmd(tag_response_info_t *p_response) {
+    int ret = EmSendCmd14443aRaw(p_response->modulation, p_response->modulation_n);
     // do the tracing for the previous reader request and this tag answer:
-    EmLogTraceTag(response_info->response, response_info->response_n,
-                  &(response_info->par), response_info->ProxToAirDuration);
+    uint8_t par[MAX_PARITY_SIZE] = {0x00};
+    GetParity(p_response->response, p_response->response_n, par);
+
+    EmLogTrace(Uart.output,
+               Uart.len,
+               Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG,
+               Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG,
+               Uart.parity,
+               p_response->response,
+               p_response->response_n,
+               LastTimeProxToAirStart * 16 + DELAY_ARM2AIR_AS_TAG,
+               (LastTimeProxToAirStart + p_response->ProxToAirDuration) * 16 + DELAY_ARM2AIR_AS_TAG,
+               par);
 
     if (MF_DBGLEVEL >= MF_DBG_EXTENDED) {
         Dbprintf("response_info->response %02X", response_info->response);
