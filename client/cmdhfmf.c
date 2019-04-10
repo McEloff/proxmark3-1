@@ -2142,9 +2142,7 @@ int CmdHF14AMf1kSim(const char *Cmd) {
     int uidlen = 0;
     uint8_t cmdp = 0;
     bool errors = false, verbose = false, setEmulatorMem = false;
-#define MAX_NONCES 32
-    nonces_t data[MAX_NONCES];
-    int noncesCount = 0;
+    nonces_t data[1];
 
     while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
         switch (tolower(param_getchar(Cmd, cmdp))) {
@@ -2246,12 +2244,8 @@ int CmdHF14AMf1kSim(const char *Cmd) {
             if (!(flags & FLAG_NR_AR_ATTACK)) break;
             if ((resp.arg[0] & 0xffff) != CMD_SIMULATE_MIFARE_CARD) break;
 
-            if (noncesCount < MAX_NONCES)
-                memcpy(&data[noncesCount++], resp.d.asBytes, sizeof(nonces_t));
-        }
-        
-        for (int i = 0; i < noncesCount; i++) {
-            readerAttack(data[i], setEmulatorMem, verbose);
+            memcpy(data, resp.d.asBytes, sizeof(data));
+            readerAttack(data[0], setEmulatorMem, verbose);
         }
         showSectorTable();
     }
