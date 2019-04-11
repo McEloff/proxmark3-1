@@ -377,9 +377,10 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
 * FLAG_10B_UID_IN_DATA	- use 10-byte UID in the data-section not finished
 *	FLAG_NR_AR_ATTACK  - means we should collect NR_AR responses for bruteforcing later
 *@param exitAfterNReads, exit simulation after n blocks have been read, 0 is infinite ...
+*@param exitAfterNWrites, timeouts reader after n blocks have been written, 0 is infinite
 * (unless reader attack mode enabled then it runs util it gets enough nonces to recover all keys attmpted)
 */
-void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t *datain) {
+void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrites, uint8_t *datain) {
     tag_response_info_t *responses;
     uint8_t	cardSTATE = MFEMUL_NOFIELD;
     uint8_t uid_len = 0; // 4,7, 10
@@ -410,6 +411,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t 
     pcs = &mpcs;
 
     uint32_t numReads = 0;	//Counts numer of times reader reads a block
+    uint32_t numWrites = 0;   // Counts number of times reader write a block
     uint8_t receivedCmd[MAX_MIFARE_FRAME_SIZE] = {0x00};
     uint8_t receivedCmd_dec[MAX_MIFARE_FRAME_SIZE] = {0x00};
     uint8_t receivedCmd_par[MAX_MIFARE_PARITY_SIZE] = {0x00};
@@ -473,7 +475,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t 
     bool finished = false;
     bool button_pushed = BUTTON_PRESS();
 
-    while (!button_pushed && !finished && !usb_poll_validate_length()) {
+    while (!button_pushed && !usb_poll_validate_length()) {
         WDT_HIT();
 
         // find reader field
@@ -502,7 +504,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t 
         }
 
         // WUPA in HALTED state or REQA or WUPA in any other state
-        if (receivedCmd_len == 1 && ((receivedCmd[0] == ISO14443A_CMD_REQA && cardSTATE != MFEMUL_HALTED) || receivedCmd[0] == ISO14443A_CMD_WUPA)) {
+        if (!finished && receivedCmd_len == 1 && ((receivedCmd[0] == ISO14443A_CMD_REQA && cardSTATE != MFEMUL_HALTED) || receivedCmd[0] == ISO14443A_CMD_WUPA)) {
             selTimer = GetTickCount();
             if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("EmSendPrecompiledCmd(&responses[ATQA]);");
             EmSendPrecompiledCmd(&responses[ATQA]);
@@ -914,6 +916,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t 
                     if (exitAfterNReads > 0 && numReads == exitAfterNReads) {
                         Dbprintf("[MFEMUL_WORK] %d reads done, exiting", numReads);
                         finished = true;
+                        cardSTATE_TO_IDLE();
                     }
                     break;
 
@@ -1132,8 +1135,17 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t arg2, uint8_t 
                             }
                         }
                         emlSetMem(receivedCmd_dec, cardWRBL, 1);
-                        EmSend4bit(mf_crypto1_encrypt4bit(pcs, CARD_ACK));	// always ACK?
-                        cardSTATE = MFEMUL_WORK;
+                        numWrites++;
+                        if (exitAfterNWrites > 0 && numWrites >= exitAfterNWrites) {
+                            // many readers associates time out with success, do send NACK forced
+                            EmSend4bit(mf_crypto1_encrypt4bit(pcs, CARD_NACK_NA));
+                            if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("%d writes done, last block %d (%02x), exiting", numWrites, cardWRBL, cardWRBL);
+                            finished = true;
+                            cardSTATE_TO_IDLE();
+                        } else {
+                            EmSend4bit(mf_crypto1_encrypt4bit(pcs, CARD_ACK));
+                            cardSTATE = MFEMUL_WORK;
+                        }
                         if (MF_DBGLEVEL >= MF_DBG_EXTENDED) Dbprintf("[MFEMUL_WRITEBL2] cardSTATE = MFEMUL_WORK");
                         break;
                     }
