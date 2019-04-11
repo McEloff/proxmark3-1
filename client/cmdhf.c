@@ -12,7 +12,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_hf_search() {
+static int usage_hf_search() {
     PrintAndLogEx(NORMAL, "Usage: hf search");
     PrintAndLogEx(NORMAL, "Will try to find a HF read out of the unknown tag. Stops when found.");
     PrintAndLogEx(NORMAL, "Options:");
@@ -20,7 +20,7 @@ int usage_hf_search() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_hf_sniff() {
+static int usage_hf_sniff() {
     PrintAndLogEx(NORMAL, "The high frequence sniffer will assign all available memory on device for sniffed data");
     PrintAndLogEx(NORMAL, "Use " _YELLOW_("'data samples'")" command to download from device,  and " _YELLOW_("'data plot'")" to look at it");
     PrintAndLogEx(NORMAL, "Press button to quit the sniffing.\n");
@@ -88,8 +88,9 @@ int CmdHFSearch(const char *Cmd) {
 }
 
 int CmdHFTune(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     PrintAndLogEx(SUCCESS, "Measuring HF antenna, press button to exit");
-    UsbCommand c = {CMD_MEASURE_ANTENNA_TUNING_HF};
+    UsbCommand c = {CMD_MEASURE_ANTENNA_TUNING_HF, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -102,7 +103,7 @@ int CmdHFSniff(const char *Cmd) {
     int skippairs =  param_get32ex(Cmd, 0, 0, 10);
     int skiptriggers =  param_get32ex(Cmd, 1, 0, 10);
 
-    UsbCommand c = {CMD_HF_SNIFFER, {skippairs, skiptriggers, 0}};
+    UsbCommand c = {CMD_HF_SNIFFER, {skippairs, skiptriggers, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -137,6 +138,7 @@ int CmdHF(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

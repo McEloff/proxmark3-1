@@ -22,7 +22,6 @@
 #include "util.h"
 #include "cmdparser.h"
 #include "comms.h"      // getfromdevice
-#include "iso14443crc.h"
 #include "cmdhf.h"      // list cmd
 #include "mifare.h"     // felica_card_select_t struct
 
@@ -32,10 +31,6 @@ int CmdHFFelicaReader(const char *Cmd);
 int CmdHFFelicaSim(const char *Cmd);
 int CmdHFFelicaSniff(const char *Cmd);
 int CmdHFFelicaCmdRaw(const char *Cmd);
-
-int usage_hf_felica_sim(void);
-int usage_hf_felica_sniff(void);
-int usage_hf_fFelica_raw(void);
 
 void waitCmdFelica(uint8_t iSelect);
 

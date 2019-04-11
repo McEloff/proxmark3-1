@@ -17,7 +17,7 @@ int g_DemodClock = 0;
 
 static int CmdHelp(const char *Cmd);
 
-int usage_data_printdemodbuf(void) {
+static int usage_data_printdemodbuf(void) {
     PrintAndLogEx(NORMAL, "Usage: data printdemodbuffer x o <offset> l <length>");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h          This help");
@@ -26,7 +26,7 @@ int usage_data_printdemodbuf(void) {
     PrintAndLogEx(NORMAL, "       l <length> enter length to print in # of bits or hex characters respectively");
     return 0;
 }
-int usage_data_manrawdecode(void) {
+static int usage_data_manrawdecode(void) {
     PrintAndLogEx(NORMAL, "Usage:  data manrawdecode [invert] [maxErr]");
     PrintAndLogEx(NORMAL, "     Takes 10 and 01 and converts to 0 and 1 respectively");
     PrintAndLogEx(NORMAL, "     --must have binary sequence in demodbuffer (run data askrawdemod first)");
@@ -36,7 +36,7 @@ int usage_data_manrawdecode(void) {
     PrintAndLogEx(NORMAL, "   Example: data manrawdecode   = decode manchester bitstream from the demodbuffer");
     return 0;
 }
-int usage_data_biphaserawdecode(void) {
+static int usage_data_biphaserawdecode(void) {
     PrintAndLogEx(NORMAL, "Usage:  data biphaserawdecode [offset] [invert] [maxErr]");
     PrintAndLogEx(NORMAL, "     Converts 10 or 01 to 1 and 11 or 00 to 0");
     PrintAndLogEx(NORMAL, "     --must have binary sequence in demodbuffer (run data askrawdemod first)");
@@ -50,7 +50,7 @@ int usage_data_biphaserawdecode(void) {
     PrintAndLogEx(NORMAL, "   Example: data biphaserawdecode 1 1 = decode biphase bitstream from the demodbuffer, set offset, and invert output");
     return 0;
 }
-int usage_data_rawdemod(void) {
+static int usage_data_rawdemod(void) {
     PrintAndLogEx(NORMAL, "Usage:  data rawdemod [modulation] <help>|<options>");
     PrintAndLogEx(NORMAL, "   [modulation] as 2 char, 'ab' for ask/biphase, 'am' for ask/manchester, 'ar' for ask/raw, 'fs' for fsk, ...");
     PrintAndLogEx(NORMAL, "         'nr' for nrz/direct, 'p1' for psk1, 'p2' for psk2");
@@ -67,7 +67,7 @@ int usage_data_rawdemod(void) {
     PrintAndLogEx(NORMAL, "          : data rawdemod p2           = demod GraphBuffer using: psk2 - autodetect");
     return 0;
 }
-int usage_data_rawdemod_am(void) {
+static int usage_data_rawdemod_am(void) {
     PrintAndLogEx(NORMAL, "Usage:  data rawdemod am <s> [clock] <invert> [maxError] [maxLen] [amplify]");
     PrintAndLogEx(NORMAL, "     ['s'] optional, check for Sequence Terminator");
     PrintAndLogEx(NORMAL, "     [set clock as integer] optional, if not set, autodetect");
@@ -83,7 +83,7 @@ int usage_data_rawdemod_am(void) {
     PrintAndLogEx(NORMAL, "          : data rawdemod am 64 1 0 = demod an ask/manchester tag from GraphBuffer using a clock of RF/64, inverting data and allowing 0 demod errors");
     return 0;
 }
-int usage_data_rawdemod_ab(void) {
+static int usage_data_rawdemod_ab(void) {
     PrintAndLogEx(NORMAL, "Usage:  data rawdemod ab [offset] [clock] <invert> [maxError] [maxLen] <amplify>");
     PrintAndLogEx(NORMAL, "     [offset], offset to begin biphase, default=0");
     PrintAndLogEx(NORMAL, "     [set clock as integer] optional, if not set, autodetect");
@@ -106,7 +106,7 @@ int usage_data_rawdemod_ab(void) {
     PrintAndLogEx(NORMAL, "          : data rawdemod ab 0 64 1 0 0 a = demod an ask/biph tag from GraphBuffer using a clock of RF/64, inverting data and allowing 0 demod errors, and amp");
     return 0;
 }
-int usage_data_rawdemod_ar(void) {
+static int usage_data_rawdemod_ar(void) {
     PrintAndLogEx(NORMAL, "Usage:  data rawdemod ar [clock] <invert> [maxError] [maxLen] [amplify]");
     PrintAndLogEx(NORMAL, "     [set clock as integer] optional, if not set, autodetect");
     PrintAndLogEx(NORMAL, "     <invert>, 1 to invert output");
@@ -123,7 +123,7 @@ int usage_data_rawdemod_ar(void) {
     PrintAndLogEx(NORMAL, "          : data rawdemod ar 64 1 0 0 a = demod an ask tag from GraphBuffer using a clock of RF/64, inverting data and allowing 0 demod errors, and amp");
     return 0;
 }
-int usage_data_rawdemod_fs(void) {
+static int usage_data_rawdemod_fs(void) {
     PrintAndLogEx(NORMAL, "Usage:  data rawdemod fs [clock] <invert> [fchigh] [fclow]");
     PrintAndLogEx(NORMAL, "     [set clock as integer] optional, omit for autodetect.");
     PrintAndLogEx(NORMAL, "     <invert>, 1 for invert output, can be used even if the clock is omitted");
@@ -139,7 +139,7 @@ int usage_data_rawdemod_fs(void) {
     PrintAndLogEx(NORMAL, "          : data rawdemod fs 50 1 10 8 = demod an fsk2a RF/50 tag from GraphBuffer");
     return 0;
 }
-int usage_data_rawdemod_nr(void) {
+static int usage_data_rawdemod_nr(void) {
     PrintAndLogEx(NORMAL, "Usage:  data rawdemod nr [clock] <0|1> [maxError]");
     PrintAndLogEx(NORMAL, "     [set clock as integer] optional, if not set, autodetect.");
     PrintAndLogEx(NORMAL, "     <invert>, 1 for invert output");
@@ -152,7 +152,7 @@ int usage_data_rawdemod_nr(void) {
     PrintAndLogEx(NORMAL, "          : data rawdemod nr 64 1 0 = demod a nrz/direct tag from GraphBuffer using a clock of RF/64, inverting data and allowing 0 demod errors");
     return 0;
 }
-int usage_data_rawdemod_p1(void) {
+static int usage_data_rawdemod_p1(void) {
     PrintAndLogEx(NORMAL, "Usage:  data rawdemod p1 [clock] <0|1> [maxError]");
     PrintAndLogEx(NORMAL, "     [set clock as integer] optional, if not set, autodetect.");
     PrintAndLogEx(NORMAL, "     <invert>, 1 for invert output");
@@ -165,7 +165,7 @@ int usage_data_rawdemod_p1(void) {
     PrintAndLogEx(NORMAL, "          : data rawdemod p1 64 1 0 = demod a psk1 tag from GraphBuffer using a clock of RF/64, inverting data and allowing 0 demod errors");
     return 0;
 }
-int usage_data_rawdemod_p2(void) {
+static int usage_data_rawdemod_p2(void) {
     PrintAndLogEx(NORMAL, "Usage:  data rawdemod p2 [clock] <0|1> [maxError]");
     PrintAndLogEx(NORMAL, "     [set clock as integer] optional, if not set, autodetect.");
     PrintAndLogEx(NORMAL, "     <invert>, 1 for invert output");
@@ -178,7 +178,7 @@ int usage_data_rawdemod_p2(void) {
     PrintAndLogEx(NORMAL, "          : data rawdemod p2 64 1 0  = demod a psk2 tag from GraphBuffer using a clock of RF/64, inverting output and allowing 0 demod errors");
     return 0;
 }
-int usage_data_autocorr(void) {
+static int usage_data_autocorr(void) {
     PrintAndLogEx(NORMAL, "Autocorrelate is used to detect repeating sequences. We use it as detection of length in bits a message inside the signal is");
     PrintAndLogEx(NORMAL, "Usage: data autocorr w <window> [g]");
     PrintAndLogEx(NORMAL, "Options:");
@@ -187,7 +187,7 @@ int usage_data_autocorr(void) {
     PrintAndLogEx(NORMAL, "       g              save back to GraphBuffer (overwrite)");
     return 0;
 }
-int usage_data_undecimate(void) {
+static int usage_data_undecimate(void) {
     PrintAndLogEx(NORMAL, "Usage: data undec [factor]");
     PrintAndLogEx(NORMAL, "This function performs un-decimation, by repeating each sample N times");
     PrintAndLogEx(NORMAL, "Options:");
@@ -196,7 +196,7 @@ int usage_data_undecimate(void) {
     PrintAndLogEx(NORMAL, "Example: 'data undec 3'");
     return 0;
 }
-int usage_data_detectclock(void) {
+static int usage_data_detectclock(void) {
     PrintAndLogEx(NORMAL, "Usage:  data detectclock [modulation] <clock>");
     PrintAndLogEx(NORMAL, "     [modulation as char], specify the modulation type you want to detect the clock of");
     PrintAndLogEx(NORMAL, "     <clock>             , specify the clock (optional - to get best start position only)");
@@ -208,24 +208,24 @@ int usage_data_detectclock(void) {
     PrintAndLogEx(NORMAL, "            data detectclock n    = detect the clock of an nrz/direct modulated wave in the GraphBuffer");
     return 0;
 }
-int usage_data_hex2bin(void) {
+static int usage_data_hex2bin(void) {
     PrintAndLogEx(NORMAL, "Usage: data hex2bin <hex_digits>");
     PrintAndLogEx(NORMAL, "       This function will ignore all non-hexadecimal characters (but stop reading on whitespace)");
     return 0;
 }
-int usage_data_bin2hex(void) {
+static int usage_data_bin2hex(void) {
     PrintAndLogEx(NORMAL, "Usage: data bin2hex <binary_digits>");
     PrintAndLogEx(NORMAL, "       This function will ignore all characters not 1 or 0 (but stop reading on whitespace)");
     return 0;
 }
-int usage_data_buffclear(void) {
+static int usage_data_buffclear(void) {
     PrintAndLogEx(NORMAL, "This function clears the bigbuff on deviceside");
     PrintAndLogEx(NORMAL, "Usage: data buffclear [h]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h              This help");
     return 0;
 }
-int usage_data_fsktonrz() {
+static int usage_data_fsktonrz() {
     PrintAndLogEx(NORMAL, "Usage: data fsktonrz c <clock> l <fc_low> f <fc_high>");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h            This help");
@@ -843,6 +843,7 @@ int CmdAutoCorr(const char *Cmd) {
 }
 
 int CmdBitsamples(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     int cnt = 0;
     uint8_t got[12288];
 
@@ -868,7 +869,7 @@ int CmdBuffClear(const char *Cmd) {
     char cmdp = tolower(param_getchar(Cmd, 0));
     if (cmdp == 'h') return usage_data_buffclear();
 
-    UsbCommand c = {CMD_BUFF_CLEAR, {0, 0, 0}};
+    UsbCommand c = {CMD_BUFF_CLEAR, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     ClearGraph(true);
@@ -876,6 +877,7 @@ int CmdBuffClear(const char *Cmd) {
 }
 
 int CmdDec(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     for (int i = 0; i < (GraphTraceLen / 2); ++i)
         GraphBuffer[i] = GraphBuffer[i * 2];
     GraphTraceLen /= 2;
@@ -916,7 +918,7 @@ int CmdUndec(const char *Cmd) {
 //by marshmellow
 //shift graph zero up or down based on input + or -
 int CmdGraphShiftZero(const char *Cmd) {
-    int shift = 0, shiftedVal = 0;
+    int shift = 0, shiftedVal;
     //set options from parameters entered with the command
     sscanf(Cmd, "%i", &shift);
 
@@ -1140,6 +1142,7 @@ int PSKDemod(const char *Cmd, bool verbose) {
 }
 
 int CmdIdteckDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     if (!PSKDemod("", false)) {
         PrintAndLogEx(DEBUG, "DEBUG: Error - Idteck PSKDemod failed");
@@ -1400,12 +1403,14 @@ int CmdHexsamples(const char *Cmd) {
 }
 
 int CmdHide(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     HideGraphWindow();
     return 0;
 }
 
 //zero mean GraphBuffer
 int CmdHpf(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     uint8_t bits[GraphTraceLen];
     size_t size = getFromGraphBuf(bits);
     removeSignalOffset(bits, size);
@@ -1499,6 +1504,7 @@ int CmdSamples(const char *Cmd) {
 }
 
 int CmdTuneSamples(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 #define NON_VOLTAGE     1000
 #define LF_UNUSABLE_V   2000
 #define LF_MARGINAL_V   10000
@@ -1515,7 +1521,7 @@ int CmdTuneSamples(const char *Cmd) {
     int timeout = 0;
     PrintAndLogEx(INFO, "\nmeasuring antenna characteristics, please wait...");
 
-    UsbCommand c = {CMD_MEASURE_ANTENNA_TUNING, {0, 0, 0}};
+    UsbCommand c = {CMD_MEASURE_ANTENNA_TUNING, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -1579,12 +1585,13 @@ int CmdTuneSamples(const char *Cmd) {
 
     // graph LF measurements
     // even here, these values has 3% error.
-    uint16_t test = 0;
+    uint16_t test1 = 0;
     for (int i = 0; i < 256; i++) {
         GraphBuffer[i] = resp.d.asBytes[i] - 128;
-        test += resp.d.asBytes[i];
+        test1 += resp.d.asBytes[i];
     }
-    if (test > 0) {
+
+    if (test1 > 0) {
         PrintAndLogEx(SUCCESS, "\nDisplaying LF tuning graph. Divisor 89 is 134khz, 95 is 125khz.\n\n");
         GraphTraceLen = 256;
         ShowGraphWindow();
@@ -1683,6 +1690,7 @@ int CmdMtrim(const char *Cmd) {
 }
 
 int CmdNorm(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     int i;
     int max = INT_MIN, min = INT_MAX;
 
@@ -1709,6 +1717,7 @@ int CmdNorm(const char *Cmd) {
 }
 
 int CmdPlot(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     ShowGraphWindow();
     return 0;
 }
@@ -1796,6 +1805,7 @@ int CmdDirectionalThreshold(const char *Cmd) {
 }
 
 int CmdZerocrossings(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     // Zero-crossings aren't meaningful unless the signal is zero-mean.
     CmdHpf("");
 
@@ -1978,7 +1988,7 @@ int FSKToNRZ(int *data, int *dataLen, int clk, int LowToneFC, int HighToneFC) {
     // currently only know fsk modulations with field clocks < 10 samples and > 4 samples. filter out to remove false positives (and possibly destroying ask/psk modulated waves...)
     if (ans == 0 || clk == 0 || LowToneFC == 0 || HighToneFC == 0 || LowToneFC > 10 || HighToneFC < 4) {
         if (g_debugMode > 1) {
-            PrintAndLogEx(NORMAL,"DEBUG FSKtoNRZ: no fsk clocks found");
+            PrintAndLogEx(NORMAL, "DEBUG FSKtoNRZ: no fsk clocks found");
         }
         return 0;
     }
@@ -2128,6 +2138,7 @@ int CmdData(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

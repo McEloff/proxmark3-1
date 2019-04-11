@@ -12,7 +12,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_jablotron_clone(void) {
+static int usage_lf_jablotron_clone(void) {
     PrintAndLogEx(NORMAL, "clone a Jablotron tag to a T55x7 tag.");
     PrintAndLogEx(NORMAL, "Usage: lf jablotron clone [h] <card ID> <Q5>");
     PrintAndLogEx(NORMAL, "Options:");
@@ -25,7 +25,7 @@ int usage_lf_jablotron_clone(void) {
     return 0;
 }
 
-int usage_lf_jablotron_sim(void) {
+static int usage_lf_jablotron_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of jablotron card with specified card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "");
@@ -92,6 +92,7 @@ static uint64_t getJablontronCardId(uint64_t rawcode) {
 
 //see ASKDemod for what args are accepted
 int CmdJablotronDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     //Differential Biphase / di-phase (inverted biphase)
     //get binary from ask wave
@@ -185,7 +186,7 @@ int CmdJablotronClone(const char *Cmd) {
     print_blocks(blocks, 3);
 
     UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
 
     for (uint8_t i = 0; i < 3; i++) {
         c.arg[0] = blocks[i];
@@ -222,7 +223,7 @@ int CmdJablotronSim(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "Simulating Jablotron - FullCode: %"PRIx64, fullcode);
 
-    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     getJablotronBits(fullcode, c.d.asBytes);
     clearCommandBuffer();
     SendCommand(&c);
@@ -245,6 +246,7 @@ int CmdLFJablotron(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

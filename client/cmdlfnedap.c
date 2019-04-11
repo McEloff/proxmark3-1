@@ -10,7 +10,8 @@
 #include "cmdlfnedap.h"
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_nedap_clone(void) {
+/*
+static int usage_lf_nedap_clone(void) {
     PrintAndLogEx(NORMAL, "clone a NEDAP tag to a T55x7 tag.");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage: lf nedap clone [h] <Card-Number>");
@@ -23,8 +24,9 @@ int usage_lf_nedap_clone(void) {
     PrintAndLogEx(NORMAL, "       lf nedap clone 112233");
     return 0;
 }
+*/
 
-int usage_lf_nedap_sim(void) {
+static int usage_lf_nedap_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of NEDAP card with specified card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "");
@@ -51,7 +53,7 @@ int detectNedap(uint8_t *dest, size_t *size) {
     return (int) startIdx;
 }
 
-int GetNedapBits(uint32_t cn, uint8_t *nedapBits) {
+static int GetNedapBits(uint32_t cn, uint8_t *nedapBits) {
 
     uint8_t pre[128];
     memset(pre, 0x00, sizeof(pre));
@@ -113,6 +115,7 @@ int GetNedapBits(uint32_t cn, uint8_t *nedapBits) {
 //print NEDAP Prox ID, encoding, encrypted ID,
 
 int CmdLFNedapDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     //raw ask demod no start bit finding just get binary from wave
     if (!ASKbiphaseDemod("0 64 1 0", false)) {
         if (g_debugMode) PrintAndLogEx(DEBUG, "DEBUG: Error - Nedap ASKbiphaseDemod failed");
@@ -272,7 +275,7 @@ int CmdLFNedapClone(const char *Cmd) {
     print_blocks(blocks, 5);
 
     UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0,0,0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0,0,0}, {{0}}};
 
     for (uint8_t i = 0; i<5; ++i ) {
         c.arg[0] = blocks[i];
@@ -317,7 +320,7 @@ int CmdLFNedapSim(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "bin  %s", sprint_bin_break(bs, 128, 32));
     PrintAndLogEx(SUCCESS, "Simulating Nedap - CardNumber: %u", cardnumber);
 
-    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     memcpy(c.d.asBytes, bs, size);
     clearCommandBuffer();
     SendCommand(&c);
@@ -388,6 +391,7 @@ int CmdLFNedap(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

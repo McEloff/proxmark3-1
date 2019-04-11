@@ -11,7 +11,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_keri_clone(void) {
+static int usage_lf_keri_clone(void) {
     PrintAndLogEx(NORMAL, "clone a KERI tag to a T55x7 tag.");
     PrintAndLogEx(NORMAL, "Usage: lf keri clone [h] <id> <Q5>");
     PrintAndLogEx(NORMAL, "Options:");
@@ -24,7 +24,7 @@ int usage_lf_keri_clone(void) {
     return 0;
 }
 
-int usage_lf_keri_sim(void) {
+static int usage_lf_keri_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of KERI card with specified card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "");
@@ -64,6 +64,7 @@ int detectKeri(uint8_t *dest, size_t *size, bool *invert) {
 }
 
 int CmdKeriDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     if (!PSKDemod("", false)) {
         PrintAndLogEx(DEBUG, "DEBUG: Error - KERI: PSK1 Demod failed");
@@ -171,7 +172,7 @@ int CmdKeriClone(const char *Cmd) {
 
 
     UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
 
 
     for (uint8_t i = 0; i < 3; i++) {
@@ -213,7 +214,7 @@ int CmdKeriSim(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "Simulating KERI - Internal Id: %u", internalid);
 
-    UsbCommand c = {CMD_PSK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_PSK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     memcpy(c.d.asBytes, bits, size);
     clearCommandBuffer();
     SendCommand(&c);
@@ -237,6 +238,7 @@ int CmdLFKeri(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

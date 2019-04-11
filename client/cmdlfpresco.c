@@ -10,7 +10,7 @@
 #include "cmdlfpresco.h"
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_presco_clone(void) {
+static int usage_lf_presco_clone(void) {
     PrintAndLogEx(NORMAL, "clone a Presco tag to a T55x7 tag.");
     PrintAndLogEx(NORMAL, "Usage: lf presco clone [h] d <Card-ID> c <hex-ID> <Q5>");
     PrintAndLogEx(NORMAL, "Options:");
@@ -24,7 +24,7 @@ int usage_lf_presco_clone(void) {
     return 0;
 }
 
-int usage_lf_presco_sim(void) {
+static int usage_lf_presco_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of presco card with specified card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "Per presco format, the card number is 9 digit number and can contain *# chars. Larger values are truncated.");
@@ -126,6 +126,7 @@ int GetPrescoBits(uint32_t fullcode, uint8_t *prescoBits) {
 
 //see ASKDemod for what args are accepted
 int CmdPrescoDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     bool st = true;
     if (!ASKDemod_ext("32 0 0 0 0 a", false, false, 1, &st)) {
         PrintAndLogEx(DEBUG, "DEBUG: Error Presco ASKDemod failed");
@@ -204,7 +205,7 @@ int CmdPrescoClone(const char *Cmd) {
     print_blocks(blocks, 5);
 
     UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
 
     for (uint8_t i = 0; i < 5; i++) {
         c.arg[0] = blocks[i];
@@ -235,7 +236,7 @@ int CmdPrescoSim(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "Simulating Presco - SiteCode: %u, UserCode: %u, FullCode: %08X", sitecode, usercode, fullcode);
 
-    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     GetPrescoBits(fullcode, c.d.asBytes);
     clearCommandBuffer();
     SendCommand(&c);
@@ -257,6 +258,7 @@ int CmdLFPresco(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

@@ -13,7 +13,7 @@ bool g_lf_threshold_set = false;
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_cmdread(void) {
+static int usage_lf_cmdread(void) {
     PrintAndLogEx(NORMAL, "Usage: lf cmdread d <delay period> z <zero period> o <one period> c <cmdbytes>");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h             This help");
@@ -28,7 +28,7 @@ int usage_lf_cmdread(void) {
     PrintAndLogEx(NORMAL, "      lf cmdread d 80 z 100 o 200 c 11000");
     return 0;
 }
-int usage_lf_read(void) {
+static int usage_lf_read(void) {
     PrintAndLogEx(NORMAL, "Usage: lf read [h] [s] [d numofsamples]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h            This help");
@@ -41,7 +41,7 @@ int usage_lf_read(void) {
     PrintAndLogEx(NORMAL, "         lf read s");
     return 0;
 }
-int usage_lf_sniff(void) {
+static int usage_lf_sniff(void) {
     PrintAndLogEx(NORMAL, "Sniff low frequence signal.");
     PrintAndLogEx(NORMAL, "Use " _YELLOW_("'lf config'")" to set parameters.");
     PrintAndLogEx(NORMAL, "Use " _YELLOW_("'data samples'")" command to download from device,  and " _YELLOW_("'data plot'")" to look at it");
@@ -51,7 +51,7 @@ int usage_lf_sniff(void) {
     PrintAndLogEx(NORMAL, "      h         This help");
     return 0;
 }
-int usage_lf_config(void) {
+static int usage_lf_config(void) {
     PrintAndLogEx(NORMAL, "Usage: lf config [h] [H|<divisor>] [b <bps>] [d <decim>] [a 0|1]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h             This help");
@@ -74,7 +74,7 @@ int usage_lf_config(void) {
     PrintAndLogEx(NORMAL, "                    Performs a sniff (no active field)");
     return 0;
 }
-int usage_lf_simfsk(void) {
+static int usage_lf_simfsk(void) {
     PrintAndLogEx(NORMAL, "Usage: lf simfsk [h] [c <clock>] [H <fcHigh>] [L <fcLow>] [d <hexdata>]");
     PrintAndLogEx(NORMAL, "there are about four FSK modulations to know of.");
     PrintAndLogEx(NORMAL, "FSK1  -  where fc/8 = high  and fc/5 = low");
@@ -99,7 +99,7 @@ int usage_lf_simfsk(void) {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_lf_simask(void) {
+static int usage_lf_simask(void) {
     PrintAndLogEx(NORMAL, "Usage: lf simask [c <clock>] [i] [b|m|r] [s] [d <raw hex to sim>]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h              This help");
@@ -112,7 +112,7 @@ int usage_lf_simask(void) {
     PrintAndLogEx(NORMAL, "       d <hexdata>    Data to sim as hex - omit to sim from DemodBuffer");
     return 0;
 }
-int usage_lf_simpsk(void) {
+static int usage_lf_simpsk(void) {
     PrintAndLogEx(NORMAL, "Usage: lf simpsk [1|2|3] [c <clock>] [i] [r <carrier>] [d <raw hex to sim>]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h              This help");
@@ -125,7 +125,7 @@ int usage_lf_simpsk(void) {
     PrintAndLogEx(NORMAL, "       d <hexdata>    Data to sim as hex - omit to sim from DemodBuffer");
     return 0;
 }
-int usage_lf_find(void) {
+static int usage_lf_find(void) {
     PrintAndLogEx(NORMAL, "Usage:  lf search [h] <0|1> [u]");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Options:");
@@ -144,7 +144,7 @@ int usage_lf_find(void) {
 /* send a LF command before reading */
 int CmdLFCommandRead(const char *Cmd) {
 
-    UsbCommand c = {CMD_MOD_THEN_ACQUIRE_RAW_ADC_SAMPLES_125K, {0, 0, 0}};
+    UsbCommand c = {CMD_MOD_THEN_ACQUIRE_RAW_ADC_SAMPLES_125K, {0, 0, 0}, {{0}}};
     bool errors = false;
 
     uint8_t cmdp = 0;
@@ -187,6 +187,7 @@ int CmdLFCommandRead(const char *Cmd) {
 }
 
 int CmdFlexdemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     if (GraphTraceLen < 0)
         return 0;
@@ -194,7 +195,7 @@ int CmdFlexdemod(const char *Cmd) {
 #ifndef LONG_WAIT
 #define LONG_WAIT 100
 #endif
-    int i, j, start, bit, sum, phase = 0;
+    int i, j, start, bit, sum;
 
     int data[GraphTraceLen];
     memcpy(data, GraphBuffer, GraphTraceLen);
@@ -252,7 +253,7 @@ int CmdFlexdemod(const char *Cmd) {
     i = 0;
     for (bit = 0; bit < 64; bit++) {
 
-        phase = (bits[bit] == 0) ? 0 : 1;
+        int phase = (bits[bit] == 0) ? 0 : 1;
 
         for (j = 0; j < 32; j++) {
             GraphBuffer[i++] = phase;
@@ -324,7 +325,7 @@ int CmdLFSetConfig(const char *Cmd) {
 
     sample_config config = { decimation, bps, averaging, divisor, trigger_threshold };
 
-    UsbCommand c = {CMD_SET_LF_SAMPLING_CONFIG, {0, 0, 0} };
+    UsbCommand c = {CMD_SET_LF_SAMPLING_CONFIG, {0, 0, 0}, {{0}}};
     memcpy(c.d.asBytes, &config, sizeof(sample_config));
     clearCommandBuffer();
     SendCommand(&c);
@@ -333,7 +334,7 @@ int CmdLFSetConfig(const char *Cmd) {
 
 bool lf_read(bool silent, uint32_t samples) {
     if (IsOffline()) return false;
-    UsbCommand c = {CMD_ACQUIRE_RAW_ADC_SAMPLES_125K, {silent, samples, 0}};
+    UsbCommand c = {CMD_ACQUIRE_RAW_ADC_SAMPLES_125K, {silent, samples, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
 
@@ -389,7 +390,7 @@ int CmdLFSniff(const char *Cmd) {
     uint8_t cmdp = tolower(param_getchar(Cmd, 0));
     if (cmdp == 'h') return usage_lf_sniff();
 
-    UsbCommand c = {CMD_LF_SNIFF_RAW_ADC_SAMPLES, {0, 0, 0}};
+    UsbCommand c = {CMD_LF_SNIFF_RAW_ADC_SAMPLES, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     WaitForResponse(CMD_ACK, NULL);
@@ -422,7 +423,7 @@ int CmdLFSim(const char *Cmd) {
 
     //can send only 512 bits at a time (1 byte sent per bit...)
     for (uint16_t i = 0; i < GraphTraceLen; i += USB_CMD_DATA_SIZE) {
-        UsbCommand c = {CMD_UPLOAD_SIM_SAMPLES_125K, {i, FPGA_LF, 0}};
+        UsbCommand c = {CMD_UPLOAD_SIM_SAMPLES_125K, {i, FPGA_LF, 0}, {{0}}};
 
         for (uint16_t j = 0; j < USB_CMD_DATA_SIZE; j++)
             c.d.asBytes[j] = GraphBuffer[i + j];
@@ -436,7 +437,7 @@ int CmdLFSim(const char *Cmd) {
 
     PrintAndLogEx(NORMAL, "Simulating");
 
-    UsbCommand c = {CMD_SIMULATE_TAG_125K, {GraphTraceLen, gap, 0}};
+    UsbCommand c = {CMD_SIMULATE_TAG_125K, {GraphTraceLen, gap, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -525,7 +526,7 @@ int CmdLFfskSim(const char *Cmd) {
         PrintAndLogEx(NORMAL, "DemodBuffer too long for current implementation - length: %d - max: %d", size, USB_CMD_DATA_SIZE);
         size = USB_CMD_DATA_SIZE;
     }
-    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, size}, {{0}}};
 
     memcpy(c.d.asBytes, DemodBuffer, size);
     clearCommandBuffer();
@@ -621,7 +622,7 @@ int CmdLFaskSim(const char *Cmd) {
     arg1 = clk << 8 | encoding;
     arg2 = invert << 8 | separator;
 
-    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     memcpy(c.d.asBytes, DemodBuffer, size);
     clearCommandBuffer();
     SendCommand(&c);
@@ -728,7 +729,7 @@ int CmdLFpskSim(const char *Cmd) {
         PrintAndLogEx(NORMAL, "DemodBuffer too long for current implementation - length: %d - max: %d", size, USB_CMD_DATA_SIZE);
         size = USB_CMD_DATA_SIZE;
     }
-    UsbCommand c = {CMD_PSK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_PSK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     PrintAndLogEx(DEBUG, "DEBUG: Sending DemodBuffer Length: %d", size);
     memcpy(c.d.asBytes, DemodBuffer, size);
     clearCommandBuffer();
@@ -737,10 +738,11 @@ int CmdLFpskSim(const char *Cmd) {
 }
 
 int CmdLFSimBidir(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     // Set ADC to twice the carrier for a slight supersampling
     // HACK: not implemented in ARMSRC.
     PrintAndLogEx(INFO, "Not implemented yet.");
-    UsbCommand c = {CMD_LF_SIMULATE_BIDIR, {47, 384, 0}};
+    UsbCommand c = {CMD_LF_SIMULATE_BIDIR, {47, 384, 0}, {{0}}};
     SendCommand(&c);
     return 0;
 }
@@ -1013,6 +1015,7 @@ int CmdLF(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

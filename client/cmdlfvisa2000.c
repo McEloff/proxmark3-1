@@ -15,7 +15,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_visa2k_clone(void) {
+static int usage_lf_visa2k_clone(void) {
     PrintAndLogEx(NORMAL, "clone a Visa2000 tag to a T55x7 tag.");
     PrintAndLogEx(NORMAL, "Usage: lf visa2000 clone [h] <card ID> <Q5>");
     PrintAndLogEx(NORMAL, "Options:");
@@ -28,7 +28,7 @@ int usage_lf_visa2k_clone(void) {
     return 0;
 }
 
-int usage_lf_visa2k_sim(void) {
+static int usage_lf_visa2k_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of visa2k card with specified card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "");
@@ -95,6 +95,7 @@ int detectVisa2k(uint8_t *dest, size_t *size) {
 **/
 //see ASKDemod for what args are accepted
 int CmdVisa2kDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     save_restoreGB(GRAPH_SAVE);
 
@@ -179,7 +180,7 @@ int CmdVisa2kClone(const char *Cmd) {
     print_blocks(blocks, 4);
 
     UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
 
     for (uint8_t i = 0; i < 4; i++) {
         c.arg[0] = blocks[i];
@@ -210,7 +211,7 @@ int CmdVisa2kSim(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "Simulating Visa2000 - CardId: %u", id);
 
-    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}, {{0}}};
 
     uint32_t blocks[3] = { BL0CK1, id, (visa_parity(id) << 4) | visa_chksum(id) };
 
@@ -238,6 +239,7 @@ int CmdLFVisa2k(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

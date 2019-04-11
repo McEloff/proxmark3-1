@@ -21,7 +21,7 @@
 #include "lfdemod.h"
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_paradox_sim(void) {
+static int usage_lf_paradox_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of Paradox card with specified card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "The facility-code is 8-bit and the card number is 16-bit.  Larger values are truncated.");
@@ -78,6 +78,7 @@ int detectParadox(uint8_t *dest, size_t *size, uint32_t *hi2, uint32_t *hi, uint
 //Paradox Prox demod - FSK2a RF/50 with preamble of 00001111 (then manchester encoded)
 //print full Paradox Prox ID and some bit format details if found
 int CmdParadoxDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     //raw fsk demod no manchester decoding no start bit finding just get binary from wave
     uint8_t bits[MAX_GRAPH_TRACE_LEN] = {0};
     size_t size = getFromGraphBuf(bits);
@@ -174,7 +175,7 @@ int CmdParadoxSim(const char *Cmd) {
 
     PrintAndLogEx(NORMAL, "Simulating Paradox - Facility Code: %u, CardNumber: %u", facilitycode, cardnumber);
 
-    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     memcpy(c.d.asBytes, bs, size);
     clearCommandBuffer();
     SendCommand(&c);
@@ -199,6 +200,7 @@ int CmdLFParadox(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

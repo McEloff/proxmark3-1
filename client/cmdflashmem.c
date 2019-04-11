@@ -26,7 +26,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_flashmem_spibaud(void) {
+static int usage_flashmem_spibaud(void) {
     PrintAndLogEx(NORMAL, "Usage:  mem spibaud [h] <baudrate>");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "           h    this help");
@@ -40,7 +40,7 @@ int usage_flashmem_spibaud(void) {
     return 0;
 }
 
-int usage_flashmem_read(void) {
+static int usage_flashmem_read(void) {
     PrintAndLogEx(NORMAL, "Read flash memory on device");
     PrintAndLogEx(NORMAL, "Usage:  mem read o <offset> l <len>");
     PrintAndLogEx(NORMAL, "  o <offset>    :      offset in memory");
@@ -51,7 +51,7 @@ int usage_flashmem_read(void) {
     PrintAndLogEx(NORMAL, "        mem read o 1024 l 10"); // read 10 bytes starting at offset 1024
     return 0;
 }
-int usage_flashmem_load(void) {
+static int usage_flashmem_load(void) {
     PrintAndLogEx(NORMAL, "Loads binary file into flash memory on device");
     PrintAndLogEx(NORMAL, "Usage:  mem load o <offset> f <file name> m t i");
     PrintAndLogEx(NORMAL, "  o <offset>    :      offset in memory");
@@ -68,7 +68,7 @@ int usage_flashmem_load(void) {
     PrintAndLogEx(NORMAL, "        mem load f default_iclass_keys i");
     return 0;
 }
-int usage_flashmem_save(void) {
+static int usage_flashmem_save(void) {
     PrintAndLogEx(NORMAL, "Saves flash memory on device into the file");
     PrintAndLogEx(NORMAL, " Usage:  mem save o <offset> l <length> f <file name>");
     PrintAndLogEx(NORMAL, "  o <offset>    :      offset in memory");
@@ -81,7 +81,7 @@ int usage_flashmem_save(void) {
     PrintAndLogEx(NORMAL, "        mem save f myfile o 1024 l 4096");   // downlowd 4096 bytes from offset 1024 to file myfile
     return 0;
 }
-int usage_flashmem_wipe(void) {
+static int usage_flashmem_wipe(void) {
 
     PrintAndLogEx(WARNING, "[OBS] use with caution.");
     PrintAndLogEx(NORMAL, "Wipe flash memory on device, which fills memory with 0xFF\n");
@@ -95,7 +95,7 @@ int usage_flashmem_wipe(void) {
     PrintAndLogEx(NORMAL, "        mem wipe p 0");  // wipes first page.
     return 0;
 }
-int usage_flashmem_info(void) {
+static int usage_flashmem_info(void) {
     PrintAndLogEx(NORMAL, "Collect signature and verify it from flash memory\n");
     PrintAndLogEx(NORMAL, " Usage:  mem info [h|s|w]");
     PrintAndLogEx(NORMAL, "  s    :      create a signature");
@@ -140,7 +140,7 @@ int CmdFlashMemRead(const char *Cmd) {
         return 1;
     }
 
-    UsbCommand c = {CMD_FLASHMEM_READ, {start_index, len, 0}};
+    UsbCommand c = {CMD_FLASHMEM_READ, {start_index, len, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -153,7 +153,7 @@ int CmdFlashmemSpiBaudrate(const char *Cmd) {
     uint32_t baudrate = param_get32ex(Cmd, 0, 0, 10);
     baudrate = baudrate * 1000000;
     if (baudrate != FLASH_BAUD && baudrate != FLASH_MINBAUD) return usage_flashmem_spibaud();
-    UsbCommand c = {CMD_FLASHMEM_SET_SPIBAUDRATE, {baudrate, 0, 0}};
+    UsbCommand c = {CMD_FLASHMEM_SET_SPIBAUDRATE, {baudrate, 0, 0}, {{0}}};
     SendCommand(&c);
     return 0;
 }
@@ -275,7 +275,7 @@ int CmdFlashMemLoad(const char *Cmd) {
     while (bytes_remaining > 0) {
         uint32_t bytes_in_packet = MIN(FLASH_MEM_BLOCK_SIZE, bytes_remaining);
 
-        UsbCommand c = {CMD_FLASHMEM_WRITE, {start_index + bytes_sent, bytes_in_packet, 0}};
+        UsbCommand c = {CMD_FLASHMEM_WRITE, {start_index + bytes_sent, bytes_in_packet, 0}, {{0}}};
 
         memcpy(c.d.asBytes, data + bytes_sent, bytes_in_packet);
         clearCommandBuffer();
@@ -390,7 +390,7 @@ int CmdFlashMemWipe(const char *Cmd) {
     //Validations
     if (errors || cmdp == 0) return usage_flashmem_wipe();
 
-    UsbCommand c = {CMD_FLASHMEM_WIPE, {page, initalwipe, 0}};
+    UsbCommand c = {CMD_FLASHMEM_WIPE, {page, initalwipe, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -436,7 +436,7 @@ int CmdFlashMemInfo(const char *Cmd) {
     //Validations
     if (errors) return usage_flashmem_info();
 
-    UsbCommand c = {CMD_FLASHMEM_INFO, {0, 0, 0}};
+    UsbCommand c = {CMD_FLASHMEM_INFO, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -565,7 +565,7 @@ int CmdFlashMemInfo(const char *Cmd) {
 
         if (shall_write) {
             // save to mem
-            c = (UsbCommand) {CMD_FLASHMEM_WRITE, {FLASH_MEM_SIGNATURE_OFFSET, FLASH_MEM_SIGNATURE_LEN, 0}};
+            c = (UsbCommand) {CMD_FLASHMEM_WRITE, {FLASH_MEM_SIGNATURE_OFFSET, FLASH_MEM_SIGNATURE_LEN, 0}, {{0}}};
             memcpy(c.d.asBytes, sign, sizeof(sign));
             clearCommandBuffer();
             SendCommand(&c);
@@ -613,6 +613,7 @@ int CmdFlashMem(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

@@ -16,7 +16,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_hid_read(void) {
+static int usage_lf_hid_read(void) {
     PrintAndLogEx(NORMAL, "Enables HID compatible reader mode printing details.");
     PrintAndLogEx(NORMAL, "By default, values are printed and logged until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "If the [1] option is provided, reader mode is exited after reading a single HID card.");
@@ -31,7 +31,7 @@ int usage_lf_hid_read(void) {
     PrintAndLogEx(NORMAL, "       lf hid read 1");
     return 0;
 }
-int usage_lf_hid_wiegand(void) {
+static int usage_lf_hid_wiegand(void) {
     PrintAndLogEx(NORMAL, "This command converts facility code/card number to Wiegand code");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage: lf hid wiegand [h] [OEM] [FC] [CN]");
@@ -44,7 +44,7 @@ int usage_lf_hid_wiegand(void) {
     PrintAndLogEx(NORMAL, "      lf hid wiegand 0 101 2001");
     return 0;
 }
-int usage_lf_hid_sim(void) {
+static int usage_lf_hid_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of HID card with card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "");
@@ -56,7 +56,7 @@ int usage_lf_hid_sim(void) {
     PrintAndLogEx(NORMAL, "      lf hid sim 2006ec0c86");
     return 0;
 }
-int usage_lf_hid_clone(void) {
+static int usage_lf_hid_clone(void) {
     PrintAndLogEx(NORMAL, "Clone HID to T55x7.  Tag must be on antenna. ");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf hid clone [h] [ID] <L>");
@@ -69,7 +69,7 @@ int usage_lf_hid_clone(void) {
     PrintAndLogEx(NORMAL, "      lf hid clone 2006ec0c86 L");
     return 0;
 }
-int usage_lf_hid_brute(void) {
+static int usage_lf_hid_brute(void) {
     PrintAndLogEx(NORMAL, "Enables bruteforce of HID readers with specified facility code.");
     PrintAndLogEx(NORMAL, "This is a attack against reader. if cardnumber is given, it starts with it and goes up / down one step");
     PrintAndLogEx(NORMAL, "if cardnumber is not given, it starts with 1 and goes up to 65535");
@@ -92,7 +92,7 @@ int usage_lf_hid_brute(void) {
 
 // sending three times.  Didn't seem to break the previous sim?
 static bool sendPing(void) {
-    UsbCommand ping = {CMD_PING, {1, 2, 3}};
+    UsbCommand ping = {CMD_PING, {1, 2, 3}, {{0}}};
     SendCommand(&ping);
     SendCommand(&ping);
     SendCommand(&ping);
@@ -108,11 +108,11 @@ static bool sendTry(uint8_t fmtlen, uint32_t fc, uint32_t cn, uint32_t delay, ui
     if (verbose)
         PrintAndLogEx(INFO, "Trying FC: %u; CN: %u", fc, cn);
 
-    calcWiegand(fmtlen, fc, cn, bits);
+    calcWiegand(fmtlen, fc, cn, bits, 0);
 
     uint64_t arg1 = bytebits_to_byte(bits, 32);
     uint64_t arg2 = bytebits_to_byte(bits + 32, 32);
-    UsbCommand c = {CMD_HID_SIM_TAG, {arg1, arg2, 0}};
+    UsbCommand c = {CMD_HID_SIM_TAG, {arg1, arg2, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
 
@@ -125,6 +125,7 @@ static bool sendTry(uint8_t fmtlen, uint32_t fc, uint32_t cn, uint32_t delay, ui
 //HID Prox demod - FSK RF/50 with preamble of 00011101 (then manchester encoded)
 //print full HID Prox ID and some bit format details if found
 int CmdHIDDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     //raw fsk demod no manchester decoding no start bit finding just get binary from wave
     uint32_t hi2 = 0, hi = 0, lo = 0;
 
@@ -170,6 +171,7 @@ int CmdHIDDemod(const char *Cmd) {
         uint32_t cc = 0;
         uint32_t fc = 0;
         uint32_t cardnum = 0;
+        uint8_t oem = 0;
         if (((hi >> 5) & 1) == 1) {//if bit 38 is set then < 37 bit format is used
             uint32_t lo2 = 0;
             lo2 = (((hi & 31) << 12) | (lo >> 20)); //get bits 21-37 to check for format len bit
@@ -198,6 +200,11 @@ int CmdHIDDemod(const char *Cmd) {
                 cardnum = (lo >> 1) & 0xFFFFF;
                 fc = ((hi & 1) << 11) | (lo >> 21);
             }
+            if (fmtLen == 36) {
+                oem = (lo >> 1) & 0x3;
+                cardnum = (lo >> 3) & 0xFFFF;
+                fc = (hi & 0x7) << 13 | ((lo >> 19) & 0xFFFF);
+            }
         } else { //if bit 38 is not set then 37 bit format is used
             fmtLen = 37;
             fc = 0;
@@ -210,7 +217,8 @@ int CmdHIDDemod(const char *Cmd) {
         if (fmtLen == 32 && (lo & 0x40000000)) { //if 32 bit and Kastle bit set
             PrintAndLogEx(SUCCESS, "HID Prox TAG (Kastle format) ID: %08x (%u) - Format Len: 32bit - CC: %u - FC: %u - Card: %u", lo, (lo >> 1) & 0xFFFF, cc, fc, cardnum);
         } else {
-            PrintAndLogEx(SUCCESS, "HID Prox TAG ID: %x%08x (%u) - Format Len: %ubit - FC: %u - Card: %u", hi, lo, (lo >> 1) & 0xFFFF, fmtLen, fc, cardnum);
+            PrintAndLogEx(SUCCESS, "HID Prox TAG ID: %x%08x (%u) - Format Len: %ubit - OEM: %03u - FC: %u - Card: %u",
+                          hi, lo, cardnum, fmtLen, oem, fc, cardnum);
         }
     }
 
@@ -233,7 +241,7 @@ int CmdHIDRead_device(const char *Cmd) {
 
     if (Cmd[0] == 'h' || Cmd[0] == 'H') return usage_lf_hid_read();
     uint8_t findone = (Cmd[0] == '1') ? 1 : 0;
-    UsbCommand c = {CMD_HID_DEMOD_FSK, {findone, 0, 0}};
+    UsbCommand c = {CMD_HID_DEMOD_FSK, {findone, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -254,7 +262,7 @@ int CmdHIDSim(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "Simulating HID tag with ID %x%08x", hi, lo);
     PrintAndLogEx(SUCCESS, "Press pm3-button to abort simulation");
 
-    UsbCommand c = {CMD_HID_SIM_TAG, {hi, lo, 0}};
+    UsbCommand c = {CMD_HID_SIM_TAG, {hi, lo, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -264,7 +272,7 @@ int CmdHIDClone(const char *Cmd) {
 
     uint32_t hi2 = 0, hi = 0, lo = 0;
     uint32_t n = 0, i = 0;
-    UsbCommand c = {CMD_HID_CLONE_TAG};
+    UsbCommand c = {CMD_HID_CLONE_TAG, {0, 0, 0}, {{0}}};
 
     uint8_t ctmp = param_getchar(Cmd, 0);
     if (strlen(Cmd) == 0 || ctmp == 'H' || ctmp == 'h') return usage_lf_hid_clone();
@@ -397,6 +405,18 @@ static void calc34(uint16_t fc, uint32_t cardno, uint8_t *out) {
 // *lo = ((cardno & 0xFFFFF) << 1) | fc << 21;
 // *hi = (1 << 5) | ((fc >> 11) & 1);
 // }
+static void calc36(uint8_t oem, uint16_t fc, uint32_t cardno, uint8_t *out) {
+    // FC     1  - 16  - 16 bit
+    // cardno 17 - 33  - 16 bit
+    // oem    34 - 35  -  2 bit
+    // Odd  Parity  0th bit  1-18
+    // Even Parity 36th bit 19-35
+    uint8_t wiegand[34];
+    num_to_bytebits(fc, 16, wiegand);
+    num_to_bytebits(cardno & 0xFFFF, 16, wiegand + 16);
+    num_to_bytebits(oem, 2, wiegand + 32);
+    wiegand_add_parity_swapped(out, wiegand, sizeof(wiegand));
+}
 static void calc37S(uint16_t fc, uint32_t cardno, uint8_t *out) {
     // FC 2 - 17   - 16 bit
     // cardno 18 - 36  - 19 bit
@@ -425,7 +445,7 @@ static void calc37H(uint64_t cardno, uint8_t *out) {
 // *hi = (cardno >> 31);
 // }
 
-void calcWiegand(uint8_t fmtlen, uint16_t fc, uint64_t cardno, uint8_t *bits) {
+void calcWiegand(uint8_t fmtlen, uint16_t fc, uint64_t cardno, uint8_t *bits, uint8_t oem) {
     uint32_t cn32 = (cardno & 0xFFFFFFFF);
     switch (fmtlen) {
         case 26:
@@ -436,6 +456,9 @@ void calcWiegand(uint8_t fmtlen, uint16_t fc, uint64_t cardno, uint8_t *bits) {
             calc34(fc, cn32, bits);
             break;
         // case 35 : calc35(fc, cn32, bits); break;
+        case 36:
+            calc36(oem, fc, cn32, bits);
+            break;
         case 37:
             calc37S(fc, cn32, bits);
             break;
@@ -453,11 +476,8 @@ void calcWiegand(uint8_t fmtlen, uint16_t fc, uint64_t cardno, uint8_t *bits) {
 int CmdHIDWiegand(const char *Cmd) {
     uint32_t oem = 0, fc = 0;
     uint64_t cardnum = 0;
-    uint64_t blocks = 0, wiegand = 0;
-
-    uint8_t bits[BITS];
+    uint8_t bits[BITS] = {0};
     uint8_t *bs = bits;
-    memset(bs, 0, sizeof(bits));
 
     uint8_t ctmp = tolower(param_getchar(Cmd, 0));
     if (strlen(Cmd) < 3 || ctmp == 'h') return usage_lf_hid_wiegand();
@@ -466,19 +486,19 @@ int CmdHIDWiegand(const char *Cmd) {
     fc = param_get32ex(Cmd, 1, 0, 10);
     cardnum = param_get64ex(Cmd, 2, 0, 10);
 
-    uint8_t fmtlen[] = {26, 33, 34, 35, 37, 38, 40};
+    uint8_t fmtlen[] = {26, 33, 34, 35, 36, 37, 38, 40};
 
     PrintAndLogEx(NORMAL, "HID | OEM | FC   | CN      |  Wiegand  |  HID Formatted");
     PrintAndLogEx(NORMAL, "----+-----+------+---------+-----------+--------------------");
     for (uint8_t i = 0; i < sizeof(fmtlen); i++) {
         memset(bits, 0x00, sizeof(bits));
-        calcWiegand(fmtlen[i], fc, cardnum, bs);
+        calcWiegand(fmtlen[i], fc, cardnum, bs, oem);
         PrintAndLogEx(NORMAL, "ice:: %s \n", sprint_bin(bs, fmtlen[i]));
-        wiegand = (uint64_t)bytebits_to_byte(bs, 32) << 32 | bytebits_to_byte(bs + 32, 32);
+        uint64_t wiegand = (uint64_t)bytebits_to_byte(bs, 32) << 32 | bytebits_to_byte(bs + 32, 32);
 
         addHIDMarker(fmtlen[i], bs);
         PrintAndLogEx(NORMAL, "ice:: %s\n", sprint_bin(bs, BITS));
-        blocks = (uint64_t)bytebits_to_byte(bs + 32, 32) << 32 | bytebits_to_byte(bs + 64, 32);
+        uint64_t blocks = (uint64_t)bytebits_to_byte(bs + 32, 32) << 32 | bytebits_to_byte(bs + 64, 32);
         uint8_t shifts = 64 - fmtlen[i];
         wiegand >>= shifts;
 
@@ -602,6 +622,7 @@ int CmdLFHID(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

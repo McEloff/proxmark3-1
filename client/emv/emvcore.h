@@ -43,7 +43,7 @@ enum TransactionType {
     TT_QVSDCMCHIP,
     TT_CDA,
 };
-extern char *TransactionTypeStr[];
+extern const char *TransactionTypeStr[];
 
 typedef struct {
     uint8_t CLA;
@@ -61,8 +61,8 @@ enum CardPSVendor {
     CV_AMERICANEXPRESS,
     CV_JCB,
     CV_CB,
-	CV_SWITCH,
-	CV_DINERS,
+    CV_SWITCH,
+    CV_DINERS,
     CV_OTHER,
 };
 enum CardPSVendor GetCardPSVendor(uint8_t *AID, size_t AIDlen);

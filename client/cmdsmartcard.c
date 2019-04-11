@@ -12,7 +12,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_sm_raw(void) {
+static int usage_sm_raw(void) {
     PrintAndLogEx(NORMAL, "Usage: sc raw [h|r|c] d <0A 0B 0C ... hex>");
     PrintAndLogEx(NORMAL, "       h          :  this help");
     PrintAndLogEx(NORMAL, "       r          :  do not read response");
@@ -30,7 +30,7 @@ int usage_sm_raw(void) {
 
     return 0;
 }
-int usage_sm_reader(void) {
+static int usage_sm_reader(void) {
     PrintAndLogEx(NORMAL, "Usage: sc reader [h|s]");
     PrintAndLogEx(NORMAL, "       h          :  this help");
     PrintAndLogEx(NORMAL, "       s          :  silent (no messages)");
@@ -39,7 +39,7 @@ int usage_sm_reader(void) {
     PrintAndLogEx(NORMAL, "        sc reader");
     return 0;
 }
-int usage_sm_info(void) {
+static int usage_sm_info(void) {
     PrintAndLogEx(NORMAL, "Usage: s info [h|s]");
     PrintAndLogEx(NORMAL, "       h          :  this help");
     PrintAndLogEx(NORMAL, "       s          :  silent (no messages)");
@@ -48,7 +48,7 @@ int usage_sm_info(void) {
     PrintAndLogEx(NORMAL, "        sc info");
     return 0;
 }
-int usage_sm_upgrade(void) {
+static int usage_sm_upgrade(void) {
     PrintAndLogEx(NORMAL, "Upgrade RDV4.0 Sim module firmware");
     PrintAndLogEx(NORMAL, "Usage:  sc upgrade f <file name>");
     PrintAndLogEx(NORMAL, "       h               :  this help");
@@ -58,7 +58,7 @@ int usage_sm_upgrade(void) {
     PrintAndLogEx(NORMAL, "        sc upgrade f ../tools/simmodule/SIM011.BIN");
     return 0;
 }
-int usage_sm_setclock(void) {
+static int usage_sm_setclock(void) {
     PrintAndLogEx(NORMAL, "Usage: sc setclock [h] c <clockspeed>");
     PrintAndLogEx(NORMAL, "       h          :  this help");
     PrintAndLogEx(NORMAL, "       c <>       :  clockspeed (0 = 16mhz, 1=8mhz, 2=4mhz) ");
@@ -67,7 +67,7 @@ int usage_sm_setclock(void) {
     PrintAndLogEx(NORMAL, "        sc setclock c 2");
     return 0;
 }
-int usage_sm_brute(void) {
+static int usage_sm_brute(void) {
     PrintAndLogEx(NORMAL, "Tries to bruteforce SFI, using a known list of AID's ");
     PrintAndLogEx(NORMAL, "Usage: sc brute [h]");
     PrintAndLogEx(NORMAL, "       h          :  this help");
@@ -109,7 +109,7 @@ out:
     return retval;
 }
 
-uint8_t GetATRTA1(uint8_t *atr, size_t atrlen) {
+static uint8_t GetATRTA1(uint8_t *atr, size_t atrlen) {
     if (atrlen > 2) {
         uint8_t T0 = atr[1];
         if (T0 & 0x10)
@@ -176,17 +176,17 @@ float FArray[] = {
     0     // b1111 RFU
 };
 
-int GetATRDi(uint8_t *atr, size_t atrlen) {
+static int GetATRDi(uint8_t *atr, size_t atrlen) {
     uint8_t TA1 = GetATRTA1(atr, atrlen);
     return DiArray[TA1 & 0x0F];  // The 4 low-order bits of TA1 (4th MSbit to 1st LSbit) encode Di
 }
 
-int GetATRFi(uint8_t *atr, size_t atrlen) {
+static int GetATRFi(uint8_t *atr, size_t atrlen) {
     uint8_t TA1 = GetATRTA1(atr, atrlen);
     return FiArray[TA1 >> 4];  // The 4 high-order bits of TA1 (8th MSbit to 5th LSbit) encode fmax and Fi
 }
 
-float GetATRF(uint8_t *atr, size_t atrlen) {
+static float GetATRF(uint8_t *atr, size_t atrlen) {
     uint8_t TA1 = GetATRTA1(atr, atrlen);
     return FArray[TA1 >> 4];  // The 4 high-order bits of TA1 (8th MSbit to 5th LSbit) encode fmax and Fi
 }
@@ -312,7 +312,7 @@ bool smart_select(bool silent, smart_card_atr_t *atr) {
     if (atr)
         memset(atr, 0, sizeof(smart_card_atr_t));
 
-    UsbCommand c = {CMD_SMART_ATR, {0, 0, 0}};
+    UsbCommand c = {CMD_SMART_ATR, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -378,7 +378,7 @@ static int smart_responseEx(uint8_t *data, bool silent) {
         int len = data[datalen - 1];
         if (!silent) PrintAndLogEx(INFO, "Requesting 0x%02X bytes response", len);
         uint8_t getstatus[] = {0x00, ISO7816_GET_RESPONSE, 0x00, 0x00, len};
-        UsbCommand cStatus = {CMD_SMART_RAW, {SC_RAW, sizeof(getstatus), 0}};
+        UsbCommand cStatus = {CMD_SMART_RAW, {SC_RAW, sizeof(getstatus), 0}, {{0}}};
         memcpy(cStatus.d.asBytes, getstatus, sizeof(getstatus));
         clearCommandBuffer();
         SendCommand(&cStatus);
@@ -485,7 +485,7 @@ int CmdSmartRaw(const char *Cmd) {
 
     // arg0 = RFU flags
     // arg1 = length
-    UsbCommand c = {CMD_SMART_RAW, {0, hexlen, 0}};
+    UsbCommand c = {CMD_SMART_RAW, {0, hexlen, 0}, {{0}}};
 
     if (active || active_select) {
         c.arg[0] |= SC_CONNECT;
@@ -544,7 +544,7 @@ int ExchangeAPDUSC(uint8_t *datain, int datainlen, bool activateCard, bool leave
 
     PrintAndLogEx(DEBUG, "APDU SC");
 
-    UsbCommand c = {CMD_SMART_RAW, {SC_RAW_T0, datainlen, 0}};
+    UsbCommand c = {CMD_SMART_RAW, {SC_RAW_T0, datainlen, 0}, {{0}}};
     if (activateCard) {
         c.arg[0] |= SC_SELECT | SC_CONNECT;
     }
@@ -560,7 +560,7 @@ int ExchangeAPDUSC(uint8_t *datain, int datainlen, bool activateCard, bool leave
 
     // retry
     if (len > 1 && dataout[len - 2] == 0x6c && datainlen > 4) {
-        UsbCommand c2 = {CMD_SMART_RAW, {SC_RAW_T0, datainlen, 0}};
+        UsbCommand c2 = {CMD_SMART_RAW, {SC_RAW_T0, datainlen, 0}, {{0}}};
         memcpy(c2.d.asBytes, datain, 5);
 
         // transfer length via T=0
@@ -723,7 +723,7 @@ int CmdSmartUpgrade(const char *Cmd) {
 
     while (bytes_remaining > 0) {
         uint32_t bytes_in_packet = MIN(USB_CMD_DATA_SIZE, bytes_remaining);
-        UsbCommand c = {CMD_SMART_UPLOAD, {index + bytes_sent, bytes_in_packet, 0}};
+        UsbCommand c = {CMD_SMART_UPLOAD, {index + bytes_sent, bytes_in_packet, 0}, {{0}}};
 
         // Fill usb bytes with 0xFF
         memset(c.d.asBytes, 0xFF, USB_CMD_DATA_SIZE);
@@ -746,7 +746,7 @@ int CmdSmartUpgrade(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "Sim module firmware updating,  don\'t turn off your PM3!");
 
     // trigger the firmware upgrade
-    UsbCommand c = {CMD_SMART_UPGRADE, {firmware_size, 0, 0}};
+    UsbCommand c = {CMD_SMART_UPGRADE, {firmware_size, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -785,7 +785,7 @@ int CmdSmartInfo(const char *Cmd) {
     //Validations
     if (errors) return usage_sm_info();
 
-    UsbCommand c = {CMD_SMART_ATR, {0, 0, 0}};
+    UsbCommand c = {CMD_SMART_ATR, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -860,7 +860,7 @@ int CmdSmartReader(const char *Cmd) {
     //Validations
     if (errors) return usage_sm_reader();
 
-    UsbCommand c = {CMD_SMART_ATR, {0, 0, 0}};
+    UsbCommand c = {CMD_SMART_ATR, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -906,7 +906,7 @@ int CmdSmartSetClock(const char *Cmd) {
     //Validations
     if (errors || cmdp == 0) return usage_sm_setclock();
 
-    UsbCommand c = {CMD_SMART_SETCLOCK, {clock1, 0, 0}};
+    UsbCommand c = {CMD_SMART_SETCLOCK, {clock1, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -938,6 +938,7 @@ int CmdSmartSetClock(const char *Cmd) {
 }
 
 int CmdSmartList(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdTraceList("7816");
     return 0;
 }
@@ -957,7 +958,7 @@ static void smart_brute_prim() {
 
     PrintAndLogEx(INFO, "Reading primitives");
 
-    UsbCommand c = {CMD_SMART_RAW, {SC_RAW_T0, 5, 0}};
+    UsbCommand c = {CMD_SMART_RAW, {SC_RAW_T0, 5, 0}, {{0}}};
 
     for (int i = 0; i < sizeof(get_card_data); i += 5) {
 
@@ -987,7 +988,7 @@ static int smart_brute_sfi(bool decodeTLV) {
     int len;
     // READ RECORD
     uint8_t READ_RECORD[] = {0x00, 0xB2, 0x00, 0x00, 0x00};
-    UsbCommand c = {CMD_SMART_RAW, {SC_RAW_T0, sizeof(READ_RECORD), 0}};
+    UsbCommand c = {CMD_SMART_RAW, {SC_RAW_T0, sizeof(READ_RECORD), 0}, {{0}}};
 
     PrintAndLogEx(INFO, "Start SFI brute forcing");
 
@@ -1054,7 +1055,7 @@ static void smart_brute_options(bool decodeTLV) {
     uint8_t GET_PROCESSING_OPTIONS[] = {0x80, 0xA8, 0x00, 0x00, 0x02, 0x83, 0x00, 0x00};
 
     // Get processing options command
-    UsbCommand c = {CMD_SMART_RAW, {SC_RAW_T0, sizeof(GET_PROCESSING_OPTIONS), 0}};
+    UsbCommand c = {CMD_SMART_RAW, {SC_RAW_T0, sizeof(GET_PROCESSING_OPTIONS), 0}, {{0}}};
     memcpy(c.d.asBytes, GET_PROCESSING_OPTIONS, sizeof(GET_PROCESSING_OPTIONS));
     clearCommandBuffer();
     SendCommand(&c);
@@ -1111,7 +1112,7 @@ int CmdSmartBruteforceSFI(const char *Cmd) {
 //  uint8_t VERIFY[] = {0x00, 0x20, 0x00, 0x80};
 
     // Select AID command
-    UsbCommand cAid = {CMD_SMART_RAW, {SC_RAW_T0, 0, 0}};
+    UsbCommand cAid = {CMD_SMART_RAW, {SC_RAW_T0, 0, 0}, {{0}}};
 
     PrintAndLogEx(INFO, "Importing AID list");
     json_t *root = NULL;
@@ -1235,6 +1236,7 @@ int CmdSmartcard(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

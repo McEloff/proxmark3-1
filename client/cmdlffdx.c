@@ -31,7 +31,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_fdx_clone(void) {
+static int usage_lf_fdx_clone(void) {
     PrintAndLogEx(NORMAL, "Clone a FDX-B animal tag to a T55x7 tag.");
     PrintAndLogEx(NORMAL, "Usage: lf fdx clone [h] <country id> <animal id> <Q5>");
     PrintAndLogEx(NORMAL, "Options:");
@@ -49,7 +49,7 @@ int usage_lf_fdx_clone(void) {
     return 0;
 }
 
-int usage_lf_fdx_sim(void) {
+static int usage_lf_fdx_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of FDX-B animal tag");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "");
@@ -158,6 +158,7 @@ int getFDXBits(uint64_t national_id, uint16_t country, uint8_t isanimal, uint8_t
 -- sample: 985121004515220  [ 37FF65B88EF94 ]
 */
 int CmdFDXBdemodBI(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     int clk = 32;
     int invert = 1, errCnt = 0, offset = 0, maxErr = 100;
@@ -202,7 +203,7 @@ int CmdFDXBdemodBI(const char *Cmd) {
     uint8_t dataBlockBit = bs[48];
     uint32_t reservedCode = bytebits_to_byteLSBF(bs + 49, 14);
     uint8_t animalBit = bs[63];
-    uint32_t crc16 = bytebits_to_byteLSBF(bs + 64, 16);
+    uint32_t crc_16 = bytebits_to_byteLSBF(bs + 64, 16);
     uint32_t extended = bytebits_to_byteLSBF(bs + 80, 24);
 
     uint64_t rawid = ((uint64_t)bytebits_to_byte(bs, 32) << 32) | bytebits_to_byte(bs + 32, 32);
@@ -219,7 +220,7 @@ int CmdFDXBdemodBI(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "Reserved/RFU:      %u", reservedCode);
     PrintAndLogEx(SUCCESS, "Animal Tag:        %s", animalBit ? _YELLOW_("True") : "False");
     PrintAndLogEx(SUCCESS, "Has extended data: %s [0x%X]", dataBlockBit ? _YELLOW_("True") : "False", extended);
-    PrintAndLogEx(SUCCESS, "CRC:           0x%04X - [%04X] - %s", crc16, calcCrc, (calcCrc == crc16) ? _GREEN_("Passed") : "Failed");
+    PrintAndLogEx(SUCCESS, "CRC:           0x%04X - [%04X] - %s", crc_16, calcCrc, (calcCrc == crc_16) ? _GREEN_("Passed") : "Failed");
 
     if (g_debugMode) {
         PrintAndLogEx(DEBUG, "Start marker %d;   Size %d", preambleIndex, size);
@@ -233,6 +234,7 @@ int CmdFDXBdemodBI(const char *Cmd) {
 //see ASKDemod for what args are accepted
 //almost the same demod as cmddata.c/CmdFDXBdemodBI
 int CmdFdxDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     //Differential Biphase / di-phase (inverted biphase)
     //get binary from ask wave
@@ -271,7 +273,7 @@ int CmdFdxDemod(const char *Cmd) {
     uint8_t dataBlockBit = DemodBuffer[48];
     uint32_t reservedCode = bytebits_to_byteLSBF(DemodBuffer + 49, 14);
     uint8_t animalBit = DemodBuffer[63];
-    uint32_t crc16 = bytebits_to_byteLSBF(DemodBuffer + 64, 16);
+    uint32_t crc_16 = bytebits_to_byteLSBF(DemodBuffer + 64, 16);
     uint32_t extended = bytebits_to_byteLSBF(DemodBuffer + 80, 24);
     uint64_t rawid = (uint64_t)(bytebits_to_byte(DemodBuffer, 32)) << 32 | bytebits_to_byte(DemodBuffer + 32, 32);
     uint8_t raw[8];
@@ -287,7 +289,7 @@ int CmdFdxDemod(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "Reserved/RFU       %u (0x04%X)", reservedCode,  reservedCode);
     PrintAndLogEx(SUCCESS, "Animal Tag         %s", animalBit ? _YELLOW_("True") : "False");
     PrintAndLogEx(SUCCESS, "Has extended data  %s [0x%X]", dataBlockBit ? _YELLOW_("True") : "False", extended);
-    PrintAndLogEx(SUCCESS, "CRC-16             0x%04X - 0x%04X [%s]", crc16, calcCrc, (calcCrc == crc16) ? _GREEN_("Ok") : "Failed");
+    PrintAndLogEx(SUCCESS, "CRC-16             0x%04X - 0x%04X [%s]", crc_16, calcCrc, (calcCrc == crc_16) ? _GREEN_("Ok") : "Failed");
 
     if (g_debugMode) {
         PrintAndLogEx(DEBUG, "Start marker %d;   Size %d", preambleIndex, size);
@@ -343,7 +345,7 @@ int CmdFdxClone(const char *Cmd) {
     print_blocks(blocks, 5);
 
     UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
 
     for (int i = 4; i >= 0; --i) {
         c.arg[0] = blocks[i];
@@ -379,7 +381,7 @@ int CmdFdxSim(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "Simulating FDX-B animal ID: %04u-%"PRIu64, countryid, animalid);
 
-    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}, {{0}}};
 
     //getFDXBits(uint64_t national_id, uint16_t country, uint8_t isanimal, uint8_t isextended, uint32_t extended, uint8_t *bits)
     getFDXBits(animalid, countryid, 1, 0, 0, c.d.asBytes);
@@ -404,6 +406,7 @@ int CmdLFFdx(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

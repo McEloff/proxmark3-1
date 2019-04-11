@@ -655,7 +655,6 @@ static RAMFUNC int ManchesterDecoding_iclass(uint32_t v) {
                     return false;
                 }
             }
-            error = 0;
         }
         return false;
     }
@@ -995,6 +994,7 @@ static bool GetIClassCommandFromReader(uint8_t *received, int *len, int maxLen) 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_ISO14443A | FPGA_HF_ISO14443A_TAGSIM_LISTEN);
     // clear RXRDY:
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
+    (void)b;
 
     while (!BUTTON_PRESS()) {
         WDT_HIT();
@@ -1798,6 +1798,7 @@ static int GetIClassAnswer(uint8_t *receivedResponse, int maxLen, int *samples, 
 
     // clear RXRDY:
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
+    (void)b;
 
     while (!BUTTON_PRESS()) {
         WDT_HIT();

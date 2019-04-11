@@ -14,7 +14,7 @@
 #define TIMEOUT 2000
 static int CmdHelp(const char *Cmd);
 
-int usage_hf_14b_info(void) {
+static int usage_hf_14b_info(void) {
     PrintAndLogEx(NORMAL, "Usage: hf 14b info [h] [s]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h    this help");
@@ -23,7 +23,7 @@ int usage_hf_14b_info(void) {
     PrintAndLogEx(NORMAL, "       hf 14b info");
     return 0;
 }
-int usage_hf_14b_reader(void) {
+static int usage_hf_14b_reader(void) {
     PrintAndLogEx(NORMAL, "Usage: hf 14b reader [h] [s]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h    this help");
@@ -32,7 +32,7 @@ int usage_hf_14b_reader(void) {
     PrintAndLogEx(NORMAL, "       hf 14b reader");
     return 0;
 }
-int usage_hf_14b_raw(void) {
+static int usage_hf_14b_raw(void) {
     PrintAndLogEx(NORMAL, "Usage: hf 14b raw [-h] [-r] [-c] [-p] [-s / -ss] [-t] <0A 0B 0C ... hex>");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       -h    this help");
@@ -46,7 +46,7 @@ int usage_hf_14b_raw(void) {
     PrintAndLogEx(NORMAL, "       hf 14b raw -s -c -p 0200a40400");
     return 0;
 }
-int usage_hf_14b_sniff(void) {
+static int usage_hf_14b_sniff(void) {
     PrintAndLogEx(NORMAL, "It get data from the field and saves it into command buffer.");
     PrintAndLogEx(NORMAL, "Buffer accessible from command 'hf list 14b'");
     PrintAndLogEx(NORMAL, "Usage: hf 14b sniff [h]");
@@ -56,7 +56,7 @@ int usage_hf_14b_sniff(void) {
     PrintAndLogEx(NORMAL, "       hf 14b sniff");
     return 0;
 }
-int usage_hf_14b_sim(void) {
+static int usage_hf_14b_sim(void) {
     PrintAndLogEx(NORMAL, "Emulating ISO/IEC 14443 type B tag with 4 UID / PUPI");
     PrintAndLogEx(NORMAL, "Usage: hf 14b sim [h] u <uid>");
     PrintAndLogEx(NORMAL, "Options:");
@@ -67,7 +67,7 @@ int usage_hf_14b_sim(void) {
     PrintAndLogEx(NORMAL, "       hf 14b sim u 11223344");
     return 0;
 }
-int usage_hf_14b_read_srx(void) {
+static int usage_hf_14b_read_srx(void) {
     PrintAndLogEx(NORMAL, "Usage:  hf 14b sriread [h] <1|2>");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h        this help");
@@ -77,7 +77,7 @@ int usage_hf_14b_read_srx(void) {
     PrintAndLogEx(NORMAL, "       hf 14b sriread 2");
     return 0;
 }
-int usage_hf_14b_write_srx(void) {
+static int usage_hf_14b_write_srx(void) {
     PrintAndLogEx(NORMAL, "Usage:  hf 14b [h] sriwrite <1|2> <BLOCK> <DATA>");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h        this help");
@@ -91,7 +91,7 @@ int usage_hf_14b_write_srx(void) {
     PrintAndLogEx(NORMAL, "       hf 14b sriwrite 2 FF 11223344");
     return 0;
 }
-int usage_hf_14b_dump(void) {
+static int usage_hf_14b_dump(void) {
     PrintAndLogEx(NORMAL, "This command dumps the contents of a ISO-14443-B tag and save it to file\n"
                   "\n"
                   "Usage: hf 14b dump [h] [card memory] <f filname> \n"
@@ -108,20 +108,21 @@ int usage_hf_14b_dump(void) {
 
 /*
 static void switch_on_field_14b(void) {
-    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT, 0, 0}};
+    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
 }
 */
 
 static int switch_off_field_14b(void) {
-    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_DISCONNECT, 0, 0}};
+    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_DISCONNECT, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
 }
 
 int CmdHF14BList(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdTraceList("14b");
     return 0;
 }
@@ -135,7 +136,7 @@ int CmdHF14BSim(const char *Cmd) {
         pupi = param_get32ex(Cmd, 1, 0, 16);
     }
 
-    UsbCommand c = {CMD_SIMULATE_TAG_ISO_14443B, {pupi, 0, 0}};
+    UsbCommand c = {CMD_SIMULATE_TAG_ISO_14443B, {pupi, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -146,7 +147,7 @@ int CmdHF14BSniff(const char *Cmd) {
     char cmdp = tolower(param_getchar(Cmd, 0));
     if (cmdp == 'h') return usage_hf_14b_sniff();
 
-    UsbCommand c = {CMD_SNIFF_ISO_14443B, {0, 0, 0}};
+    UsbCommand c = {CMD_SNIFF_ISO_14443B, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -241,7 +242,7 @@ int CmdHF14BCmdRaw(const char *Cmd) {
     // Max buffer is USB_CMD_DATA_SIZE
     datalen = (datalen > USB_CMD_DATA_SIZE) ? USB_CMD_DATA_SIZE : datalen;
 
-    UsbCommand c = {CMD_ISO_14443B_COMMAND, {flags, datalen, time_wait}};
+    UsbCommand c = {CMD_ISO_14443B_COMMAND, {flags, datalen, time_wait}, {{0}}};
     memcpy(c.d.asBytes, data, datalen);
     clearCommandBuffer();
     SendCommand(&c);
@@ -266,7 +267,7 @@ static bool get_14b_UID(iso14b_card_select_t *card) {
 
     int8_t retry = 3;
     UsbCommand resp;
-    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT | ISO14B_SELECT_SR | ISO14B_DISCONNECT, 0, 0}};
+    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT | ISO14B_SELECT_SR | ISO14B_DISCONNECT, 0, 0}, {{0}}};
 
     // test for 14b SR
     while (retry--) {
@@ -472,7 +473,7 @@ bool HF14B_Std_Info(bool verbose) {
     bool isSuccess = false;
 
     // 14b get and print UID only (general info)
-    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT | ISO14B_SELECT_STD | ISO14B_DISCONNECT, 0, 0}};
+    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT | ISO14B_SELECT_STD | ISO14B_DISCONNECT, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -513,7 +514,7 @@ bool HF14B_Std_Info(bool verbose) {
 // SRx get and print full info (needs more info...)
 bool HF14B_ST_Info(bool verbose) {
 
-    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT | ISO14B_SELECT_SR | ISO14B_DISCONNECT, 0, 0}};
+    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT | ISO14B_SELECT_SR | ISO14B_DISCONNECT, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -585,7 +586,7 @@ bool HF14B_ST_Reader(bool verbose) {
     bool isSuccess = false;
 
     // SRx get and print general info about SRx chip from UID
-    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT | ISO14B_SELECT_SR | ISO14B_DISCONNECT, 0, 0}};
+    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT | ISO14B_SELECT_SR | ISO14B_DISCONNECT, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -625,7 +626,7 @@ bool HF14B_Std_Reader(bool verbose) {
     bool isSuccess = false;
 
     // 14b get and print UID only (general info)
-    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT | ISO14B_SELECT_STD | ISO14B_DISCONNECT, 0, 0}};
+    UsbCommand c = {CMD_ISO_14443B_COMMAND, {ISO14B_CONNECT | ISO14B_SELECT_STD | ISO14B_DISCONNECT, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -670,7 +671,7 @@ bool HF14B_Other_Reader() {
     // // 14b get and print UID only (general info)
     // uint32_t flags = ISO14B_CONNECT | ISO14B_SELECT_STD | ISO14B_RAW | ISO14B_APPEND_CRC;
 
-    // UsbCommand c = {CMD_ISO_14443B_COMMAND, {flags, datalen, 0}};
+    // UsbCommand c = {CMD_ISO_14443B_COMMAND, {flags, datalen, 0}, {{0}}};
     // memcpy(c.d.asBytes, data, datalen);
 
     // clearCommandBuffer();
@@ -757,7 +758,7 @@ int CmdHF14BReadSri(const char *Cmd) {
     uint8_t tagtype = param_get8(Cmd, 0);
     uint8_t blocks = (tagtype == 1) ? 0x7F : 0x0F;
 
-    UsbCommand c = {CMD_READ_SRI_TAG, {blocks, 0, 0}};
+    UsbCommand c = {CMD_READ_SRI_TAG, {blocks, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -897,7 +898,7 @@ int CmdHF14BDump(const char *Cmd) {
     uint8_t *recv = NULL;
 
     UsbCommand resp;
-    UsbCommand c = {CMD_ISO_14443B_COMMAND, { ISO14B_CONNECT | ISO14B_SELECT_SR, 0, 0}};
+    UsbCommand c = {CMD_ISO_14443B_COMMAND, { ISO14B_CONNECT | ISO14B_SELECT_SR, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
 
@@ -1072,6 +1073,7 @@ uint32_t srix4kGetMagicbytes(uint64_t uid, uint32_t block6, uint32_t block18, ui
     return result;
 }
 int srix4kValid(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     uint64_t uid = 0xD00202501A4532F9;
     uint32_t block6 = 0xFFFFFFFF;
@@ -1132,7 +1134,7 @@ static command_t CommandTable[] = {
     {"help",        CmdHelp,        1, "This help"},
     {"dump",        CmdHF14BDump,   0, "Read all memory pages of an ISO14443-B tag, save to file"},
     {"info",        CmdHF14Binfo,   0, "Tag information"},
-    {"list",        CmdHF14BList,   0, "[Deprecated] List ISO 14443B history"},
+    {"list",        CmdHF14BList,   0, "List ISO 14443B history"},
     {"raw",         CmdHF14BCmdRaw, 0, "Send raw hex data to tag"},
     {"reader",      CmdHF14BReader, 0, "Act as a 14443B reader to identify a tag"},
     {"sim",         CmdHF14BSim,    0, "Fake ISO 14443B tag"},
@@ -1150,6 +1152,7 @@ int CmdHF14B(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

@@ -11,7 +11,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_analyse_lcr(void) {
+static int usage_analyse_lcr(void) {
     PrintAndLogEx(NORMAL, "Specifying the bytes of a UID with a known LRC will find the last byte value");
     PrintAndLogEx(NORMAL, "needed to generate that LRC with a rolling XOR. All bytes should be specified in HEX.");
     PrintAndLogEx(NORMAL, "");
@@ -25,7 +25,7 @@ int usage_analyse_lcr(void) {
     PrintAndLogEx(NORMAL, "expected output: Target (BA) requires final LRC XOR byte value: 5A");
     return 0;
 }
-int usage_analyse_checksum(void) {
+static int usage_analyse_checksum(void) {
     PrintAndLogEx(NORMAL, "The bytes will be added with eachother and than limited with the applied mask");
     PrintAndLogEx(NORMAL, "Finally compute ones' complement of the least significant bytes");
     PrintAndLogEx(NORMAL, "");
@@ -41,7 +41,7 @@ int usage_analyse_checksum(void) {
     PrintAndLogEx(NORMAL, "expected output: 0x61");
     return 0;
 }
-int usage_analyse_crc(void) {
+static int usage_analyse_crc(void) {
     PrintAndLogEx(NORMAL, "A stub method to test different crc implementations inside the PM3 sourcecode. Just because you figured out the poly, doesn't mean you get the desired output");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  analyse crc [h] <bytes>");
@@ -53,7 +53,7 @@ int usage_analyse_crc(void) {
     PrintAndLogEx(NORMAL, "      analyse crc 137AF00A0A0D");
     return 0;
 }
-int usage_analyse_nuid(void) {
+static int usage_analyse_nuid(void) {
     PrintAndLogEx(NORMAL, "Generate 4byte NUID from 7byte UID");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  analyse hid [h] <bytes>");
@@ -65,7 +65,7 @@ int usage_analyse_nuid(void) {
     PrintAndLogEx(NORMAL, "      analyse nuid 11223344556677");
     return 0;
 }
-int usage_analyse_a(void) {
+static int usage_analyse_a(void) {
     PrintAndLogEx(NORMAL, "Iceman's personal garbage test command");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  analyse a [h] d <bytes>");
@@ -300,7 +300,7 @@ int CmdAnalyseCRC(const char *Cmd) {
     // ISO14443 crc B
     compute_crc(CRC_14443_B, data, len, &b1, &b2);
     uint16_t crcBB_1 = b1 << 8 | b2;
-    uint16_t bbb = Crc(CRC_14443_B, data, len);
+    uint16_t bbb = Crc16ex(CRC_14443_B, data, len);
     PrintAndLogEx(NORMAL, "ISO14443 crc B  | %04x == %04x \n", crcBB_1, bbb);
 
 
@@ -321,40 +321,40 @@ int CmdAnalyseCRC(const char *Cmd) {
     PrintAndLogEx(NORMAL, "CRC16 based\n\n");
 
     // input from commandline
-    PrintAndLogEx(NORMAL, "CCITT  | %X (29B1 expected)", Crc(CRC_CCITT, dataStr, sizeof(dataStr)));
+    PrintAndLogEx(NORMAL, "CCITT  | %X (29B1 expected)", Crc16ex(CRC_CCITT, dataStr, sizeof(dataStr)));
 
     uint8_t poll[] = {0xb2, 0x4d, 0x12, 0x01, 0x01, 0x2e, 0x3d, 0x17, 0x26, 0x47, 0x80, 0x95, 0x00, 0xf1, 0x00, 0x00, 0x00, 0x01, 0x43, 0x00, 0xb3, 0x7f};
-    PrintAndLogEx(NORMAL, "FeliCa | %04X (B37F expected)", Crc(CRC_FELICA, poll + 2, sizeof(poll) - 4));
-    PrintAndLogEx(NORMAL, "FeliCa | %04X (0000 expected)", Crc(CRC_FELICA, poll + 2, sizeof(poll) - 2));
+    PrintAndLogEx(NORMAL, "FeliCa | %04X (B37F expected)", Crc16ex(CRC_FELICA, poll + 2, sizeof(poll) - 4));
+    PrintAndLogEx(NORMAL, "FeliCa | %04X (0000 expected)", Crc16ex(CRC_FELICA, poll + 2, sizeof(poll) - 2));
 
     uint8_t sel_corr[] = { 0x40, 0xe1, 0xe1, 0xff, 0xfe, 0x5f, 0x02, 0x3c, 0x43, 0x01};
-    PrintAndLogEx(NORMAL, "iCLASS | %04x (0143 expected)", Crc(CRC_ICLASS, sel_corr, sizeof(sel_corr) - 2));
+    PrintAndLogEx(NORMAL, "iCLASS | %04x (0143 expected)", Crc16ex(CRC_ICLASS, sel_corr, sizeof(sel_corr) - 2));
     PrintAndLogEx(NORMAL, "---------------------------------------------------------------\n\n\n");
 
     // ISO14443 crc A
     compute_crc(CRC_14443_A, dataStr, sizeof(dataStr), &b1, &b2);
     uint16_t crcAA = b1 << 8 | b2;
-    PrintAndLogEx(NORMAL, "ISO14443 crc A  | %04x or %04x (BF05 expected)\n", crcAA, Crc(CRC_14443_A, dataStr, sizeof(dataStr)));
+    PrintAndLogEx(NORMAL, "ISO14443 crc A  | %04x or %04x (BF05 expected)\n", crcAA, Crc16ex(CRC_14443_A, dataStr, sizeof(dataStr)));
 
     // ISO14443 crc B
     compute_crc(CRC_14443_B, dataStr, sizeof(dataStr), &b1, &b2);
     uint16_t crcBB = b1 << 8 | b2;
-    PrintAndLogEx(NORMAL, "ISO14443 crc B  | %04x or %04x (906E expected)\n", crcBB, Crc(CRC_14443_B, dataStr, sizeof(dataStr)));
+    PrintAndLogEx(NORMAL, "ISO14443 crc B  | %04x or %04x (906E expected)\n", crcBB, Crc16ex(CRC_14443_B, dataStr, sizeof(dataStr)));
 
     // ISO15693 crc  (x.25)
     compute_crc(CRC_15693, dataStr, sizeof(dataStr), &b1, &b2);
     uint16_t crcCC = b1 << 8 | b2;
-    PrintAndLogEx(NORMAL, "ISO15693 crc X25| %04x or %04x (906E expected)\n", crcCC, Crc(CRC_15693, dataStr, sizeof(dataStr)));
+    PrintAndLogEx(NORMAL, "ISO15693 crc X25| %04x or %04x (906E expected)\n", crcCC, Crc16ex(CRC_15693, dataStr, sizeof(dataStr)));
 
     // ICLASS
     compute_crc(CRC_ICLASS, dataStr, sizeof(dataStr), &b1, &b2);
     uint16_t crcDD = b1 << 8 | b2;
-    PrintAndLogEx(NORMAL, "ICLASS crc      | %04x or %04x\n", crcDD, Crc(CRC_ICLASS, dataStr, sizeof(dataStr)));
+    PrintAndLogEx(NORMAL, "ICLASS crc      | %04x or %04x\n", crcDD, Crc16ex(CRC_ICLASS, dataStr, sizeof(dataStr)));
 
     // FeliCa
     compute_crc(CRC_FELICA, dataStr, sizeof(dataStr), &b1, &b2);
     uint16_t crcEE = b1 << 8 | b2;
-    PrintAndLogEx(NORMAL, "FeliCa          | %04x or %04x (31C3 expected)\n", crcEE, Crc(CRC_FELICA, dataStr, sizeof(dataStr)));
+    PrintAndLogEx(NORMAL, "FeliCa          | %04x or %04x (31C3 expected)\n", crcEE, Crc16ex(CRC_FELICA, dataStr, sizeof(dataStr)));
 
     free(data);
     return 0;
@@ -426,6 +426,7 @@ int CmdAnalyseCHKSUM(const char *Cmd) {
 }
 
 int CmdAnalyseDates(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     // look for datestamps in a given array of bytes
     PrintAndLogEx(NORMAL, "To be implemented. Feel free to contribute!");
     return 0;
@@ -514,7 +515,7 @@ int CmdAnalyseA(const char *Cmd) {
     if (errors || cmdp == 0) return usage_analyse_a();
 
 
-    UsbCommand c = {CMD_FPC_SEND, {0, 0, 0}};
+    UsbCommand c = {CMD_FPC_SEND, {0, 0, 0}, {{0}}};
     memcpy(c.d.asBytes, data, USB_CMD_DATA_SIZE);
     clearCommandBuffer();
     SendCommand(&c);
@@ -922,6 +923,7 @@ int CmdAnalyse(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

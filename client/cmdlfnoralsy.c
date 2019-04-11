@@ -11,7 +11,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_noralsy_clone(void) {
+static int usage_lf_noralsy_clone(void) {
     PrintAndLogEx(NORMAL, "clone a Noralsy tag to a T55x7 tag.");
     PrintAndLogEx(NORMAL, "Usage: lf noralsy clone [h] <card id> <year> <Q5>");
     PrintAndLogEx(NORMAL, "Options:");
@@ -25,7 +25,7 @@ int usage_lf_noralsy_clone(void) {
     return 0;
 }
 
-int usage_lf_noralsy_sim(void) {
+static int usage_lf_noralsy_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of Noralsy card with specified card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "");
@@ -76,7 +76,7 @@ int getnoralsyBits(uint32_t id, uint16_t year, uint8_t *bits) {
 
 // by iceman
 // find Noralsy preamble in already demoded data
-int detectNoralsy(uint8_t *dest, size_t *size) {
+static int detectNoralsy(uint8_t *dest, size_t *size) {
     if (*size < 96) return -1; //make sure buffer has data
     size_t startIdx = 0;
     uint8_t preamble[] = {1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0};
@@ -101,6 +101,7 @@ int detectNoralsy(uint8_t *dest, size_t *size) {
 
 //see ASKDemod for what args are accepted
 int CmdNoralsyDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     //ASK / Manchester
     bool st = true;
@@ -206,7 +207,7 @@ int CmdNoralsyClone(const char *Cmd) {
     print_blocks(blocks, 4);
 
     UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
 
     for (uint8_t i = 0; i < 4; i++) {
         c.arg[0] = blocks[i];
@@ -249,7 +250,7 @@ int CmdNoralsySim(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "Simulating Noralsy - CardId: %u", id);
 
-    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     memcpy(c.d.asBytes, bs, size);
     clearCommandBuffer();
     SendCommand(&c);
@@ -272,6 +273,7 @@ int CmdLFNoralsy(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

@@ -8,6 +8,8 @@
 // Command line parser core commands
 //-----------------------------------------------------------------------------
 
+#ifndef __CLIPARSER_H
+#define __CLIPARSER_H
 #include "argtable3.h"
 #include "util.h"
 #include <stdbool.h>
@@ -31,11 +33,12 @@
 #define CLIGetHexWithReturn(paramnum, data, datalen) if (CLIParamHexToBuf(arg_get_str(paramnum), data, sizeof(data), datalen)) {CLIParserFree();return 1;}
 #define CLIGetStrWithReturn(paramnum, data, datalen) if (CLIParamStrToBuf(arg_get_str(paramnum), data, sizeof(data), datalen)) {CLIParserFree();return 1;}
 
-int CLIParserInit(char *vprogramName, char *vprogramHint, char *vprogramHelp);
+int CLIParserInit(const char *vprogramName, const char *vprogramHint, const char *vprogramHelp);
 int CLIParserParseString(const char *str, void *vargtable[], size_t vargtableLen, bool allowEmptyExec);
 int CLIParserParseStringEx(const char *str, void *vargtable[], size_t vargtableLen, bool allowEmptyExec, bool clueData);
 int CLIParserParseArg(int argc, char **argv, void *vargtable[], size_t vargtableLen, bool allowEmptyExec);
-void CLIParserFree();
+void CLIParserFree(void);
 
 int CLIParamHexToBuf(struct arg_str *argstr, uint8_t *data, int maxdatalen, int *datalen);
 int CLIParamStrToBuf(struct arg_str *argstr, uint8_t *data, int maxdatalen, int *datalen);
+#endif

@@ -11,7 +11,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_guard_clone(void) {
+static int usage_lf_guard_clone(void) {
     PrintAndLogEx(NORMAL, "clone a Guardall tag to a T55x7 tag.");
     PrintAndLogEx(NORMAL, "The facility-code is 8-bit and the card number is 16-bit.  Larger values are truncated. ");
     PrintAndLogEx(NORMAL, "Currently work only on 26bit");
@@ -27,7 +27,7 @@ int usage_lf_guard_clone(void) {
     return 0;
 }
 
-int usage_lf_guard_sim(void) {
+static int usage_lf_guard_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of Guardall card with specified card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "The facility-code is 8-bit and the card number is 16-bit.  Larger values are truncated.");
@@ -173,6 +173,7 @@ int detectGProxII(uint8_t *bits, size_t *size) {
 // but will leave the GraphBuffer intact.
 //if successful it will push askraw data back to demod buffer ready for emulation
 int CmdGuardDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     //Differential Biphase
     //get binary from ask wave
@@ -294,7 +295,7 @@ int CmdGuardClone(const char *Cmd) {
     print_blocks(blocks, 4);
 
     UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
 
     for (i = 0; i < 4; ++i) {
         c.arg[0] = blocks[i];
@@ -339,7 +340,7 @@ int CmdGuardSim(const char *Cmd) {
     arg1 = (clock1 << 8) | encoding;
     arg2 = (invert << 8) | separator;
 
-    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     memcpy(c.d.asBytes, bs, size);
     clearCommandBuffer();
     SendCommand(&c);
@@ -362,6 +363,7 @@ int CmdLFGuard(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

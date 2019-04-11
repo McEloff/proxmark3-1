@@ -18,7 +18,7 @@ void Set_t55xx_Config(t55xx_conf_block_t conf) {
     config = conf;
 }
 
-int usage_t55xx_config() {
+static int usage_t55xx_config() {
     PrintAndLogEx(NORMAL, "Usage: lf t55xx config [d <demodulation>] [i [0/1]] [o <offset>] [Q5 [0/1]] [ST [0/1]]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h                                - This help");
@@ -36,7 +36,7 @@ int usage_t55xx_config() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_read() {
+static int usage_t55xx_read() {
     PrintAndLogEx(NORMAL, "Usage:  lf t55xx read [b <block>] [p <password>] <override_safety> <page1>");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     b <block>    - block number to read. Between 0-7");
@@ -54,7 +54,7 @@ int usage_t55xx_read() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_write() {
+static int usage_t55xx_write() {
     PrintAndLogEx(NORMAL, "Usage:  lf t55xx write [b <block>] [d <data>] [p <password>] [1] [t]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     b <block>    - block number to write. Between 0-7");
@@ -69,7 +69,7 @@ int usage_t55xx_write() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_trace() {
+static int usage_t55xx_trace() {
     PrintAndLogEx(NORMAL, "Usage:  lf t55xx trace [1]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     1            - if set, use Graphbuffer otherwise read data from tag.");
@@ -80,7 +80,7 @@ int usage_t55xx_trace() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_info() {
+static int usage_t55xx_info() {
     PrintAndLogEx(NORMAL, "Usage:  lf t55xx info [1] [d <data> [q]]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     (default)    - read data from tag.");
@@ -97,7 +97,7 @@ int usage_t55xx_info() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_dump() {
+static int usage_t55xx_dump() {
     PrintAndLogEx(NORMAL, "Usage:  lf t55xx dump <password> [o]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     <password>   - OPTIONAL password 4bytes (8 hex symbols)");
@@ -109,7 +109,7 @@ int usage_t55xx_dump() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_detect() {
+static int usage_t55xx_detect() {
     PrintAndLogEx(NORMAL, "Usage:  lf t55xx detect [1] [p <password>]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     1            - if set, use Graphbuffer otherwise read data from tag.");
@@ -122,7 +122,7 @@ int usage_t55xx_detect() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_detectP1() {
+static int usage_t55xx_detectP1() {
     PrintAndLogEx(NORMAL, "Command: Detect Page 1 of a t55xx chip");
     PrintAndLogEx(NORMAL, "Usage:  lf t55xx p1detect [1] [p <password>]");
     PrintAndLogEx(NORMAL, "Options:");
@@ -136,7 +136,7 @@ int usage_t55xx_detectP1() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_wakup() {
+static int usage_t55xx_wakup() {
     PrintAndLogEx(NORMAL, "Usage:  lf t55xx wakeup [h] p <password>");
     PrintAndLogEx(NORMAL, "This commands send the Answer-On-Request command and leaves the readerfield ON afterwards.");
     PrintAndLogEx(NORMAL, "Options:");
@@ -147,7 +147,7 @@ int usage_t55xx_wakup() {
     PrintAndLogEx(NORMAL, "      lf t55xx wakeup p 11223344  - send wakeup password");
     return 0;
 }
-int usage_t55xx_chk() {
+static int usage_t55xx_chk() {
     PrintAndLogEx(NORMAL, "This command uses a dictionary attack");
     PrintAndLogEx(NORMAL, "press " _YELLOW_("'enter'") " to cancel the command");
     PrintAndLogEx(NORMAL, "WARNING: this may brick non-password protected chips!");
@@ -164,7 +164,7 @@ int usage_t55xx_chk() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_bruteforce() {
+static int usage_t55xx_bruteforce() {
     PrintAndLogEx(NORMAL, "This command uses bruteforce to scan a number range");
     PrintAndLogEx(NORMAL, "press " _YELLOW_("'enter'") " to cancel the command");
     PrintAndLogEx(NORMAL, "WARNING: this may brick non-password protected chips!");
@@ -181,7 +181,7 @@ int usage_t55xx_bruteforce() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_recoverpw() {
+static int usage_t55xx_recoverpw() {
     PrintAndLogEx(NORMAL, "This command uses a few tricks to try to recover mangled password");
     PrintAndLogEx(NORMAL, "press " _YELLOW_("'enter'") " to cancel the command");
     PrintAndLogEx(NORMAL, "WARNING: this may brick non-password protected chips!");
@@ -199,7 +199,7 @@ int usage_t55xx_recoverpw() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
-int usage_t55xx_wipe() {
+static int usage_t55xx_wipe() {
     PrintAndLogEx(NORMAL, "Usage:  lf t55xx wipe [h] [Q5]");
     PrintAndLogEx(NORMAL, "This commands wipes a tag, fills blocks 1-7 with zeros and a default configuration block");
     PrintAndLogEx(NORMAL, "Options:");
@@ -211,7 +211,7 @@ int usage_t55xx_wipe() {
     PrintAndLogEx(NORMAL, "      lf t55xx wipe Q5 -  wipes a t5555 Q5 tag, config block 0x6001F004");
     return 0;
 }
-int usage_lf_deviceconfig() {
+static int usage_lf_deviceconfig() {
     PrintAndLogEx(NORMAL, "Sets t55x7 timings for direkt commands. The timings are set here in Field Clocks (FC), \nwhich is converted to (US) on device");
     PrintAndLogEx(NORMAL, "Usage: lf t55xx deviceconfig a <gap> b <gap> c <gap> d <gap> e <gap> p");
     PrintAndLogEx(NORMAL, "Options:");
@@ -912,7 +912,7 @@ bool testBitRate(uint8_t readRate, uint8_t clk) {
 bool test(uint8_t mode, uint8_t *offset, int *fndBitRate, uint8_t clk, bool *Q5) {
 
     if (DemodBufferLen < 64) return false;
-    uint8_t si = 0;
+    uint8_t si;
     for (uint8_t idx = 28; idx < 64; idx++) {
         si = idx;
         if (PackBits(si, 28, DemodBuffer) == 0x00) continue;
@@ -960,6 +960,7 @@ bool test(uint8_t mode, uint8_t *offset, int *fndBitRate, uint8_t clk, bool *Q5)
 }
 
 int special(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     uint8_t bits[32] = {0x00};
 
@@ -1011,7 +1012,7 @@ int CmdT55xxWakeUp(const char *Cmd) {
     }
     if (errors) return usage_t55xx_wakup();
 
-    UsbCommand c = {CMD_T55XX_WAKEUP, {password, 0, 0}};
+    UsbCommand c = {CMD_T55XX_WAKEUP, {password, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     PrintAndLogEx(SUCCESS, "Wake up command sent. Try read now");
@@ -1067,7 +1068,7 @@ int CmdT55xxWriteBlock(const char *Cmd) {
         return 0;
     }
 
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {data, block, 0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {data, block, 0}, {{0}}};
     UsbCommand resp;
     c.d.asBytes[0] = (page1) ? 0x2 : 0;
     c.d.asBytes[0] |= (testMode) ? 0x4 : 0;
@@ -1502,7 +1503,7 @@ bool AquireData(uint8_t page, uint8_t block, bool pwdmode, uint32_t password) {
     // arg1: which block to read
     // arg2: password
     uint8_t arg0 = (page << 1 | (pwdmode));
-    UsbCommand c = {CMD_T55XX_READ_BLOCK, {arg0, block, password}};
+    UsbCommand c = {CMD_T55XX_READ_BLOCK, {arg0, block, password}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     if (!WaitForResponseTimeout(CMD_ACK, NULL, 2500)) {
@@ -1761,7 +1762,8 @@ void t55x7_create_config_block(int tagtype) {
 }
 
 int CmdResetRead(const char *Cmd) {
-    UsbCommand c = {CMD_T55XX_RESET_READ, {0, 0, 0}};
+    (void)Cmd; // Cmd is not used so far
+    UsbCommand c = {CMD_T55XX_RESET_READ, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     if (!WaitForResponseTimeout(CMD_ACK, NULL, 2500)) {
@@ -1842,7 +1844,7 @@ int CmdT55xxChkPwds(const char *Cmd) {
     uint64_t t1 = msclock();
 
     if (cmdp == 'm') {
-        UsbCommand c = {CMD_T55XX_CHKPWDS, {0, 0, 0} };
+        UsbCommand c = {CMD_T55XX_CHKPWDS, {0, 0, 0}, {{0}}};
         clearCommandBuffer();
         SendCommand(&c);
         UsbCommand resp;
@@ -1860,18 +1862,19 @@ int CmdT55xxChkPwds(const char *Cmd) {
         if (resp.arg[0]) {
             PrintAndLogEx(SUCCESS, "\nFound a candidate [ " _YELLOW_("%08X") " ]. Trying to validate", resp.arg[1]);
 
-            AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, true, resp.arg[1]);
-
-            found = tryDetectModulation();
-            if (found) {
-                PrintAndLogEx(SUCCESS, "Found valid password: [ " _GREEN_("%08") " ]", resp.arg[1]);
+            if (AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, true, resp.arg[1])) {
+                found = tryDetectModulation();
+                if (found) {
+                    PrintAndLogEx(SUCCESS, "Found valid password: [ " _GREEN_("%08") " ]", resp.arg[1]);
+                } else {
+                    PrintAndLogEx(WARNING, "Check pwd failed");
+                }
             } else {
                 PrintAndLogEx(WARNING, "Check pwd failed");
             }
         } else {
             PrintAndLogEx(WARNING, "Check pwd failed");
         }
-
         goto out;
     }
 
@@ -2284,7 +2287,7 @@ int CmdT55xxSetDeviceConfig(const char *Cmd) {
 
     t55xx_config conf = { startgap * 8, writegap * 8, write0 * 8, write1 * 8, readgap * 8 };
 
-    UsbCommand c = {CMD_SET_LF_T55XX_CONFIG, {shall_persist, 0, 0} };
+    UsbCommand c = {CMD_SET_LF_T55XX_CONFIG, {shall_persist, 0, 0}, {{0}}};
     memcpy(c.d.asBytes, &conf, sizeof(t55xx_config));
     clearCommandBuffer();
     SendCommand(&c);
@@ -2319,6 +2322,7 @@ int CmdLFT55XX(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

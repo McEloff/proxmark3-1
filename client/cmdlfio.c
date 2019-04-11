@@ -12,7 +12,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_io_read(void) {
+static int usage_lf_io_read(void) {
     PrintAndLogEx(NORMAL, "Enables IOProx compatible reader mode printing details of scanned tags.");
     PrintAndLogEx(NORMAL, "By default, values are printed and logged until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "If the [1] option is provided, reader mode is exited after reading a single card.");
@@ -28,7 +28,7 @@ int usage_lf_io_read(void) {
     return 0;
 }
 
-int usage_lf_io_sim(void) {
+static int usage_lf_io_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of IOProx card with specified facility-code and card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "");
@@ -44,7 +44,7 @@ int usage_lf_io_sim(void) {
     return 0;
 }
 
-int usage_lf_io_clone(void) {
+static int usage_lf_io_clone(void) {
     PrintAndLogEx(NORMAL, "Enables cloning of IOProx card with specified facility-code and card number onto T55x7.");
     PrintAndLogEx(NORMAL, "The T55x7 must be on the antenna when issuing this command.  T55x7 blocks are calculated and printed in the process.");
     PrintAndLogEx(NORMAL, "");
@@ -71,7 +71,7 @@ int CmdIOProxRead(const char *Cmd) {
 int CmdIOProxRead_device(const char *Cmd) {
     if (Cmd[0] == 'h' || Cmd[0] == 'H') return usage_lf_io_read();
     int findone = (Cmd[0] == '1') ? 1 : 0;
-    UsbCommand c = {CMD_IO_DEMOD_FSK, {findone, 0, 0}};
+    UsbCommand c = {CMD_IO_DEMOD_FSK, {findone, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -81,6 +81,7 @@ int CmdIOProxRead_device(const char *Cmd) {
 //IO-Prox demod - FSK RF/64 with preamble of 000000001
 //print ioprox ID and some format details
 int CmdIOProxDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     int retval = 0;
     int idx = 0;
     uint8_t bits[MAX_GRAPH_TRACE_LEN] = {0};
@@ -281,7 +282,7 @@ int CmdIOProxSim(const char *Cmd) {
     // arg1 --- fcHigh<<8 + fcLow
     // arg2 --- Invert and clk setting
     // size --- 64 bits == 8 bytes
-    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     memcpy(c.d.asBytes, bits, size);
     clearCommandBuffer();
     SendCommand(&c);
@@ -324,8 +325,8 @@ int CmdIOProxClone(const char *Cmd) {
     PrintAndLogEx(INFO, "Preparing to clone IOProx to T55x7 with Version: %u FC: %u, CN: %u", version, fc, cn);
     print_blocks(blocks, 3);
 
-    //UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0,0,0}};
-    UsbCommand c = {CMD_IO_CLONE_TAG, {blocks[1], blocks[2], 0}};
+    //UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0,0,0}, {{0}}};
+    UsbCommand c = {CMD_IO_CLONE_TAG, {blocks[1], blocks[2], 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -347,6 +348,7 @@ int CmdLFIO(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

@@ -262,7 +262,7 @@ static int l_foobar(lua_State *L) {
     printf("Arguments discarded, stack now contains %d elements", lua_gettop(L));
 
     // todo: this is not used, where was it intended for?
-    // UsbCommand response =  {CMD_MIFARE_READBL, {1337, 1338, 1339}};
+    // UsbCommand response =  {CMD_MIFARE_READBL, {1337, 1338, 1339}, {{0}}};
 
     printf("Now returning a uint64_t as a string");
     uint64_t x = 0xDEADC0DE;
@@ -467,7 +467,7 @@ static int l_crc16(lua_State *L) {
     size_t size;
     const char *p_str = luaL_checklstring(L, 1, &size);
 
-    uint16_t checksum = Crc(CRC_CCITT, (uint8_t *) p_str, size);
+    uint16_t checksum = Crc16ex(CRC_CCITT, (uint8_t *) p_str, size);
     lua_pushunsigned(L, checksum);
     return 1;
 }
@@ -847,7 +847,7 @@ static int l_T55xx_detect(lua_State *L) {
  * @param path
  * @return
  */
-int setLuaPath(lua_State *L, const char *path) {
+static int setLuaPath(lua_State *L, const char *path) {
     lua_getglobal(L, "package");
     lua_getfield(L, -1, "path");   // get field "path" from table at top of stack (-1)
     const char *cur_path = lua_tostring(L, -1);   // grab path string from top of stack

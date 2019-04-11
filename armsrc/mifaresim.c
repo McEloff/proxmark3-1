@@ -1,4 +1,4 @@
-//-----------------------------------------------------------------------------
+﻿//-----------------------------------------------------------------------------
 // Merlok - June 2011, 2012
 // Gerhard de Koning Gans - May 2008
 // Hagen Fritsch - June 2010
@@ -13,12 +13,16 @@
 // Verbose Mode:
 // MF_DBG_NONE          0
 // MF_DBG_ERROR         1
-// MF_DBG_ALL           2
+// MF_DBG_INFO          2
+// MF_DBG_DEBUG         3
 // MF_DBG_EXTENDED      4
+
+//  /!\ Printing Debug message is disrupting emulation,
+//  Only use with caution during debugging
+
 
 #include "iso14443a.h"
 #include "mifaresim.h"
-#include "iso14443crc.h"
 #include "crapto1/crapto1.h"
 #include "BigBuf.h"
 #include "string.h"
@@ -221,7 +225,7 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
                     memcpy(rATQA, rATQA_1k_4B, sizeof rATQA_1k_4B);
                     if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("=> Using rATQA_1k_4B");
                     break;
-                case 2: // Mifare 2L
+                case 2: // Mifare 2K
                     memcpy(rATQA, rATQA_2k_4B, sizeof rATQA_2k_4B);
                     if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("=> Using rATQA_2k_4B");
                     break;
@@ -248,15 +252,15 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
                     memcpy(rATQA, rATQA_Mini_7B, sizeof rATQA_Mini_7B);
                     if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("=> Using rATQA_Mini_7B");
                     break;
-                case 1:
+                case 1: // Mifare 1K
                     memcpy(rATQA, rATQA_1k_7B, sizeof rATQA_1k_7B);
                     if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("=> Using rATQA_1k_7B");
                     break;
-                case 2:
+                case 2: // Mifare 2K
                     memcpy(rATQA, rATQA_2k_7B, sizeof rATQA_2k_7B);
                     if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("=> Using rATQA_2k_7B");
                     break;
-                case 4:
+                case 4: // Mifare 4K
                     memcpy(rATQA, rATQA_4k_7B, sizeof rATQA_4k_7B);
                     if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("=> Using rATQA_4k_4B");
                     break;
@@ -282,15 +286,15 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
                     memcpy(rATQA, rATQA_Mini_10B, sizeof rATQA_Mini_10B);
                     if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("=> Using rATQA_Mini_10B");
                     break;
-                case 1:
+                case 1: // Mifare 1K
                     memcpy(rATQA, rATQA_1k_10B, sizeof rATQA_1k_10B);
                     if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("=> Using rATQA_1k_10B");
                     break;
-                case 2:
+                case 2: // Mifare 2K
                     memcpy(rATQA, rATQA_2k_10B, sizeof rATQA_2k_10B);
                     if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("=> Using rATQA_2k_10B");
                     break;
-                case 4:
+                case 4: // Mifare 4K
                     memcpy(rATQA, rATQA_4k_10B, sizeof rATQA_4k_10B);
                     if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("=> Using rATQA_4k_10B");
                     break;
@@ -434,7 +438,6 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
     uint8_t rAUTH_NT[4];
     uint8_t rAUTH_NT_keystream[4];
     uint32_t nonce = 0;
-    // = prng_successor(selTimer, 32) ;
 
     tUart *uart = GetUart(); 
 
@@ -571,16 +574,16 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                     switch (uid_len) {
                         case 4:
                             switch (MifareCardType) {
-                                case 0:
+                                case 0: // Mifare Mini
                                     EmSendPrecompiledCmd(&responses[SAK_MINI]);
                                     break;
-                                case 1:
+                                case 1: // Mifare 1K
                                     EmSendPrecompiledCmd(&responses[SAK_1]);
                                     break;
-                                case 2:
+                                case 2: // Mifare 2K
                                     EmSendPrecompiledCmd(&responses[SAK_2]);
                                     break;
-                                case 4:
+                                case 4: // Mifare 4K
                                     EmSendPrecompiledCmd(&responses[SAK_4]);
                                     break;
                             }
@@ -650,16 +653,16 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                             if (MF_DBGLEVEL >= MF_DBG_EXTENDED) Dbprintf("[MFEMUL_SELECT2] SELECT CL2 %02x%02x%02x%02x received", receivedCmd[2], receivedCmd[3], receivedCmd[4], receivedCmd[5]);
 
                             switch (MifareCardType) {
-                                case 0:
+                                case 0: // Mifare Mini
                                     EmSendPrecompiledCmd(&responses[SAK_MINI]);
                                     break;
-                                case 1:
+                                case 1: // Mifare 1K
                                     EmSendPrecompiledCmd(&responses[SAK_1]);
                                     break;
-                                case 2:
+                                case 2: // Mifare 2K
                                     EmSendPrecompiledCmd(&responses[SAK_2]);
                                     break;
-                                case 4:
+                                case 4: // Mifare 4K
                                     EmSendPrecompiledCmd(&responses[SAK_4]);
                                     break;
                             }
@@ -707,16 +710,16 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                          memcmp(&receivedCmd[2], responses[UIDBCC3].response, 4) == 0)) {
 
                     switch (MifareCardType) {
-                        case 0:
+                        case 0: // Mifare Mini
                             EmSendPrecompiledCmd(&responses[SAK_MINI]);
                             break;
-                        case 1:
+                        case 1: // Mifare 1K
                             EmSendPrecompiledCmd(&responses[SAK_1]);
                             break;
-                        case 2:
+                        case 2: // Mifare 2K
                             EmSendPrecompiledCmd(&responses[SAK_2]);
                             break;
-                        case 4:
+                        case 4: // Mifare 4K
                             EmSendPrecompiledCmd(&responses[SAK_4]);
                             break;
                     }
@@ -831,11 +834,11 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
 
                 // case MFEMUL_WORK => if Cmd is Read, Write, Inc, Dec, Restore, Transfert
                 if (receivedCmd_len == 4 && (receivedCmd_dec[0] == ISO14443A_CMD_READBLOCK
-                        || receivedCmd_dec[0] == ISO14443A_CMD_WRITEBLOCK
-                        || receivedCmd_dec[0] == MIFARE_CMD_INC
-                        || receivedCmd_dec[0] == MIFARE_CMD_DEC
-                        || receivedCmd_dec[0] == MIFARE_CMD_RESTORE
-                        || receivedCmd_dec[0] == MIFARE_CMD_TRANSFER)) {
+                                             || receivedCmd_dec[0] == ISO14443A_CMD_WRITEBLOCK
+                                             || receivedCmd_dec[0] == MIFARE_CMD_INC
+                                             || receivedCmd_dec[0] == MIFARE_CMD_DEC
+                                             || receivedCmd_dec[0] == MIFARE_CMD_RESTORE
+                                             || receivedCmd_dec[0] == MIFARE_CMD_TRANSFER)) {
                     // all other commands must be encrypted (authenticated)
                     if (!encrypted_data) {
                         EmSend4bit(CARD_NACK_NA);

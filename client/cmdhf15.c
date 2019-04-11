@@ -29,17 +29,24 @@
 #define Logic1                  Iso15693Logic1
 #define FrameEOF                Iso15693FrameEOF
 
-#define Crc15(data, len)          Crc(CRC_15693, (data), (len))
-#define CheckCrc15(data, len)     check_crc(CRC_15693, (data), (len))
-#define AddCrc15(data, len)       compute_crc(CRC_15693, (data), (len), (data)+(len), (data)+(len)+1)
+#ifndef Crc15
+# define Crc15(data, len)       Crc16ex(CRC_15693, (data), (len))
+#endif
+#ifndef CheckCrc15
+# define CheckCrc15(data, len)  check_crc(CRC_15693, (data), (len))
+#endif
+#ifndef AddCrc15
+#define AddCrc15(data, len)     compute_crc(CRC_15693, (data), (len), (data)+(len), (data)+(len)+1)
+#endif
 
-#define sprintUID(target, uid)  Iso15693sprintUID((target), (uid))
-
+#ifndef sprintUID
+# define sprintUID(target, uid)  Iso15693sprintUID((target), (uid))
+#endif
 // structure and database for uid -> tagtype lookups
 typedef struct {
     uint64_t uid;
     int mask; // how many MSB bits used
-    char *desc;
+    const char *desc;
 } productName;
 
 const productName uidmapping[] = {
@@ -192,7 +199,7 @@ const productName uidmapping[] = {
 int getUID(uint8_t *buf) {
 
     UsbCommand resp;
-    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}}; // len,speed,recv?
+    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}, {{0}}}; // len,speed,recv?
 
     c.d.asBytes[0] = ISO15_REQ_SUBCARRIER_SINGLE | ISO15_REQ_DATARATE_HIGH | ISO15_REQ_INVENTORY | ISO15_REQINV_SLOT1;
     c.d.asBytes[1] = ISO15_CMD_INVENTORY;
@@ -228,7 +235,7 @@ int getUID(uint8_t *buf) {
 // get a product description based on the UID
 // uid[8] tag uid
 // returns description of the best match
-static char *getTagInfo_15(uint8_t *uid) {
+static const char *getTagInfo_15(uint8_t *uid) {
     uint64_t myuid, mask;
     int i = 0, best = -1;
     memcpy(&myuid, uid, sizeof(uint64_t));
@@ -252,7 +259,7 @@ static char *getTagInfo_15(uint8_t *uid) {
 }
 
 // return a clear-text message to an errorcode
-static char *TagErrorStr(uint8_t error) {
+static const char *TagErrorStr(uint8_t error) {
     switch (error) {
         case 0x01:
             return "The command is not supported";
@@ -277,17 +284,17 @@ static char *TagErrorStr(uint8_t error) {
     }
 }
 
-int usage_15_demod(void) {
+static int usage_15_demod(void) {
     PrintAndLogEx(NORMAL, "Tries to demodulate / decode ISO15693, from downloaded samples.\n"
                   "Gather samples with 'hf 15 read' / 'hf 15 record'");
     return 0;
 }
-int usage_15_samples(void) {
+static int usage_15_samples(void) {
     PrintAndLogEx(NORMAL, "Acquire samples as Reader (enables carrier, send inquiry\n"
                   "and download it to graphbuffer.  Try 'hf 15 demod'  to try to demodulate/decode signal");
     return 0;
 }
-int usage_15_info(void) {
+static int usage_15_info(void) {
     PrintAndLogEx(NORMAL, "Uses the optional command 'get_systeminfo' 0x2B to try and extract information\n"
                   "command may fail, depending on tag.\n"
                   "defaults to '1 out of 4' mode\n"
@@ -303,11 +310,11 @@ int usage_15_info(void) {
                   "\thf 15 info u");
     return 0;
 }
-int usage_15_record(void) {
+static int usage_15_record(void) {
     PrintAndLogEx(NORMAL, "Record activity without enableing carrier");
     return 0;
 }
-int usage_15_reader(void) {
+static int usage_15_reader(void) {
     PrintAndLogEx(NORMAL, "This command identifies a ISO 15693 tag\n"
                   "\n"
                   "Usage: hf 15 reader [h]\n"
@@ -318,18 +325,18 @@ int usage_15_reader(void) {
                   "\thf 15 reader");
     return 0;
 }
-int usage_15_sim(void) {
+static int usage_15_sim(void) {
     PrintAndLogEx(NORMAL, "Usage:  hf 15 sim <UID>\n"
                   "\n"
                   "Example:\n"
                   "\thf 15 sim E016240000000000");
     return 0;
 }
-int usage_15_findafi(void) {
+static int usage_15_findafi(void) {
     PrintAndLogEx(NORMAL, "'hf 15 finafi' This command needs a helptext. Feel free to add one!");
     return 0;
 }
-int usage_15_dump(void) {
+static int usage_15_dump(void) {
     PrintAndLogEx(NORMAL, "This command dumps the contents of a ISO-15693 tag and save it to file\n"
                   "\n"
                   "Usage: hf 15 dump [h] <f filname> \n"
@@ -342,8 +349,8 @@ int usage_15_dump(void) {
                   "\thf 15 dump f mydump");
     return 0;
 }
-int usage_15_restore(void) {
-    char *options[][2] = {
+static int usage_15_restore(void) {
+    const char *options[][2] = {
         {"h", "this help"},
         {"-2", "use slower '1 out of 256' mode"},
         {"-o", "set OPTION Flag (needed for TI)"},
@@ -356,8 +363,8 @@ int usage_15_restore(void) {
     PrintAndLogOptions(options, 7, 3);
     return 0;
 }
-int usage_15_raw(void) {
-    char *options[][2] = {
+static int usage_15_raw(void) {
+    const char *options[][2] = {
         {"-r", "do not read response" },
         {"-2", "use slower '1 out of 256' mode" },
         {"-c", "calculate and append CRC" },
@@ -367,7 +374,7 @@ int usage_15_raw(void) {
     PrintAndLogOptions(options, 4, 3);
     return 0;
 }
-int usage_15_read(void) {
+static int usage_15_read(void) {
     PrintAndLogEx(NORMAL, "Usage:  hf 15 read    [options] <uid|s|u|*> <page#>\n"
                   "Options:\n"
                   "\t-2        use slower '1 out of 256' mode\n"
@@ -378,7 +385,7 @@ int usage_15_read(void) {
                   "\tpage#:        page number 0-255");
     return 0;
 }
-int usage_15_write(void) {
+static int usage_15_write(void) {
     PrintAndLogEx(NORMAL, "Usage:  hf 15 write    [options] <uid|s|u|*> <page#> <hexdata>\n"
                   "Options:\n"
                   "\t-2        use slower '1 out of 256' mode\n"
@@ -391,7 +398,7 @@ int usage_15_write(void) {
                   "\thexdata:      data to be written eg AA BB CC DD");
     return 0;
 }
-int usage_15_readmulti(void) {
+static int usage_15_readmulti(void) {
     PrintAndLogEx(NORMAL, "Usage:  hf 15 readmulti  [options] <uid|s|u|*> <start#> <count#>\n"
                   "Options:\n"
                   "\t-2        use slower '1 out of 256' mode\n"
@@ -489,7 +496,7 @@ int CmdHF15Samples(const char *Cmd) {
     char cmdp = tolower(param_getchar(Cmd, 0));
     if (cmdp == 'h') return usage_15_samples();
 
-    UsbCommand c = {CMD_ACQUIRE_RAW_ADC_SAMPLES_ISO_15693, {0, 0, 0}};
+    UsbCommand c = {CMD_ACQUIRE_RAW_ADC_SAMPLES_ISO_15693, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
 
@@ -508,13 +515,12 @@ int CmdHF15Info(const char *Cmd) {
 
     UsbCommand resp;
     uint8_t *recv;
-    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}}; // len,speed,recv?
+    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}, {{0}}}; // len,speed,recv?
     uint8_t *req = c.d.asBytes;
-    char cmdbuf[100];
+    char cmdbuf[100] = {0};
     char *cmd = cmdbuf;
-    memset(cmdbuf, 0, sizeof(cmdbuf));
 
-    strncpy(cmd, Cmd, 99);
+    strncpy(cmd, Cmd, sizeof(cmdbuf) - 1);
 
     if (!prepareHF15Cmd(&cmd, &c, ISO15_CMD_SYSINFO))
         return 0;
@@ -587,7 +593,7 @@ int CmdHF15Record(const char *Cmd) {
     char cmdp =  tolower(param_getchar(Cmd, 0));
     if (cmdp == 'h') return usage_15_record();
 
-    UsbCommand c = {CMD_RECORD_RAW_ADC_SAMPLES_ISO_15693, {0, 0, 0}};
+    UsbCommand c = {CMD_RECORD_RAW_ADC_SAMPLES_ISO_15693, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -595,6 +601,7 @@ int CmdHF15Record(const char *Cmd) {
 
 // used with 'hf search'
 int HF15Reader(const char *Cmd, bool verbose) {
+    (void)Cmd; // Cmd is not used so far
     uint8_t uid[8] = {0, 0, 0, 0, 0, 0, 0, 0};
     if (!getUID(uid)) {
         if (verbose) PrintAndLogEx(WARNING, "No tag found.");
@@ -628,7 +635,7 @@ int CmdHF15Sim(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "Starting simulating UID %s", sprint_hex(uid, sizeof(uid)));
 
-    UsbCommand c = {CMD_SIMTAG_ISO_15693, {0, 0, 0}};
+    UsbCommand c = {CMD_SIMTAG_ISO_15693, {0, 0, 0}, {{0}}};
     memcpy(c.d.asBytes, uid, 8);
     clearCommandBuffer();
     SendCommand(&c);
@@ -644,7 +651,7 @@ int CmdHF15Afi(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "press pm3-button to cancel");
 
-    UsbCommand c = {CMD_ISO_15693_FIND_AFI, {strtol(Cmd, NULL, 0), 0, 0}};
+    UsbCommand c = {CMD_ISO_15693_FIND_AFI, {strtol(Cmd, NULL, 0), 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -710,7 +717,7 @@ int CmdHF15Dump(const char *Cmd) {
     memset(data, 0, sizeof(data));
 
     UsbCommand resp;
-    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}}; // len,speed,recv?
+    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}, {{0}}}; // len,speed,recv?
     uint8_t *req = c.d.asBytes;
     req[0] = ISO15_REQ_SUBCARRIER_SINGLE | ISO15_REQ_DATARATE_HIGH | ISO15_REQ_NONINVENTORY | ISO15_REQ_ADDRESS;
     req[1] = ISO15_CMD_READ;
@@ -781,7 +788,7 @@ int CmdHF15Restore(const char *Cmd) {
     char buff[255] = {0x00};
     size_t blocksize = 4;
     uint8_t cmdp = 0;
-    char newCmdPrefix[255] = {0x00}, tmpCmd[255] = {0x00};
+    char newCmdPrefix[FILE_PATH_SIZE + 1] = {0x00}, tmpCmd[FILE_PATH_SIZE + 262] = {0x00};
     char param[FILE_PATH_SIZE] = "";
     char hex[255] = "";
     uint8_t retries = 3, tried = 0, i = 0;
@@ -895,6 +902,7 @@ int CmdHF15Restore(const char *Cmd) {
 }
 
 int CmdHF15List(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     //PrintAndLogEx(WARNING, "Deprecated command, use 'hf list 15' instead");
     CmdTraceList("15");
     return 0;
@@ -906,7 +914,7 @@ int CmdHF15Raw(const char *Cmd) {
     if (strlen(Cmd) < 3 || cmdp == 'h' || cmdp == 'H') return usage_15_raw();
 
     UsbCommand resp;
-    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}}; // len,speed,recv?
+    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}, {{0}}}; // len,speed,recv?
     int reply = 1, fast = 1, i = 0;
     bool crc = false;
     char buf[5] = "";
@@ -1071,13 +1079,13 @@ int CmdHF15Readmulti(const char *Cmd) {
 
     UsbCommand resp;
     uint8_t *recv;
-    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}}; // len,speed,recv?
+    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}, {{0}}}; // len,speed,recv?
     uint8_t *req = c.d.asBytes;
     int reqlen = 0;
     uint8_t pagenum, pagecount;
-    char cmdbuf[100];
+    char cmdbuf[100] = {0};
     char *cmd = cmdbuf;
-    strncpy(cmd, Cmd, 99);
+    strncpy(cmd, Cmd, sizeof(cmdbuf) - 1);
 
     if (!prepareHF15Cmd(&cmd, &c, ISO15_CMD_READMULTI))
         return 0;
@@ -1159,12 +1167,12 @@ int CmdHF15Read(const char *Cmd) {
     // arg0 (datalen,  cmd len?  .arg0 == crc?)
     // arg1 (speed == 0 == 1 of 256,  == 1 == 1 of 4 )
     // arg2 (recv == 1 == expect a response)
-    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}};
+    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}, {{0}}};
     uint8_t *req = c.d.asBytes;
     int reqlen = 0, blocknum;
-    char cmdbuf[100];
+    char cmdbuf[100] = {0};
     char *cmd = cmdbuf;
-    strncpy(cmd, Cmd, 99);
+    strncpy(cmd, Cmd, sizeof(cmdbuf) - 1);
 
     if (!prepareHF15Cmd(&cmd, &c, ISO15_CMD_READ))
         return 0;
@@ -1228,14 +1236,14 @@ int CmdHF15Write(const char *Cmd) {
 
     UsbCommand resp;
     uint8_t *recv;
-    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}}; // len,speed,recv?
+    UsbCommand c = {CMD_ISO_15693_COMMAND, {0, 1, 1}, {{0}}}; // len,speed,recv?
     uint8_t *req = c.d.asBytes;
     int reqlen = 0, pagenum, temp;
-    char cmdbuf[100];
+    char cmdbuf[100] = {0};
     char *cmd = cmdbuf;
     char *cmd2;
 
-    strncpy(cmd, Cmd, 99);
+    strncpy(cmd, Cmd, sizeof(cmdbuf) - 1);
 
     if (!prepareHF15Cmd(&cmd, &c, ISO15_CMD_WRITE))
         return 0;
@@ -1302,7 +1310,7 @@ static command_t CommandTable15[] = {
     {"dump",        CmdHF15Dump,        0, "Read all memory pages of an ISO15693 tag, save to file"},
     {"findafi",     CmdHF15Afi,         0, "Brute force AFI of an ISO15693 tag"},
     {"info",        CmdHF15Info,        0, "Tag information"},
-    {"list",        CmdHF15List,        0, "[Deprecated] List ISO15693 history"},
+    {"list",        CmdHF15List,        0, "List ISO15693 history"},
     {"raw",         CmdHF15Raw,         0, "Send raw hex data to tag"},
     {"reader",      CmdHF15Reader,      0, "Act like an ISO15693 reader"},
     {"record",      CmdHF15Record,      0, "Record Samples (ISO15693)"},
@@ -1322,6 +1330,7 @@ int CmdHF15(const char *Cmd) {
 }
 
 int CmdHF15Help(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable15);
     return 0;
 }

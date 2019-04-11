@@ -31,7 +31,7 @@ int CmdHFEPACollectPACENonces(const char *Cmd) {
     // repeat n times
     for (uint32_t i = 0; i < n; i++) {
         // execute PACE
-        UsbCommand c = {CMD_EPA_PACE_COLLECT_NONCE, {(int)m, 0, 0}};
+        UsbCommand c = {CMD_EPA_PACE_COLLECT_NONCE, {(int)m, 0, 0}, {{0}}};
         clearCommandBuffer();
         SendCommand(&c);
         UsbCommand resp;
@@ -81,11 +81,11 @@ int CmdHFEPAPACEReplay(const char *Cmd) {
         while (Cmd[skip] != ' ' && Cmd[skip] != '\0') {
             // convert
             scan_return = sscanf(Cmd + skip,
-                                "%2X%n",
+                                 "%2X%n",
                                  (unsigned int *)(apdus[i] + apdu_lengths[i]),
                                  &skip_add
-                                 );
-                                 
+                                );
+
             if (scan_return < 1) {
                 PrintAndLogEx(NORMAL, (char *)usage_msg);
                 PrintAndLogEx(WARNING, "Not enough APDUs! Try again!");
@@ -171,6 +171,7 @@ static command_t CommandTable[] = {
 };
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

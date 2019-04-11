@@ -18,20 +18,25 @@ static uint8_t preamble224[] = {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 // standard 64 bit indala formats including 26 bit 40134 format
 static uint8_t preamble64[] =  {1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
 
-int usage_lf_indala_demod(void) {
-    PrintAndLogEx(NORMAL, "Enables Indala compatible reader mode printing details of scanned tags.");
-    PrintAndLogEx(NORMAL, "By default, values are printed and logged until the button is pressed or another USB command is issued.");
+static int usage_lf_indala_demod(void) {
+    PrintAndLogEx(NORMAL, "Tries to psk demodulate the graphbuffer as Indala ");
     PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(NORMAL, "Usage:  lf indala demod [h]");
+    PrintAndLogEx(NORMAL, "Usage:  lf indala demod [h] <clock> <0|1> <maxerror>");
     PrintAndLogEx(NORMAL, "Options:");
-    PrintAndLogEx(NORMAL, "      h :  This help");
+    PrintAndLogEx(NORMAL, "      h        :  This help");
+    PrintAndLogEx(NORMAL, "      clock    :  Set clock (as integer) optional, if not set, autodetect.");
+    PrintAndLogEx(NORMAL, "      invert   :  1 for invert output");
+    PrintAndLogEx(NORMAL, "      maxerror :  Set maximum allowed errors, default = 100.");   
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "        lf indala demod");
+    PrintAndLogEx(NORMAL, "        lf indala demod 32       = demod a Indala tag from GraphBuffer using a clock of RF/32");
+    PrintAndLogEx(NORMAL, "        lf indala demod 32 1     = demod a Indala tag from GraphBuffer using a clock of RF/32 and inverting data");    
+    PrintAndLogEx(NORMAL, "        lf indala demod 64 1 0   = demod a Indala tag from GraphBuffer using a clock of RF/64, inverting data and allowing 0 demod errors");    
     return 0;
 }
 
-int usage_lf_indala_sim(void) {
+static int usage_lf_indala_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of Indala card with specified uid.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "");
@@ -45,25 +50,9 @@ int usage_lf_indala_sim(void) {
     return 0;
 }
 
-int usage_lf_indala_clone(void) {
-    PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(NORMAL, "Usage:  lf indala clone [h]<l> <uid> [Q5]");
-    PrintAndLogEx(NORMAL, "Options:");
-    PrintAndLogEx(NORMAL, "            h :  This help");
-    PrintAndLogEx(NORMAL, "            l :  long uid 64/224");
-    PrintAndLogEx(NORMAL, "        <uid> :  UID");
-    PrintAndLogEx(NORMAL, "           Q5 :  optional - clone to Q5 (T5555) instead of T55x7 chip");
-    PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(NORMAL, "Examples:");
-    PrintAndLogEx(NORMAL, "       lf indala clone 112233      -- 64");
-    PrintAndLogEx(NORMAL, "       lf indala clone l 112233    -- long 224");
-    return 0;
-}
-
 // redesigned by marshmellow adjusted from existing decode functions
 // indala id decoding
-int detectIndala(uint8_t *dest, size_t *size, uint8_t *invert) {
+static int detectIndala(uint8_t *dest, size_t *size, uint8_t *invert) {
 
     uint8_t preamble64_i[]  = {0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0};
     uint8_t preamble224_i[] = {0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0};
@@ -181,6 +170,10 @@ int CmdIndalaRead(const char *Cmd) {
 // by marshmellow
 // optional arguments - same as PSKDemod (clock & invert & maxerr)
 int CmdIndalaDemod(const char *Cmd) {
+
+    char cmdp = tolower(param_getchar(Cmd, 0));
+    if (cmdp == 'h') return usage_lf_indala_demod();
+    
     int ans;
     if (strlen(Cmd) > 0)
         ans = PSKDemod(Cmd, true);
@@ -521,7 +514,7 @@ int CmdIndalaSim(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "Simulating Indala UID: %s",  sprint_hex(hexuid, len));
     PrintAndLogEx(SUCCESS, "Press pm3-button to abort simulation or run another command");
 
-    UsbCommand c = {CMD_PSK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_PSK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     memcpy(c.d.asBytes, bits, size);
     clearCommandBuffer();
     SendCommand(&c);
@@ -555,7 +548,7 @@ int CmdIndalaClone(const char *Cmd) {
     CLIGetHexWithReturn(2, data, &datalen);
     CLIParserFree();
 
-    UsbCommand c = {0, {0, 0, 0}};
+    UsbCommand c = {0, {0, 0, 0}, {{0}}};
 
     if (isLongUid) {
         PrintAndLogEx(INFO, "Preparing to clone Indala 224bit tag with RawID %s", sprint_hex(data, datalen));
@@ -596,6 +589,7 @@ int CmdLFINDALA(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

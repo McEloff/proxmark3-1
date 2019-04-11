@@ -15,7 +15,7 @@ uint64_t g_em410xid = 0;
 static int CmdHelp(const char *Cmd);
 
 //////////////// 410x commands
-int usage_lf_em410x_demod(void) {
+static int usage_lf_em410x_demod(void) {
     PrintAndLogEx(NORMAL, "Usage:  lf em 410x_demod [h] [clock] <0|1> [maxError]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     h                   - this help");
@@ -31,7 +31,7 @@ int usage_lf_em410x_demod(void) {
     PrintAndLogEx(NORMAL, "           lf em 410x_demod 64 1 0 = demod an EM410x Tag ID from GraphBuffer using a clock of RF/64 and inverting data and allowing 0 demod errors");
     return 0;
 }
-int usage_lf_em410x_write(void) {
+static int usage_lf_em410x_write(void) {
     PrintAndLogEx(NORMAL, "Writes EM410x ID to a T55x7 / T5555 (Q5) tag");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 410x_write [h] <id> <card> [clock]");
@@ -44,7 +44,7 @@ int usage_lf_em410x_write(void) {
     PrintAndLogEx(NORMAL, "      lf em 410x_write 0F0368568B 1       = write ID to t55x7 card");
     return 0;
 }
-int usage_lf_em410x_ws(void) {
+static int usage_lf_em410x_ws(void) {
     PrintAndLogEx(NORMAL, "Watch 'nd Spoof, activates reader, waits until a EM410x tag gets presented then it starts simulating the found UID");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 410x_spoof [h]");
@@ -54,20 +54,7 @@ int usage_lf_em410x_ws(void) {
     PrintAndLogEx(NORMAL, "      lf em 410x_spoof");
     return 0;
 }
-int usage_lf_em410x_clone(void) {
-    PrintAndLogEx(NORMAL, "Simulating EM410x tag");
-    PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(NORMAL, "Usage:  lf em 410x_clone [h] <uid> <clock>");
-    PrintAndLogEx(NORMAL, "Options:");
-    PrintAndLogEx(NORMAL, "       h         - this help");
-    PrintAndLogEx(NORMAL, "       uid       - uid (10 HEX symbols)");
-    PrintAndLogEx(NORMAL, "       clock     - clock (32|64) (optional)");
-    PrintAndLogEx(NORMAL, "Examples:");
-    PrintAndLogEx(NORMAL, "      lf em 410x_clone 0F0368568B");
-    PrintAndLogEx(NORMAL, "      lf em 410x_clone 0F0368568B 32");
-    return 0;
-}
-int usage_lf_em410x_sim(void) {
+static int usage_lf_em410x_sim(void) {
     PrintAndLogEx(NORMAL, "Simulating EM410x tag");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 410x_sim [h] <uid> <clock>");
@@ -80,7 +67,7 @@ int usage_lf_em410x_sim(void) {
     PrintAndLogEx(NORMAL, "      lf em 410x_sim 0F0368568B 32");
     return 0;
 }
-int usage_lf_em410x_brute(void) {
+static int usage_lf_em410x_brute(void) {
     PrintAndLogEx(NORMAL, "Bruteforcing by emulating EM410x tag");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 410x_brute [h] ids.txt [d 2000] [c clock]");
@@ -98,7 +85,7 @@ int usage_lf_em410x_brute(void) {
 }
 
 //////////////// 4050 / 4450 commands
-int usage_lf_em4x50_dump(void) {
+static int usage_lf_em4x50_dump(void) {
     PrintAndLogEx(NORMAL, "Dump EM4x50/EM4x69.  Tag must be on antenna. ");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 4x50_dump [h] <pwd>");
@@ -110,7 +97,7 @@ int usage_lf_em4x50_dump(void) {
     PrintAndLogEx(NORMAL, "      lf em 4x50_dump 11223344");
     return 0;
 }
-int usage_lf_em4x50_read(void) {
+static int usage_lf_em4x50_read(void) {
     PrintAndLogEx(NORMAL, "Read EM 4x50/EM4x69.  Tag must be on antenna. ");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 4x50_read [h] <address> <pwd>");
@@ -123,7 +110,7 @@ int usage_lf_em4x50_read(void) {
     PrintAndLogEx(NORMAL, "      lf em 4x50_read 1 11223344");
     return 0;
 }
-int usage_lf_em4x50_write(void) {
+static int usage_lf_em4x50_write(void) {
     PrintAndLogEx(NORMAL, "Write EM 4x50/4x69.  Tag must be on antenna. ");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 4x50_write [h] <address> <data> <pwd>");
@@ -139,7 +126,7 @@ int usage_lf_em4x50_write(void) {
 }
 
 //////////////// 4205 / 4305 commands
-int usage_lf_em4x05_dump(void) {
+static int usage_lf_em4x05_dump(void) {
     PrintAndLogEx(NORMAL, "Dump EM4x05/EM4x69.  Tag must be on antenna. ");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 4x05_dump [h] <pwd>");
@@ -151,7 +138,7 @@ int usage_lf_em4x05_dump(void) {
     PrintAndLogEx(NORMAL, "      lf em 4x05_dump 11223344");
     return 0;
 }
-int usage_lf_em4x05_read(void) {
+static int usage_lf_em4x05_read(void) {
     PrintAndLogEx(NORMAL, "Read EM4x05/EM4x69.  Tag must be on antenna. ");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 4x05_read [h] <address> <pwd>");
@@ -164,7 +151,7 @@ int usage_lf_em4x05_read(void) {
     PrintAndLogEx(NORMAL, "      lf em 4x05_read 1 11223344");
     return 0;
 }
-int usage_lf_em4x05_write(void) {
+static int usage_lf_em4x05_write(void) {
     PrintAndLogEx(NORMAL, "Write EM4x05/4x69.  Tag must be on antenna. ");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 4x05_write [h] <address> <data> <pwd>");
@@ -178,7 +165,7 @@ int usage_lf_em4x05_write(void) {
     PrintAndLogEx(NORMAL, "      lf em 4x05_write 1 deadc0de 11223344");
     return 0;
 }
-int usage_lf_em4x05_info(void) {
+static int usage_lf_em4x05_info(void) {
     PrintAndLogEx(NORMAL, "Tag information EM4205/4305/4469//4569 tags.  Tag must be on antenna.");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Usage:  lf em 4x05_info [h] <pwd>");
@@ -256,7 +243,7 @@ void printEM410x(uint32_t hi, uint64_t id) {
 
     uint64_t n = 1;
     uint64_t id2lo = 0;
-    uint8_t m, i = 0;
+    uint8_t m, i;
     for (m = 5; m > 0; m--) {
         for (i = 0; i < 8; i++) {
             id2lo = (id2lo << 1LL) | ((id & (n << (i + ((m - 1) * 8)))) >> (i + ((m - 1) * 8)));
@@ -408,7 +395,7 @@ int CmdEM410xRead(const char *Cmd) {
 int CmdEM410xRead_device(const char *Cmd) {
     char cmdp = tolower(param_getchar(Cmd, 0));
     uint8_t findone = (cmdp == '1') ? 1 : 0;
-    UsbCommand c = {CMD_EM410X_DEMOD, {findone, 0, 0}};
+    UsbCommand c = {CMD_EM410X_DEMOD, {findone, 0, 0}, {{0}}};
     SendCommand(&c);
     return 0;
 }
@@ -579,6 +566,7 @@ int CmdEM410xBrute(const char *Cmd) {
  *  EDIT -- capture enough to get 2 complete preambles at the slowest data rate known to be used (rf/64) (64*64*2+9 = 8201) marshmellow
 */
 int CmdEM410xWatch(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     do {
         if (ukbhit()) {
             int gc = getchar();
@@ -611,9 +599,9 @@ int CmdEM410xWrite(const char *Cmd) {
 
     uint64_t id = 0xFFFFFFFFFFFFFFFF; // invalid id value
     int card = 0xFF; // invalid card value
-    uint32_t clock = 0; // invalid clock value
+    uint32_t clock1 = 0; // invalid clock value
 
-    sscanf(Cmd, "%" SCNx64 " %d %d", &id, &card, &clock);
+    sscanf(Cmd, "%" SCNx64 " %d %d", &id, &card, &clock1);
 
     // Check ID
     if (id == 0xFFFFFFFFFFFFFFFF) {
@@ -636,31 +624,31 @@ int CmdEM410xWrite(const char *Cmd) {
     }
 
     // Check Clock
-    if (clock == 0)
-        clock = 64;
+    if (clock1 == 0)
+        clock1 = 64;
 
     // Allowed clock rates: 16, 32, 40 and 64
-    if ((clock != 16) && (clock != 32) && (clock != 64) && (clock != 40)) {
-        PrintAndLogEx(WARNING, "Error! Clock rate %d not valid. Supported clock rates are 16, 32, 40 and 64.\n", clock);
+    if ((clock1 != 16) && (clock1 != 32) && (clock1 != 64) && (clock1 != 40)) {
+        PrintAndLogEx(WARNING, "Error! Clock rate %d not valid. Supported clock rates are 16, 32, 40 and 64.\n", clock1);
         return 0;
     }
 
     if (card == 1) {
-        PrintAndLogEx(SUCCESS, "Writing %s tag with UID 0x%010" PRIx64 " (clock rate: %d)", "T55x7", id, clock);
+        PrintAndLogEx(SUCCESS, "Writing %s tag with UID 0x%010" PRIx64 " (clock rate: %d)", "T55x7", id, clock1);
         // NOTE: We really should pass the clock in as a separate argument, but to
         //   provide for backwards-compatibility for older firmware, and to avoid
         //   having to add another argument to CMD_EM410X_WRITE_TAG, we just store
         //   the clock rate in bits 8-15 of the card value
-        card = (card & 0xFF) | ((clock << 8) & 0xFF00);
+        card = (card & 0xFF) | ((clock1 << 8) & 0xFF00);
     } else if (card == 0) {
-        PrintAndLogEx(SUCCESS, "Writing %s tag with UID 0x%010" PRIx64, "T5555", id, clock);
-        card = (card & 0xFF) | ((clock << 8) & 0xFF00);
+        PrintAndLogEx(SUCCESS, "Writing %s tag with UID 0x%010" PRIx64, "T5555", id, clock1);
+        card = (card & 0xFF) | ((clock1 << 8) & 0xFF00);
     } else {
         PrintAndLogEx(FAILED, "Error! Bad card type selected.\n");
         return 0;
     }
 
-    UsbCommand c = {CMD_EM410X_WRITE_TAG, {card, (uint32_t)(id >> 32), (uint32_t)id}};
+    UsbCommand c = {CMD_EM410X_WRITE_TAG, {card, (uint32_t)(id >> 32), (uint32_t)id}, {{0}}};
     SendCommand(&c);
     return 0;
 }
@@ -1140,7 +1128,7 @@ bool demodEM4x05resp(uint32_t *word) {
 
 //////////////// 4205 / 4305 commands
 int EM4x05ReadWord_ext(uint8_t addr, uint32_t pwd, bool usePwd, uint32_t *word) {
-    UsbCommand c = {CMD_EM4X_READ_WORD, {addr, pwd, usePwd}};
+    UsbCommand c = {CMD_EM4X_READ_WORD, {addr, pwd, usePwd}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -1243,7 +1231,7 @@ int CmdEM4x05Write(const char *Cmd) {
 
     uint16_t flag = (addr << 8) | (usePwd);
 
-    UsbCommand c = {CMD_EM4X_WRITE_WORD, {flag, data, pwd}};
+    UsbCommand c = {CMD_EM4X_WRITE_WORD, {flag, data, pwd}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -1507,6 +1495,7 @@ int CmdLFEM4X(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

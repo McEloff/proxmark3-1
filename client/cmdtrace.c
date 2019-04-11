@@ -15,7 +15,7 @@ static int CmdHelp(const char *Cmd);
 static uint8_t *trace;
 long traceLen = 0;
 
-int usage_trace_list() {
+static int usage_trace_list() {
     PrintAndLogEx(NORMAL, "List protocol data in trace buffer.");
     PrintAndLogEx(NORMAL, "Usage:  trace list <protocol> [f][c| <0|1>");
     PrintAndLogEx(NORMAL, "    f      - show frame delay times as well");
@@ -45,14 +45,14 @@ int usage_trace_list() {
     PrintAndLogEx(NORMAL, "        trace list mf n 65535");
     return 0;
 }
-int usage_trace_load() {
+static int usage_trace_load() {
     PrintAndLogEx(NORMAL, "Load protocol data from file to trace buffer.");
     PrintAndLogEx(NORMAL, "Usage:  trace load <filename>");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "        trace load mytracefile.bin");
     return 0;
 }
-int usage_trace_save() {
+static int usage_trace_save() {
     PrintAndLogEx(NORMAL, "Save protocol data from trace buffer to file.");
     PrintAndLogEx(NORMAL, "Usage:  trace save <filename>");
     PrintAndLogEx(NORMAL, "Examples:");
@@ -60,17 +60,17 @@ int usage_trace_save() {
     return 0;
 }
 
-bool is_last_record(uint16_t tracepos, uint8_t *trace, uint16_t traceLen) {
+static bool is_last_record(uint16_t tracepos, uint8_t *trace, uint16_t traceLen) {
     return (tracepos + sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint16_t) >= traceLen);
 }
 
-bool next_record_is_response(uint16_t tracepos, uint8_t *trace) {
+static bool next_record_is_response(uint16_t tracepos, uint8_t *trace) {
     uint16_t next_records_datalen = *((uint16_t *)(trace + tracepos + sizeof(uint32_t) + sizeof(uint16_t)));
     return ((next_records_datalen & 0x8000) == 0x8000);
 }
 
-bool merge_topaz_reader_frames(uint32_t timestamp, uint32_t *duration, uint16_t *tracepos, uint16_t traceLen,
-                               uint8_t *trace, uint8_t *frame, uint8_t *topaz_reader_command, uint16_t *data_len) {
+static bool merge_topaz_reader_frames(uint32_t timestamp, uint32_t *duration, uint16_t *tracepos, uint16_t traceLen,
+                                      uint8_t *trace, uint8_t *frame, uint8_t *topaz_reader_command, uint16_t *data_len) {
 
 #define MAX_TOPAZ_READER_CMD_LEN 16
 
@@ -107,7 +107,7 @@ bool merge_topaz_reader_frames(uint32_t timestamp, uint32_t *duration, uint16_t 
     return true;
 }
 
-uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *trace, uint8_t protocol, bool showWaitCycles, bool markCRCBytes, int maxNested) {
+static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *trace, uint8_t protocol, bool showWaitCycles, bool markCRCBytes, int maxNested) {
     // sanity check
     if (tracepos + sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint16_t) > traceLen) return traceLen;
 
@@ -223,7 +223,7 @@ uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *trace, ui
     }
 
     // Draw the CRC column
-    char *crc = (crcStatus == 0 ? "!crc" : (crcStatus == 1 ? " ok " : "    "));
+    const char *crc = (crcStatus == 0 ? "!crc" : (crcStatus == 1 ? " ok " : "    "));
 
     EndOfTransmissionTimestamp = timestamp + duration;
 
@@ -309,7 +309,7 @@ uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *trace, ui
     return tracepos;
 }
 
-void printFelica(uint16_t traceLen, uint8_t *trace) {
+static void printFelica(uint16_t traceLen, uint8_t *trace) {
 
     PrintAndLogEx(NORMAL, "ISO18092 / FeliCa - Timings are not as accurate");
     PrintAndLogEx(NORMAL, "    Gap | Src | Data                            | CRC      | Annotation        |");
@@ -729,6 +729,7 @@ int CmdTrace(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

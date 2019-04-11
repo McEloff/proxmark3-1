@@ -109,7 +109,7 @@ static void print_progress_header(void) {
 }
 
 
-void hardnested_print_progress(uint32_t nonces, char *activity, float brute_force, uint64_t min_diff_print_time) {
+void hardnested_print_progress(uint32_t nonces, const char *activity, float brute_force, uint64_t min_diff_print_time) {
     static uint64_t last_print_time = 0;
     if (msclock() - last_print_time > min_diff_print_time) {
         last_print_time = msclock();
@@ -367,9 +367,10 @@ static uint16_t PartialSumProperty(uint32_t state, odd_even_t odd_even) {
         uint32_t st = state;
         uint16_t part_sum = 0;
         if (odd_even == ODD_STATE) {
-            for (uint16_t i = 0; i < 5; i++) {
-                part_sum ^= filter(st);
+            part_sum ^= filter(st);
+            for (uint16_t i = 0; i < 4; i++) {
                 st = (st << 1) | ((j >> (3 - i)) & 0x01) ;
+                part_sum ^= filter(st);
             }
             part_sum ^= 1; // XOR 1 cancelled out for the other 8 bits
         } else {
@@ -1382,7 +1383,7 @@ static int acquire_nonces(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_
         flags |= initialize ? 0x0001 : 0;
         flags |= slow ? 0x0002 : 0;
         flags |= field_off ? 0x0004 : 0;
-        UsbCommand c = {CMD_MIFARE_ACQUIRE_ENCRYPTED_NONCES, {blockNo + keyType * 0x100, trgBlockNo + trgKeyType * 0x100, flags}};
+        UsbCommand c = {CMD_MIFARE_ACQUIRE_ENCRYPTED_NONCES, {blockNo + keyType * 0x100, trgBlockNo + trgKeyType * 0x100, flags}, {{0}}};
         memcpy(c.d.asBytes, key, 6);
 
         clearCommandBuffer();
@@ -1393,7 +1394,7 @@ static int acquire_nonces(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_
         if (initialize) {
             if (!WaitForResponseTimeout(CMD_ACK, &resp, 3000)) {
                 //strange second call (iceman)
-                UsbCommand c1 = {CMD_MIFARE_ACQUIRE_ENCRYPTED_NONCES, {blockNo + keyType * 0x100, trgBlockNo + trgKeyType * 0x100, 4}};
+                UsbCommand c1 = {CMD_MIFARE_ACQUIRE_ENCRYPTED_NONCES, {blockNo + keyType * 0x100, trgBlockNo + trgKeyType * 0x100, 4}, {{0}}};
                 clearCommandBuffer();
                 SendCommand(&c1);
                 return 1;
@@ -1663,7 +1664,7 @@ static bool all_bitflips_match(uint8_t byte, uint32_t state, odd_even_t odd_even
         bool found_match = false;
         for (uint8_t remaining_bits = 0; remaining_bits <= (~mask & 0xff); remaining_bits++) {
             if (remaining_bits_match(num_common, bytes_diff, state, (state & mask) | remaining_bits, odd_even)) {
-                
+
 #ifdef DEBUG_KEY_ELIMINATION
                 if (bitflips_match(byte2, (state & mask) | remaining_bits, odd_even, true)) {
 #else
@@ -1674,9 +1675,9 @@ static bool all_bitflips_match(uint8_t byte, uint32_t state, odd_even_t odd_even
                 }
             }
         }
-        
+
         if (!found_match) {
-            
+
 #ifdef DEBUG_KEY_ELIMINATION
             if (known_target_key != -1 && state == test_state[odd_even]) {
                 PrintAndLogEx(NORMAL, "all_bitflips_match() 1st Byte: %s test state (0x%06x): Eliminated. Bytes = %02x, %02x, Common Bits = %d\n",
@@ -2083,10 +2084,10 @@ static uint16_t SumProperty(struct Crypto1State *s) {
 }
 
 static void Tests() {
-    
+
     if (known_target_key == -1)
         return;
-    
+
     for (odd_even_t odd_even = EVEN_STATE; odd_even <= ODD_STATE; odd_even++) {
         uint32_t *bitset = nonces[best_first_bytes[0]].states_bitarray[odd_even];
         if (!test_bit24(bitset, test_state[odd_even])) {
@@ -2105,10 +2106,10 @@ static void Tests() {
 }
 
 static void Tests2(void) {
-    
+
     if (known_target_key == -1)
         return;
-    
+
     for (odd_even_t odd_even = EVEN_STATE; odd_even <= ODD_STATE; odd_even++) {
         uint32_t *bitset = nonces[best_first_byte_smallest_bitarray].states_bitarray[odd_even];
         if (!test_bit24(bitset, test_state[odd_even])) {
@@ -2117,7 +2118,7 @@ static void Tests2(void) {
                           best_first_byte_smallest_bitarray);
         }
     }
-    
+
     for (odd_even_t odd_even = EVEN_STATE; odd_even <= ODD_STATE; odd_even++) {
         uint32_t *bitset = all_bitflips_bitarray[odd_even];
         if (!test_bit24(bitset, test_state[odd_even])) {
@@ -2166,7 +2167,7 @@ int mfnestedhard(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t trgBloc
             hardnested_print_progress(0, progress_text, (float)(1LL << 47), 0);
             sprintf(progress_text, "Starting Test #%" PRIu32 " ...", i + 1);
             hardnested_print_progress(0, progress_text, (float)(1LL << 47), 0);
-            
+
             if (trgkey != NULL) {
                 known_target_key = bytes_to_num(trgkey, 6);
             } else {
@@ -2249,17 +2250,17 @@ int mfnestedhard(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t trgBloc
             }
 #ifdef DEBUG_KEY_ELIMINATION
             fprintf(fstats, "%1.1f;%1.0f;%c;%s\n",
-                log(num_keys_tested) / log(2.0),
-                (float)num_keys_tested / brute_force_per_second,
-                key_found ? 'Y' : 'N',
-                failstr
-                );
+                    log(num_keys_tested) / log(2.0),
+                    (float)num_keys_tested / brute_force_per_second,
+                    key_found ? 'Y' : 'N',
+                    failstr
+                   );
 #else
             fprintf(fstats, "%1.0f;%d\n",
-                log(num_keys_tested) / log(2.0),
-                (float)num_keys_tested / brute_force_per_second,
-                key_found
-                );
+                    log(num_keys_tested) / log(2.0),
+                    (float)num_keys_tested / brute_force_per_second,
+                    key_found
+                   );
 #endif
 
             free_nonces_memory();

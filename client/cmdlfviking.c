@@ -11,7 +11,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_viking_clone(void) {
+static int usage_lf_viking_clone(void) {
     PrintAndLogEx(NORMAL, "clone a Viking AM tag to a T55x7 tag.");
     PrintAndLogEx(NORMAL, "Usage: lf viking clone <Card ID - 8 hex digits> <Q5>");
     PrintAndLogEx(NORMAL, "Options:");
@@ -23,7 +23,7 @@ int usage_lf_viking_clone(void) {
     return 0;
 }
 
-int usage_lf_viking_sim(void) {
+static int usage_lf_viking_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of viking card with specified card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "Per viking format, the card number is 8 digit hex number.  Larger values are truncated.");
@@ -38,7 +38,7 @@ int usage_lf_viking_sim(void) {
 }
 
 // calc checksum
-uint64_t getVikingBits(uint32_t id) {
+static uint64_t getVikingBits(uint32_t id) {
     uint8_t checksum = ((id >> 24) & 0xFF) ^ ((id >> 16) & 0xFF) ^ ((id >> 8) & 0xFF) ^ (id & 0xFF) ^ 0xF2 ^ 0xA8;
     uint64_t ret = (uint64_t)0xF2 << 56;
     ret |= (uint64_t)id << 8;
@@ -120,7 +120,7 @@ int CmdVikingClone(const char *Cmd) {
 
     PrintAndLogEx(INFO, "Preparing to clone Viking tag - ID: %08X, Raw: %08X%08X", id, (uint32_t)(rawID >> 32), (uint32_t)(rawID & 0xFFFFFFFF));
 
-    UsbCommand c = {CMD_VIKING_CLONE_TAG, {rawID >> 32, rawID & 0xFFFFFFFF, Q5}};
+    UsbCommand c = {CMD_VIKING_CLONE_TAG, {rawID >> 32, rawID & 0xFFFFFFFF, Q5}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     UsbCommand resp;
@@ -151,7 +151,7 @@ int CmdVikingSim(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "Simulating Viking - ID: %08X, Raw: %08X%08X", id, (uint32_t)(rawID >> 32), (uint32_t)(rawID & 0xFFFFFFFF));
 
-    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     num_to_bytebits(rawID, size, c.d.asBytes);
     clearCommandBuffer();
     SendCommand(&c);
@@ -174,6 +174,7 @@ int CmdLFViking(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

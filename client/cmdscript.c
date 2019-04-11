@@ -39,7 +39,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int str_ends_with(const char *str, const char *suffix) {
+static int str_ends_with(const char *str, const char *suffix) {
 
     if (str == NULL || suffix == NULL)
         return 0;
@@ -56,7 +56,7 @@ int str_ends_with(const char *str, const char *suffix) {
 /**
  * Utility to check the ending of a string (used to check file suffix)
  */
-bool endsWith(char *base, char *str) {
+static bool endsWith(const char *base, const char *str) {
     int blen = strlen(base);
     int slen = strlen(str);
     return (blen >= slen) && (0 == strcmp(base + blen - slen, str));
@@ -68,6 +68,7 @@ bool endsWith(char *base, char *str) {
 * ending with .lua
 */
 int CmdScriptList(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     char const *exedir = get_my_executable_directory();
     if (exedir == NULL)
@@ -125,7 +126,7 @@ int CmdScriptRun(const char *Cmd) {
     int arg_len = 0;
     sscanf(Cmd, "%127s%n %255[^\n\r]%n", script_name, &name_len, arguments, &arg_len);
 
-    char *suffix = "";
+    const char *suffix = "";
     if (!endsWith(script_name, ".lua")) {
         suffix = ".lua";
     }
@@ -191,6 +192,7 @@ int CmdScript(const char *Cmd) {
  * @return
  */
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     PrintAndLogEx(NORMAL, "This is a feature to run Lua-scripts. You can place lua-scripts within the scripts/-folder. ");
     return 0;
 }

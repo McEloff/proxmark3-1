@@ -7,23 +7,7 @@
 //-----------------------------------------------------------------------------
 // High frequency MIFARE Desfire commands
 //-----------------------------------------------------------------------------
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
-#include "des.h"
-#include "cmdmain.h"
-#include "proxmark3.h"
-#include "../include/common.h"
-#include "../include/mifare.h"
-#include "iso14443crc.h"
-#include "ui.h"
-#include "cmdparser.h"
-#include "util.h"
 #include "cmdhfmfdes.h"
-#include "cmdhf14a.h"
-
 
 uint8_t CMDPOS = 0;
 uint8_t LENPOS = 1;
@@ -67,7 +51,7 @@ int CmdHF14ADesWb(const char *Cmd) {
         PrintAndLogEx(NORMAL, "--block no:%02x key type:%02x key:%s", blockNo, keyType, sprint_hex(key, 6));
         PrintAndLogEx(NORMAL, "--data: %s", sprint_hex(bldata, 16));
 
-      UsbCommand c = {CMD_MIFARE_WRITEBL, {blockNo, keyType, 0}};
+      UsbCommand c = {CMD_MIFARE_WRITEBL, {blockNo, keyType, 0}, {{0}}};
         memcpy(c.d.asBytes, key, 6);
         memcpy(c.d.asBytes + 10, bldata, 16);
       SendCommand(&c);
@@ -110,7 +94,7 @@ int CmdHF14ADesRb(const char *Cmd) {
     // }
     // PrintAndLogEx(NORMAL, "--block no:%02x key type:%02x key:%s ", blockNo, keyType, sprint_hex(key, 6));
 
-    // UsbCommand c = {CMD_MIFARE_READBL, {blockNo, keyType, 0}};
+    // UsbCommand c = {CMD_MIFARE_READBL, {blockNo, keyType, 0}, {{0}}};
     // memcpy(c.d.asBytes, key, 6);
     // SendCommand(&c);
 
@@ -131,8 +115,9 @@ int CmdHF14ADesRb(const char *Cmd) {
 }
 
 int CmdHF14ADesInfo(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
-    UsbCommand c = {CMD_MIFARE_DESFIRE_INFO};
+    UsbCommand c = {CMD_MIFARE_DESFIRE_INFO, {0, 0, 0}, {{0}}};
     SendCommand(&c);
     UsbCommand resp;
 
@@ -269,10 +254,10 @@ char *GetVersionStr(uint8_t major, uint8_t minor) {
 void GetKeySettings(uint8_t *aid) {
 
     char messStr[512] = {0x00};
-    char *str = messStr;
+    const char *str = messStr;
     uint8_t isOK = 0;
-    uint32_t options = NONE;
-    UsbCommand c = {CMD_MIFARE_DESFIRE};
+    uint32_t options;
+    UsbCommand c = {CMD_MIFARE_DESFIRE, {0, 0, 0}, {{0}}};
     UsbCommand resp;
 
     //memset(messStr, 0x00, 512);
@@ -414,9 +399,9 @@ void GetKeySettings(uint8_t *aid) {
         int numOfKeys;
 
         isOK  = resp.arg[0] & 0xff;
-        if (!isOK) {
+        if (isOK == false) {
             PrintAndLogEx(WARNING, "   Can't read Application Master key version. Trying all keys");
-            numOfKeys = MAX_NUM_KEYS;
+            //numOfKeys = MAX_NUM_KEYS;
         } else {
             numOfKeys = resp.d.asBytes[4];
             PrintAndLogEx(NORMAL, "");
@@ -427,6 +412,7 @@ void GetKeySettings(uint8_t *aid) {
 
         // LOOP over numOfKeys that we got before.
         // From 0x01 to numOfKeys.  We already got 0x00. (AMK)
+        // TODO (iceman)
         for (int i = 0x01; i <= 0x0f; ++i) {
 
         }
@@ -436,12 +422,13 @@ void GetKeySettings(uint8_t *aid) {
 }
 
 int CmdHF14ADesEnumApplications(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
 
     uint8_t isOK = 0x00;
     uint8_t aid[3];
     uint32_t options = (INIT | DISCONNECT);
 
-    UsbCommand c = {CMD_MIFARE_DESFIRE, {options, 0x01 }};
+    UsbCommand c = {CMD_MIFARE_DESFIRE, {options, 0x01 }, {{0}}};
     c.d.asBytes[0] = GET_APPLICATION_IDS;  //0x6a
 
     SendCommand(&c);
@@ -625,7 +612,7 @@ int CmdHF14ADesAuth(const char *Cmd) {
         return 1;
     }
     // algo, nyckell�ngd,
-    UsbCommand c = {CMD_MIFARE_DESFIRE_AUTH1, { cmdAuthMode, cmdAuthAlgo, cmdKeyNo }};
+    UsbCommand c = {CMD_MIFARE_DESFIRE_AUTH1, { cmdAuthMode, cmdAuthAlgo, cmdKeyNo }, {{0}}};
 
     c.d.asBytes[0] = keylength;
     memcpy(c.d.asBytes + 1, key, keylength);
@@ -672,6 +659,7 @@ int CmdHFMFDes(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

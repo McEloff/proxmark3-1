@@ -42,7 +42,7 @@ int CmdHFMFPInfo(const char *cmd) {
     CmdHF14AInfo("");
 
     // Mifare Plus info
-    UsbCommand c = {CMD_READER_ISO_14443a, {ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0}};
+    UsbCommand c = {CMD_READER_ISO_14443a, {ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0}, {{0}}};
     SendCommand(&c);
 
     UsbCommand resp;
@@ -861,6 +861,7 @@ int CmdHFMFP(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

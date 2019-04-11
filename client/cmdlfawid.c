@@ -14,7 +14,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_awid_read(void) {
+static int usage_lf_awid_read(void) {
     PrintAndLogEx(NORMAL, "Enables AWID compatible reader mode printing details of scanned AWID26 or AWID50 tags.");
     PrintAndLogEx(NORMAL, "By default, values are printed and logged until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "If the [1] option is provided, reader mode is exited after reading a single AWID card.");
@@ -30,7 +30,7 @@ int usage_lf_awid_read(void) {
     return 0;
 }
 
-int usage_lf_awid_sim(void) {
+static int usage_lf_awid_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of AWID card with specified facility-code and card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "");
@@ -47,7 +47,7 @@ int usage_lf_awid_sim(void) {
     return 0;
 }
 
-int usage_lf_awid_clone(void) {
+static int usage_lf_awid_clone(void) {
     PrintAndLogEx(NORMAL, "Enables cloning of AWID card with specified facility-code and card number onto T55x7.");
     PrintAndLogEx(NORMAL, "The T55x7 must be on the antenna when issuing this command.  T55x7 blocks are calculated and printed in the process.");
     PrintAndLogEx(NORMAL, "");
@@ -65,7 +65,7 @@ int usage_lf_awid_clone(void) {
     return 0;
 }
 
-int usage_lf_awid_brute(void) {
+static int usage_lf_awid_brute(void) {
     PrintAndLogEx(NORMAL, "Enables bruteforce of AWID reader with specified facility-code.");
     PrintAndLogEx(NORMAL, "This is a attack against reader. if cardnumber is given, it starts with it and goes up / down one step");
     PrintAndLogEx(NORMAL, "if cardnumber is not given, it starts with 1 and goes up to 65535");
@@ -87,7 +87,7 @@ int usage_lf_awid_brute(void) {
 }
 
 static bool sendPing(void) {
-    UsbCommand ping = {CMD_PING, {1, 2, 3}};
+    UsbCommand ping = {CMD_PING, {1, 2, 3}, {{0}}};
     SendCommand(&ping);
     SendCommand(&ping);
     SendCommand(&ping);
@@ -112,7 +112,7 @@ static bool sendTry(uint8_t fmtlen, uint32_t fc, uint32_t cn, uint32_t delay, ui
     uint64_t arg1 = (high << 8) + low;
     uint64_t arg2 = (invert << 8) + clk;
 
-    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, bs_len}};
+    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, bs_len}, {{0}}};
     memcpy(c.d.asBytes, bits, bs_len);
     clearCommandBuffer();
     SendCommand(&c);
@@ -230,7 +230,7 @@ int CmdAWIDRead_device(const char *Cmd) {
 
     if (Cmd[0] == 'h' || Cmd[0] == 'H') return usage_lf_awid_read();
     uint8_t findone = (Cmd[0] == '1') ? 1 : 0;
-    UsbCommand c = {CMD_AWID_DEMOD_FSK, {findone, 0, 0}};
+    UsbCommand c = {CMD_AWID_DEMOD_FSK, {findone, 0, 0}, {{0}}};
     clearCommandBuffer();
     SendCommand(&c);
     return 0;
@@ -240,6 +240,7 @@ int CmdAWIDRead_device(const char *Cmd) {
 //AWID Prox demod - FSK2a RF/50 with preamble of 00000001  (always a 96 bit data stream)
 //print full AWID Prox ID and some bit format details if found
 int CmdAWIDDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     uint8_t bits[MAX_GRAPH_TRACE_LEN] = {0};
     size_t size = getFromGraphBuf(bits);
     if (size == 0) {
@@ -402,7 +403,7 @@ int CmdAWIDSim(const char *Cmd) {
     // arg1 --- fcHigh<<8 + fcLow
     // arg2 --- Inversion and clk setting
     // 96   --- Bitstream length: 96-bits == 12 bytes
-    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     memcpy(c.d.asBytes, bits, size);
     clearCommandBuffer();
     SendCommand(&c);
@@ -445,7 +446,7 @@ int CmdAWIDClone(const char *Cmd) {
     print_blocks(blocks, 4);
 
     UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
 
     for (uint8_t i = 0; i < 4; i++) {
         c.arg[0] = blocks[i];
@@ -573,6 +574,7 @@ int CmdLFAWID(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }

@@ -11,7 +11,7 @@
 
 static int CmdHelp(const char *Cmd);
 
-int usage_lf_pyramid_clone(void) {
+static int usage_lf_pyramid_clone(void) {
     PrintAndLogEx(NORMAL, "clone a Farpointe/Pyramid tag to a T55x7 tag.");
     PrintAndLogEx(NORMAL, "The facility-code is 8-bit and the card number is 16-bit.  Larger values are truncated. ");
     PrintAndLogEx(NORMAL, "Currently only works on 26bit");
@@ -28,7 +28,7 @@ int usage_lf_pyramid_clone(void) {
     return 0;
 }
 
-int usage_lf_pyramid_sim(void) {
+static int usage_lf_pyramid_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of Farpointe/Pyramid card with specified card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
     PrintAndLogEx(NORMAL, "The facility-code is 8-bit and the card number is 16-bit.  Larger values are truncated.");
@@ -72,7 +72,7 @@ int detectPyramid(uint8_t *dest, size_t *size, int *waveStartIdx) {
 }
 
 // Works for 26bits.
-int GetPyramidBits(uint32_t fc, uint32_t cn, uint8_t *pyramidBits) {
+static int GetPyramidBits(uint32_t fc, uint32_t cn, uint8_t *pyramidBits) {
 
     uint8_t pre[128];
     memset(pre, 0x00, sizeof(pre));
@@ -106,6 +106,7 @@ int GetPyramidBits(uint32_t fc, uint32_t cn, uint8_t *pyramidBits) {
 //Pyramid Prox demod - FSK RF/50 with preamble of 0000000000000001  (always a 128 bit data stream)
 //print full Farpointe Data/Pyramid Prox ID and some bit format details if found
 int CmdPyramidDemod(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     //raw fsk demod no manchester decoding no start bit finding just get binary from wave
     uint8_t bits[MAX_GRAPH_TRACE_LEN] = {0};
     size_t size = getFromGraphBuf(bits);
@@ -222,13 +223,13 @@ int CmdPyramidDemod(const char *Cmd) {
         fc = bytebits_to_byte(bits + 53, 10);
         cardnum = bytebits_to_byte(bits + 63, 32);
         PrintAndLogEx(SUCCESS, "Pyramid ID Found - BitLength: %d, FC: %d, Card: %d - Raw: %08x%08x%08x%08x", fmtLen, fc, cardnum, rawHi3, rawHi2, rawHi, rawLo);
-/*        
-    } else if (fmtLen > 32) {
-        cardnum = bytebits_to_byte(bits + 81, 16);
-        //code1 = bytebits_to_byte(bits+(size-fmtLen),fmtLen-32);
-        //code2 = bytebits_to_byte(bits+(size-32),32);
-        PrintAndLogEx(SUCCESS, "Pyramid ID Found - BitLength: %d -unknown BitLength- (%d), Raw: %08x%08x%08x%08x", fmtLen, cardnum, rawHi3, rawHi2, rawHi, rawLo);
-        */
+        /*
+            } else if (fmtLen > 32) {
+                cardnum = bytebits_to_byte(bits + 81, 16);
+                //code1 = bytebits_to_byte(bits+(size-fmtLen),fmtLen-32);
+                //code2 = bytebits_to_byte(bits+(size-32),32);
+                PrintAndLogEx(SUCCESS, "Pyramid ID Found - BitLength: %d -unknown BitLength- (%d), Raw: %08x%08x%08x%08x", fmtLen, cardnum, rawHi3, rawHi2, rawHi, rawLo);
+                */
     } else {
         cardnum = bytebits_to_byte(bits + 81, 16);
         //code1 = bytebits_to_byte(bits+(size-fmtLen),fmtLen);
@@ -289,7 +290,7 @@ int CmdPyramidClone(const char *Cmd) {
     print_blocks(blocks, 5);
 
     UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}};
+    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
 
     for (uint8_t i = 0; i < 5; ++i) {
         c.arg[0] = blocks[i];
@@ -333,7 +334,7 @@ int CmdPyramidSim(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "Simulating Farpointe/Pyramid - Facility Code: %u, CardNumber: %u", facilitycode, cardnumber);
 
-    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, size}};
+    UsbCommand c = {CMD_FSK_SIM_TAG, {arg1, arg2, size}, {{0}}};
     memcpy(c.d.asBytes, bs, size);
     clearCommandBuffer();
     SendCommand(&c);
@@ -356,6 +357,7 @@ int CmdLFPyramid(const char *Cmd) {
 }
 
 int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
     return 0;
 }
