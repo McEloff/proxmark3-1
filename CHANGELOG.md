@@ -1,3 +1,12 @@
+## [@mceloff]
+ - New release of Mifare1ksim() used, merged with @iceman 'mifaresim.c'
+ - 'hf mf sim', 'hf 14a sim' online and offline ar/nr nonces collection
+ - 'hf mf sim' and 'hf 14a sim' correct offline simulation
+ - Mifare classic simulation, number of writes limit
+ - Trace list mifare add parameter for nested keys check
+ - Ignore BCC errors in select iso1443a tags process
+ - Mikron JSC Russia Ultralight EV1 41 pages tag type support
+
 # Change Log
 All notable changes to this project will be documented in this file.
 This project uses the changelog in accordance with [keepchangelog](http://keepachangelog.com/). Please use this to write notable changes, which is not the same as git commit log...
