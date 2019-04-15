@@ -20,7 +20,7 @@
 static int CmdHelp(const char *Cmd);
 
 #define TLV_ADD(tag, value)( tlvdb_change_or_add_node(tlvRoot, tag, sizeof(value) - 1, (const unsigned char *)value) )
-void ParamLoadDefaults(struct tlvdb *tlvRoot) {
+static void ParamLoadDefaults(struct tlvdb *tlvRoot) {
     //9F02:(Amount, authorized (Numeric)) len:6
     TLV_ADD(0x9F02, "\x00\x00\x00\x00\x01\x00");
     //9F1A:(Terminal Country Code) len:2
@@ -43,7 +43,7 @@ void ParamLoadDefaults(struct tlvdb *tlvRoot) {
     TLV_ADD(0x95,   "\x00\x00\x00\x00\x00");
 }
 
-void PrintChannel(EMVCommandChannel channel) {
+static void PrintChannel(EMVCommandChannel channel) {
     switch (channel) {
         case ECC_CONTACTLESS:
             PrintAndLogEx(INFO, "Channel: CONTACTLESS");
@@ -54,7 +54,7 @@ void PrintChannel(EMVCommandChannel channel) {
     }
 }
 
-int CmdEMVSelect(const char *Cmd) {
+static int CmdEMVSelect(const char *Cmd) {
     uint8_t data[APDU_AID_LEN] = {0};
     int datalen = 0;
 
@@ -105,7 +105,7 @@ int CmdEMVSelect(const char *Cmd) {
     return 0;
 }
 
-int CmdEMVSearch(const char *Cmd) {
+static int CmdEMVSearch(const char *Cmd) {
 
     CLIParserInit("emv search",
                   "Tries to select all applets from applet list:\n",
@@ -155,7 +155,7 @@ int CmdEMVSearch(const char *Cmd) {
     return 0;
 }
 
-int CmdEMVPPSE(const char *Cmd) {
+static int CmdEMVPPSE(const char *Cmd) {
 
     CLIParserInit("emv pse",
                   "Executes PSE/PPSE select command. It returns list of applet on the card:\n",
@@ -210,7 +210,7 @@ int CmdEMVPPSE(const char *Cmd) {
     return 0;
 }
 
-int CmdEMVGPO(const char *Cmd) {
+static int CmdEMVGPO(const char *Cmd) {
     uint8_t data[APDU_RES_LEN] = {0};
     int datalen = 0;
 
@@ -317,7 +317,7 @@ int CmdEMVGPO(const char *Cmd) {
     return 0;
 }
 
-int CmdEMVReadRecord(const char *Cmd) {
+static int CmdEMVReadRecord(const char *Cmd) {
     uint8_t data[APDU_RES_LEN] = {0};
     int datalen = 0;
 
@@ -372,7 +372,7 @@ int CmdEMVReadRecord(const char *Cmd) {
     return 0;
 }
 
-int CmdEMVAC(const char *Cmd) {
+static int CmdEMVAC(const char *Cmd) {
     uint8_t data[APDU_RES_LEN] = {0};
     int datalen = 0;
 
@@ -493,7 +493,7 @@ int CmdEMVAC(const char *Cmd) {
     return 0;
 }
 
-int CmdEMVGenerateChallenge(const char *Cmd) {
+static int CmdEMVGenerateChallenge(const char *Cmd) {
 
     CLIParserInit("emv challenge",
                   "Executes Generate Challenge command. It returns 4 or 8-byte random number from card.\nNeeds a EMV applet to be selected and GPO to be executed.",
@@ -538,7 +538,7 @@ int CmdEMVGenerateChallenge(const char *Cmd) {
     return 0;
 }
 
-int CmdEMVInternalAuthenticate(const char *Cmd) {
+static int CmdEMVInternalAuthenticate(const char *Cmd) {
     uint8_t data[APDU_RES_LEN] = {0};
     int datalen = 0;
 
@@ -642,7 +642,7 @@ int CmdEMVInternalAuthenticate(const char *Cmd) {
 
 #define dreturn(n) {free(pdol_data_tlv); tlvdb_free(tlvSelect); tlvdb_free(tlvRoot); DropFieldEx( channel ); return n;}
 
-void InitTransactionParameters(struct tlvdb *tlvRoot, bool paramLoadJSON, enum TransactionType TrType, bool GenACGPO) {
+static void InitTransactionParameters(struct tlvdb *tlvRoot, bool paramLoadJSON, enum TransactionType TrType, bool GenACGPO) {
 
     ParamLoadDefaults(tlvRoot);
 
@@ -675,7 +675,7 @@ void InitTransactionParameters(struct tlvdb *tlvRoot, bool paramLoadJSON, enum T
     }
 }
 
-void ProcessGPOResponseFormat1(struct tlvdb *tlvRoot, uint8_t *buf, size_t len, bool decodeTLV) {
+static void ProcessGPOResponseFormat1(struct tlvdb *tlvRoot, uint8_t *buf, size_t len, bool decodeTLV) {
     if (buf[0] == 0x80) {
         if (decodeTLV) {
             PrintAndLog("GPO response format1:");
@@ -705,7 +705,7 @@ void ProcessGPOResponseFormat1(struct tlvdb *tlvRoot, uint8_t *buf, size_t len, 
     }
 }
 
-void ProcessACResponseFormat1(struct tlvdb *tlvRoot, uint8_t *buf, size_t len, bool decodeTLV) {
+static void ProcessACResponseFormat1(struct tlvdb *tlvRoot, uint8_t *buf, size_t len, bool decodeTLV) {
     if (buf[0] == 0x80) {
         if (decodeTLV) {
             PrintAndLog("GPO response format1:");
@@ -749,7 +749,7 @@ void ProcessACResponseFormat1(struct tlvdb *tlvRoot, uint8_t *buf, size_t len, b
     }
 }
 
-int CmdEMVExec(const char *Cmd) {
+static int CmdEMVExec(const char *Cmd) {
     uint8_t buf[APDU_RES_LEN] = {0};
     size_t len = 0;
     uint16_t sw = 0;
@@ -1346,7 +1346,7 @@ int CmdEMVExec(const char *Cmd) {
     return 0;
 }
 
-int CmdEMVScan(const char *Cmd) {
+static int CmdEMVScan(const char *Cmd) {
     uint8_t AID[APDU_AID_LEN] = {0};
     size_t AIDlen = 0;
     uint8_t buf[APDU_RES_LEN] = {0};
@@ -1700,17 +1700,17 @@ int CmdEMVScan(const char *Cmd) {
     return 0;
 }
 
-int CmdEMVList(const char *Cmd) {
+static int CmdEMVList(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
     return CmdTraceList("7816");
 }
 
-int CmdEMVTest(const char *Cmd) {
+static int CmdEMVTest(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
     return ExecuteCryptoTests(true);
 }
 
-int CmdEMVRoca(const char *Cmd) {
+static int CmdEMVRoca(const char *Cmd) {
     uint8_t AID[APDU_AID_LEN] = {0};
     size_t AIDlen = 0;
     uint8_t buf[APDU_RES_LEN] = {0};
@@ -1966,13 +1966,15 @@ static command_t CommandTable[] =  {
     {NULL, NULL, 0, NULL}
 };
 
+static int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
+    CmdsHelp(CommandTable);
+    return 0;
+}
+
 int CmdEMV(const char *Cmd) {
     clearCommandBuffer();
     CmdsParse(CommandTable, Cmd);
     return 0;
 }
 
-int CmdHelp(const char *Cmd) {
-    CmdsHelp(CommandTable);
-    return 0;
-}

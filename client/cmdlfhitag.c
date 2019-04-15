@@ -64,6 +64,7 @@ static int usage_hitag_info(void) {
     PrintAndLogEx(NORMAL, "         lf hitag info");
     return 0;
 }
+/*
 static int usage_hitag_dump(void) {
     PrintAndLogEx(NORMAL, "Usage:   lf hitag dump [h] p <pwd> f <name>");
     PrintAndLogEx(NORMAL, "Options:");
@@ -76,6 +77,7 @@ static int usage_hitag_dump(void) {
     PrintAndLogEx(NORMAL, "         lf hitag dump p 4D494B52 f mydump");
     return 0;
 }
+*/
 static int usage_hitag_reader(void) {
     PrintAndLogEx(NORMAL, "Hitag reader functions");
     PrintAndLogEx(NORMAL, "Usage: lf hitag reader [h] <reader function #>");
@@ -120,7 +122,7 @@ static int usage_hitag_checkchallenges(void) {
     return 0;
 }
 
-int CmdLFHitagList(const char *Cmd) {
+static int CmdLFHitagList(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
     CmdTraceList("hitag");
     return 0;
@@ -253,7 +255,7 @@ int CmdLFHitagList(const char *Cmd) {
     */
 }
 
-int CmdLFHitagSniff(const char *Cmd) {
+static int CmdLFHitagSniff(const char *Cmd) {
 
     char ctmp = tolower(param_getchar(Cmd, 0));
     if (ctmp == 'h') return usage_hitag_sniff();
@@ -264,7 +266,7 @@ int CmdLFHitagSniff(const char *Cmd) {
     return 0;
 }
 
-int CmdLFHitagSim(const char *Cmd) {
+static int CmdLFHitagSim(const char *Cmd) {
 
     bool errors = false;
     bool tag_mem_supplied = false;
@@ -412,7 +414,7 @@ static void printHitagConfiguration(uint8_t config) {
     if (config & 0x10) {
         strcat(msg + strlen(msg), "read only");
     } else  {
-        strcat(msg + strlen(msg), _GREEN_("read write"));
+        strcat(msg + strlen(msg), _GREEN_("RW"));
     }
     PrintAndLogEx(SUCCESS, "%s", msg);
     memset(msg, 0, sizeof(msg));
@@ -422,7 +424,7 @@ static void printHitagConfiguration(uint8_t config) {
     if (config & 0x20) {
         strcat(msg + strlen(msg), "read only");
     } else  {
-        strcat(msg + strlen(msg), _GREEN_("read write"));
+        strcat(msg + strlen(msg), _GREEN_("RW"));
     }
     PrintAndLogEx(SUCCESS, "%s", msg);
     memset(msg, 0, sizeof(msg));
@@ -432,7 +434,7 @@ static void printHitagConfiguration(uint8_t config) {
     if (config & 0x40) {
         strcat(msg + strlen(msg), "read only. Configuration byte and password tag " _RED_("FIXED / IRREVERSIBLE"));
     } else  {
-        strcat(msg + strlen(msg), _GREEN_("read write"));
+        strcat(msg + strlen(msg), _GREEN_("RW"));
     }
     PrintAndLogEx(SUCCESS, "%s", msg);
     memset(msg, 0, sizeof(msg));
@@ -448,7 +450,7 @@ static void printHitagConfiguration(uint8_t config) {
             strcat(msg + strlen(msg), "read only");
         }
     } else  {
-        strcat(msg, "Page 1,2    : " _GREEN_("read write"));
+        strcat(msg, "Page 1,2    : " _GREEN_("RW"));
     }
     PrintAndLogEx(SUCCESS, "%s", msg);
     PrintAndLogEx(INFO, "------------------------------------");
@@ -476,7 +478,7 @@ static bool getHitagUid(uint32_t *uid) {
     return true;
 }
 
-int CmdLFHitagInfo(const char *Cmd) {
+static int CmdLFHitagInfo(const char *Cmd) {
     PrintAndLogEx(INFO, "Hitag2 tag information ");
     PrintAndLogEx(INFO, "To be done!");
     PrintAndLogEx(INFO, "------------------------------------");
@@ -509,7 +511,7 @@ int CmdLFHitagInfo(const char *Cmd) {
 // TODO: iceman
 // Hitag2 reader,  problem is that this command mixes up stuff.  So 26 give uid.  21 etc will also give you a memory dump !?
 //
-int CmdLFHitagReader(const char *Cmd) {
+static int CmdLFHitagReader(const char *Cmd) {
 
     UsbCommand c = {CMD_READER_HITAG, {0, 0, 0}, {{0}}};
     hitag_data *htd = (hitag_data *)c.d.asBytes;
@@ -548,9 +550,10 @@ int CmdLFHitagReader(const char *Cmd) {
             // No additional parameters needed
             break;
         }
-        default: {
+        case WHTSF_CHALLENGE:
+        case WHTSF_KEY:
+        case WHT2F_CRYPTO:
             return usage_hitag_reader();
-        }
     }
 
     c.arg[0] = htf;
@@ -590,7 +593,7 @@ int CmdLFHitagReader(const char *Cmd) {
     return 0;
 }
 
-int CmdLFHitagCheckChallenges(const char *Cmd) {
+static int CmdLFHitagCheckChallenges(const char *Cmd) {
 
     UsbCommand c = { CMD_TEST_HITAGS_TRACES, {0, 0, 0}, {{0}}};
     char filename[FILE_PATH_SIZE] = { 0x00 };
@@ -640,7 +643,7 @@ int CmdLFHitagCheckChallenges(const char *Cmd) {
     return 0;
 }
 
-int CmdLFHitagWriter(const char *Cmd) {
+static int CmdLFHitagWriter(const char *Cmd) {
     UsbCommand c = { CMD_WR_HITAG_S, {0, 0, 0}, {{0}}};
     hitag_data *htd = (hitag_data *)c.d.asBytes;
     hitag_function htf = param_get32ex(Cmd, 0, 0, 10);
@@ -659,9 +662,14 @@ int CmdLFHitagWriter(const char *Cmd) {
             num_to_bytes(param_get32ex(Cmd, 3, 0, 16), 4, htd->crypto.data);
             break;
         }
-        default: {
+        case RHTSF_CHALLENGE:
+        case RHTSF_KEY:
+        case RHT2F_PASSWORD:
+        case RHT2F_AUTHENTICATE:
+        case RHT2F_CRYPTO:
+        case RHT2F_TEST_AUTH_ATTEMPTS:
+        case RHT2F_UID_ONLY:
             return usage_hitag_writer();
-        }
     }
 
     c.arg[0] = htf;
@@ -681,7 +689,8 @@ int CmdLFHitagWriter(const char *Cmd) {
     return 0;
 }
 
-int CmdLFHitagDump(const char *Cmd) {
+/*
+static int CmdLFHitagDump(const char *Cmd) {
     PrintAndLogEx(INFO, "Dumping of tag memory");
     PrintAndLogEx(INFO, "To be done!");
 
@@ -689,6 +698,7 @@ int CmdLFHitagDump(const char *Cmd) {
     if (ctmp == 'h') return usage_hitag_dump();
     return 0;
 }
+*/
 
 static command_t CommandTable[] = {
     {"help",     CmdHelp,                   1, "This help" },
@@ -702,14 +712,18 @@ static command_t CommandTable[] = {
     { NULL, NULL, 0, NULL }
 };
 
+static int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
+    CmdsHelp(CommandTable);
+    return 0;
+}
+
 int CmdLFHitag(const char *Cmd) {
     clearCommandBuffer();
     CmdsParse(CommandTable, Cmd);
     return 0;
 }
 
-int CmdHelp(const char *Cmd) {
-    (void)Cmd; // Cmd is not used so far
-    CmdsHelp(CommandTable);
-    return 0;
+int readHitagUid(void) {
+    return CmdLFHitagReader("26") == 0;
 }

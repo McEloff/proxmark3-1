@@ -45,67 +45,10 @@ static int usage_lf_pyramid_sim(void) {
     return 0;
 }
 
-// by marshmellow
-// FSK Demod then try to locate a Farpointe Data (pyramid) ID
-int detectPyramid(uint8_t *dest, size_t *size, int *waveStartIdx) {
-    //make sure buffer has data
-    if (*size < 128 * 50) return -1;
-
-    //test samples are not just noise
-    if (getSignalProperties()->isnoise) return -2;
-
-    // FSK demodulator RF/50 FSK 10,8
-    *size = fskdemod(dest, *size, 50, 1, 10, 8, waveStartIdx);  // pyramid fsk2
-
-    //did we get a good demod?
-    if (*size < 128) return -3;
-
-    size_t startIdx = 0;
-    uint8_t preamble[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1};
-    if (!preambleSearch(dest, preamble, sizeof(preamble), size, &startIdx))
-        return -4; //preamble not found
-
-    // wrong size?  (between to preambles)
-    if (*size != 128) return -5;
-
-    return (int)startIdx;
-}
-
-// Works for 26bits.
-static int GetPyramidBits(uint32_t fc, uint32_t cn, uint8_t *pyramidBits) {
-
-    uint8_t pre[128];
-    memset(pre, 0x00, sizeof(pre));
-
-    // format start bit
-    pre[79] = 1;
-
-    // Get 26 wiegand from FacilityCode, CardNumber
-    uint8_t wiegand[24];
-    memset(wiegand, 0x00, sizeof(wiegand));
-    num_to_bytebits(fc, 8, wiegand);
-    num_to_bytebits(cn, 16, wiegand + 8);
-
-    // add wiegand parity bits (dest, source, len)
-    wiegand_add_parity(pre + 80, wiegand, 24);
-
-    // add paritybits (bitsource, dest, sourcelen, paritylen, parityType (odd, even,)
-    addParity(pre + 8, pyramidBits + 8, 102, 8, 1);
-
-    // add checksum
-    uint8_t csBuff[13];
-    for (uint8_t i = 0; i < 13; i++)
-        csBuff[i] = bytebits_to_byte(pyramidBits + 16 + (i * 8), 8);
-
-    uint32_t crc = CRC8Maxim(csBuff, 13);
-    num_to_bytebits(crc, 8, pyramidBits + 120);
-    return 1;
-}
-
 //by marshmellow
 //Pyramid Prox demod - FSK RF/50 with preamble of 0000000000000001  (always a 128 bit data stream)
 //print full Farpointe Data/Pyramid Prox ID and some bit format details if found
-int CmdPyramidDemod(const char *Cmd) {
+static int CmdPyramidDemod(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
     //raw fsk demod no manchester decoding no start bit finding just get binary from wave
     uint8_t bits[MAX_GRAPH_TRACE_LEN] = {0};
@@ -239,7 +182,7 @@ int CmdPyramidDemod(const char *Cmd) {
     PrintAndLogEx(DEBUG, "DEBUG: Pyramid: checksum : 0x%02X - %02X - %s"
                   , checksum
                   , checkCS
-                  , (checksum == checkCS) ? _GREEN_("Passed") : _RED_("Failed")
+                  , (checksum == checkCS) ? _GREEN_("Passed") : _RED_("Fail")
                  );
 
     PrintAndLogEx(DEBUG, "DEBUG: Pyramid: idx: %d, Len: %d, Printing Demod Buffer:", idx, 128);
@@ -249,12 +192,12 @@ int CmdPyramidDemod(const char *Cmd) {
     return 1;
 }
 
-int CmdPyramidRead(const char *Cmd) {
+static int CmdPyramidRead(const char *Cmd) {
     lf_read(true, 15000);
     return CmdPyramidDemod(Cmd);
 }
 
-int CmdPyramidClone(const char *Cmd) {
+static int CmdPyramidClone(const char *Cmd) {
 
     char cmdp = param_getchar(Cmd, 0);
     if (strlen(Cmd) == 0 || cmdp == 'h' || cmdp == 'H') return usage_lf_pyramid_clone();
@@ -269,7 +212,7 @@ int CmdPyramidClone(const char *Cmd) {
     facilitycode = (fc & 0x000000FF);
     cardnumber = (cn & 0x0000FFFF);
 
-    if (!GetPyramidBits(facilitycode, cardnumber, bs)) {
+    if (!getPyramidBits(facilitycode, cardnumber, bs)) {
         PrintAndLogEx(WARNING, "Error with tag bitstream generation.");
         return 1;
     }
@@ -305,7 +248,7 @@ int CmdPyramidClone(const char *Cmd) {
     return 0;
 }
 
-int CmdPyramidSim(const char *Cmd) {
+static int CmdPyramidSim(const char *Cmd) {
 
     char cmdp = param_getchar(Cmd, 0);
     if (strlen(Cmd) == 0 || cmdp == 'h' || cmdp == 'H') return usage_lf_pyramid_sim();
@@ -327,7 +270,7 @@ int CmdPyramidSim(const char *Cmd) {
     facilitycode = (fc & 0x000000FF);
     cardnumber = (cn & 0x0000FFFF);
 
-    if (!GetPyramidBits(facilitycode, cardnumber, bs)) {
+    if (!getPyramidBits(facilitycode, cardnumber, bs)) {
         PrintAndLogEx(WARNING, "Error with tag bitstream generation.");
         return 1;
     }
@@ -361,3 +304,65 @@ int CmdHelp(const char *Cmd) {
     CmdsHelp(CommandTable);
     return 0;
 }
+
+// Works for 26bits.
+int getPyramidBits(uint32_t fc, uint32_t cn, uint8_t *pyramidBits) {
+
+    uint8_t pre[128];
+    memset(pre, 0x00, sizeof(pre));
+
+    // format start bit
+    pre[79] = 1;
+
+    // Get 26 wiegand from FacilityCode, CardNumber
+    uint8_t wiegand[24];
+    memset(wiegand, 0x00, sizeof(wiegand));
+    num_to_bytebits(fc, 8, wiegand);
+    num_to_bytebits(cn, 16, wiegand + 8);
+
+    // add wiegand parity bits (dest, source, len)
+    wiegand_add_parity(pre + 80, wiegand, 24);
+
+    // add paritybits (bitsource, dest, sourcelen, paritylen, parityType (odd, even,)
+    addParity(pre + 8, pyramidBits + 8, 102, 8, 1);
+
+    // add checksum
+    uint8_t csBuff[13];
+    for (uint8_t i = 0; i < 13; i++)
+        csBuff[i] = bytebits_to_byte(pyramidBits + 16 + (i * 8), 8);
+
+    uint32_t crc = CRC8Maxim(csBuff, 13);
+    num_to_bytebits(crc, 8, pyramidBits + 120);
+    return 1;
+}
+
+int demodPyramid(void) {
+    return CmdPyramidDemod("");
+}
+
+// by marshmellow
+// FSK Demod then try to locate a Farpointe Data (pyramid) ID
+int detectPyramid(uint8_t *dest, size_t *size, int *waveStartIdx) {
+    //make sure buffer has data
+    if (*size < 128 * 50) return -1;
+
+    //test samples are not just noise
+    if (getSignalProperties()->isnoise) return -2;
+
+    // FSK demodulator RF/50 FSK 10,8
+    *size = fskdemod(dest, *size, 50, 1, 10, 8, waveStartIdx);  // pyramid fsk2
+
+    //did we get a good demod?
+    if (*size < 128) return -3;
+
+    size_t startIdx = 0;
+    uint8_t preamble[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1};
+    if (!preambleSearch(dest, preamble, sizeof(preamble), size, &startIdx))
+        return -4; //preamble not found
+
+    // wrong size?  (between to preambles)
+    if (*size != 128) return -5;
+
+    return (int)startIdx;
+}
+

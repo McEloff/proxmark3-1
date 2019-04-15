@@ -9,10 +9,17 @@
 // UI utilities
 //-----------------------------------------------------------------------------
 
+/* Ensure strtok_r is available even with -std=c99; must be included before
+ */
+#if !defined(_WIN32)
+#define _POSIX_C_SOURCE 200112L
+#endif
+
 #include "ui.h"
 
 double CursorScaleFactor = 1;
-int PlotGridX = 0, PlotGridY = 0, PlotGridXdefault = 64, PlotGridYdefault = 64, CursorCPos = 0, CursorDPos = 0;
+int PlotGridX = 0, PlotGridY = 0, PlotGridXdefault = 64, PlotGridYdefault = 64;
+uint32_t CursorCPos = 0, CursorDPos = 0;
 bool flushAfterWrite = 0;
 int GridOffset = 0;
 bool GridLocked = false;
@@ -21,19 +28,27 @@ bool showDemod = true;
 pthread_mutex_t print_lock = PTHREAD_MUTEX_INITIALIZER;
 static const char *logfilename = "proxmark3.log";
 
-float complex cexpf(float complex Z);
+/*
+static float complex cexpf(float complex Z) {
+    float complex  Res;
+    double rho = exp(__real__ Z);
+    __real__ Res = rho * cosf(__imag__ Z);
+    __imag__ Res = rho * sinf(__imag__ Z);
+    return Res;
+}
+*/
 
 void PrintAndLogOptions(const char *str[][2], size_t size, size_t space) {
     char buff[2000] = "Options:\n";
     char format[2000] = "";
     size_t counts[2] = {0, 0};
-    for (int i = 0; i < size; i++)
-        for (int j = 0 ; j < 2 ; j++)
+    for (size_t i = 0; i < size; i++)
+        for (size_t j = 0 ; j < 2 ; j++)
             if (counts[j] < strlen(str[i][j])) {
                 counts[j] = strlen(str[i][j]);
             }
-    for (int i = 0; i < size; i++) {
-        for (int j = 0; j < 2; j++) {
+    for (size_t i = 0; i < size; i++) {
+        for (size_t j = 0; j < 2; j++) {
             if (j == 0)
                 snprintf(format, sizeof(format), "%%%zus%%%zus", space, counts[j]);
             else
@@ -55,6 +70,7 @@ void PrintAndLogEx(logLevel_t level, const char *fmt, ...) {
     char buffer[MAX_PRINT_BUFFER] = {0};
     char buffer2[MAX_PRINT_BUFFER + 20] = {0};
     char *token = NULL;
+    char *tmp_ptr = NULL;
     //   {NORMAL, SUCCESS, INFO, FAILED, WARNING, ERR, DEBUG}
     static const char *prefixes[7] = { "", "[+] ", "[=] ", "[-] ", "[!] ", "[!!] ", "[#] "};
 
@@ -74,7 +90,8 @@ void PrintAndLogEx(logLevel_t level, const char *fmt, ...) {
         case WARNING:
             strncpy(prefix, _CYAN_("[!]"), sizeof(prefix) - 1);
             break;
-        default:
+        case NORMAL:
+        case INFO:
             strncpy(prefix, prefixes[level], sizeof(prefix) - 1);
             break;
     }
@@ -98,7 +115,7 @@ void PrintAndLogEx(logLevel_t level, const char *fmt, ...) {
         if (buffer[0] == '\n')
             PrintAndLog("");
 
-        token = strtok(buffer, delim);
+        token = strtok_r(buffer, delim, &tmp_ptr);
 
         while (token != NULL) {
 
@@ -109,7 +126,7 @@ void PrintAndLogEx(logLevel_t level, const char *fmt, ...) {
             else
                 snprintf(buffer2 + size, sizeof(buffer2) - size, "\n");
 
-            token = strtok(NULL, delim);
+            token = strtok_r(NULL, delim, &tmp_ptr);
         }
         PrintAndLog("%s", buffer2);
     } else {
@@ -195,8 +212,6 @@ void SetFlushAfterWrite(bool value) {
 
 void iceIIR_Butterworth(int *data, const size_t len) {
 
-    int i, j;
-
     int *output = (int *) calloc(sizeof(int) * len, sizeof(uint8_t));
     if (!output) return;
 
@@ -211,7 +226,7 @@ void iceIIR_Butterworth(int *data, const size_t len) {
     float b[3] = {0.003621681514929,  0.007243363029857, 0.003621681514929};
     float a[3] = {1.000000000000000, -1.822694925196308, 0.837181651256023};
 
-    for (i = 0; i < adjustedLen; ++i) {
+    for (size_t i = 0; i < adjustedLen; ++i) {
 
         float sample = data[i];          // input sample read from array
         float complex x_prime  = 1.0f;   // save sample for estimating frequency
@@ -238,7 +253,7 @@ void iceIIR_Butterworth(int *data, const size_t len) {
 
     // show data
     //memcpy(data, output, adjustedLen);
-    for (j = 0; j < adjustedLen; ++j)
+    for (size_t j = 0; j < adjustedLen; ++j)
         data[j] = output[j];
 
     free(output);
@@ -252,7 +267,7 @@ void iceSimple_Filter(int *data, const size_t len, uint8_t k) {
     int32_t filter_reg = 0;
     int8_t shift = (k <= 8) ? k : FILTER_SHIFT;
 
-    for (int i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
         // Update filter with current sample
         filter_reg = filter_reg - (filter_reg >> shift) + data[i];
 
@@ -261,10 +276,4 @@ void iceSimple_Filter(int *data, const size_t len, uint8_t k) {
     }
 }
 
-float complex cexpf(float complex Z) {
-    float complex  Res;
-    double rho = exp(__real__ Z);
-    __real__ Res = rho * cosf(__imag__ Z);
-    __imag__ Res = rho * sinf(__imag__ Z);
-    return Res;
-}
+

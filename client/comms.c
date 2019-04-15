@@ -218,7 +218,7 @@ bool hookUpPM3() {
 }
 */
 
-void
+static void
 #ifdef __has_attribute
 #if __has_attribute(force_align_arg_pointer)
 __attribute__((force_align_arg_pointer))
@@ -302,6 +302,7 @@ bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, 
 
     char *portname = (char *)port;
     if (!wait_for_port) {
+        PrintAndLogEx(INFO, "Using UART port " _YELLOW_("%s"), portname);
         sp = uart_open(portname, speed);
     } else {
         PrintAndLogEx(SUCCESS, "Waiting for Proxmark to appear on " _YELLOW_("%s"), portname);
@@ -318,12 +319,12 @@ bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, 
 
     // check result of uart opening
     if (sp == INVALID_SERIAL_PORT) {
-        PrintAndLogEx(WARNING, _RED_("ERROR:") "invalid serial port");
+        PrintAndLogEx(WARNING, _RED_("ERROR:") "invalid serial port " _YELLOW_("%s"), portname);
         sp = NULL;
         serial_port_name = NULL;
         return false;
     } else if (sp == CLAIMED_SERIAL_PORT) {
-        PrintAndLogEx(WARNING, _RED_("ERROR:") "serial port is claimed by another process");
+        PrintAndLogEx(WARNING, _RED_("ERROR:") "serial port " _YELLOW_("%s") " is claimed by another process", portname);
         sp = NULL;
         serial_port_name = NULL;
         return false;
@@ -334,11 +335,25 @@ bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, 
         conn.block_after_ACK = flash_mode;
         pthread_create(&USB_communication_thread, NULL, &uart_communication, &conn);
         //pthread_create(&FPC_communication_thread, NULL, &uart_communication, &conn);
-
         fflush(stdout);
         // create a mutex to avoid interlacing print commands from our different threads
         //pthread_mutex_init(&print_lock, NULL);
         return true;
+    }
+}
+
+int TestProxmark(void) {
+    // check if we can communicate with Pm3
+    clearCommandBuffer();
+    UsbCommand resp;
+    UsbCommand c = {CMD_PING, {0, 0, 0}, {{0}}};
+    SendCommand(&c);
+    if (WaitForResponseTimeout(CMD_ACK, &resp, 1000)) {
+        PrintAndLogEx(INFO, "Ping successful, communicating with PM3 over %s.", resp.arg[0] == 1 ? "FPC" : "USB");
+        return 1;
+    } else {
+        PrintAndLogEx(WARNING, _RED_("Ping failed"));
+        return 0;
     }
 }
 

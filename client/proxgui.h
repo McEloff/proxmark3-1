@@ -28,11 +28,12 @@ void ExitGraphics(void);
 #define MAX_GRAPH_TRACE_LEN (40000 * 8)
 #endif
 extern int GraphBuffer[MAX_GRAPH_TRACE_LEN];
-extern int GraphTraceLen;
+extern size_t GraphTraceLen;
 extern int s_Buff[MAX_GRAPH_TRACE_LEN];
 
 extern double CursorScaleFactor;
-extern int PlotGridX, PlotGridY, PlotGridXdefault, PlotGridYdefault, CursorCPos, CursorDPos, GridOffset;
+extern int PlotGridX, PlotGridY, PlotGridXdefault, PlotGridYdefault, GridOffset;
+extern uint32_t CursorCPos, CursorDPos;
 extern int CommandFinished;
 extern int offline;
 extern bool GridLocked;
@@ -40,7 +41,7 @@ extern bool GridLocked;
 //Operations defined in data_operations
 //int autoCorr(const int* in, int *out, size_t len, int window);
 int AskEdgeDetect(const int *in, int *out, int len, int threshold);
-int AutoCorrelate(const int *in, int *out, size_t len, int window, bool SaveGrph, bool verbose);
+int AutoCorrelate(const int *in, int *out, size_t len, size_t window, bool SaveGrph, bool verbose);
 int directionalThreshold(const int *in, int *out, size_t len, int8_t up, int8_t down);
 void save_restoreGB(uint8_t saveOpt);
 

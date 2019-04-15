@@ -37,41 +37,9 @@ static int usage_lf_viking_sim(void) {
     return 0;
 }
 
-// calc checksum
-static uint64_t getVikingBits(uint32_t id) {
-    uint8_t checksum = ((id >> 24) & 0xFF) ^ ((id >> 16) & 0xFF) ^ ((id >> 8) & 0xFF) ^ (id & 0xFF) ^ 0xF2 ^ 0xA8;
-    uint64_t ret = (uint64_t)0xF2 << 56;
-    ret |= (uint64_t)id << 8;
-    ret |= checksum;
-    return ret;
-}
-// by marshmellow
-// find viking preamble 0xF200 in already demoded data
-int detectViking(uint8_t *dest, size_t *size) {
-    //make sure buffer has data
-    if (*size < 64 * 2) return -2;
-    size_t startIdx = 0;
-    uint8_t preamble[] = {1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    if (!preambleSearch(dest, preamble, sizeof(preamble), size, &startIdx))
-        return -4; //preamble not found
-
-    uint32_t checkCalc = bytebits_to_byte(dest + startIdx, 8) ^
-                         bytebits_to_byte(dest + startIdx + 8, 8) ^
-                         bytebits_to_byte(dest + startIdx + 16, 8) ^
-                         bytebits_to_byte(dest + startIdx + 24, 8) ^
-                         bytebits_to_byte(dest + startIdx + 32, 8) ^
-                         bytebits_to_byte(dest + startIdx + 40, 8) ^
-                         bytebits_to_byte(dest + startIdx + 48, 8) ^
-                         bytebits_to_byte(dest + startIdx + 56, 8);
-    if (checkCalc != 0xA8) return -5;
-    if (*size != 64) return -6;
-    //return start position
-    return (int)startIdx;
-}
-
 //by marshmellow
 //see ASKDemod for what args are accepted
-int CmdVikingDemod(const char *Cmd) {
+static int CmdVikingDemod(const char *Cmd) {
     if (!ASKDemod(Cmd, false, false, 1)) {
         PrintAndLogEx(DEBUG, "DEBUG: Error - Viking ASKDemod failed");
         return 0;
@@ -97,12 +65,12 @@ int CmdVikingDemod(const char *Cmd) {
 
 //by marshmellow
 //see ASKDemod for what args are accepted
-int CmdVikingRead(const char *Cmd) {
+static int CmdVikingRead(const char *Cmd) {
     lf_read(true, 10000);
     return CmdVikingDemod(Cmd);
 }
 
-int CmdVikingClone(const char *Cmd) {
+static int CmdVikingClone(const char *Cmd) {
     uint32_t id = 0;
     uint64_t rawID = 0;
     bool Q5 = false;
@@ -131,7 +99,7 @@ int CmdVikingClone(const char *Cmd) {
     return 0;
 }
 
-int CmdVikingSim(const char *Cmd) {
+static int CmdVikingSim(const char *Cmd) {
     uint32_t id = 0;
     uint64_t rawID = 0;
     uint8_t clk = 32, encoding = 1, separator = 0, invert = 0;
@@ -167,14 +135,51 @@ static command_t CommandTable[] = {
     {NULL, NULL, 0, NULL}
 };
 
+static int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
+    CmdsHelp(CommandTable);
+    return 0;
+}
+
 int CmdLFViking(const char *Cmd) {
     clearCommandBuffer();
     CmdsParse(CommandTable, Cmd);
     return 0;
 }
 
-int CmdHelp(const char *Cmd) {
-    (void)Cmd; // Cmd is not used so far
-    CmdsHelp(CommandTable);
-    return 0;
+// calc checksum
+uint64_t getVikingBits(uint32_t id) {
+    uint8_t checksum = ((id >> 24) & 0xFF) ^ ((id >> 16) & 0xFF) ^ ((id >> 8) & 0xFF) ^ (id & 0xFF) ^ 0xF2 ^ 0xA8;
+    uint64_t ret = (uint64_t)0xF2 << 56;
+    ret |= (uint64_t)id << 8;
+    ret |= checksum;
+    return ret;
 }
+// by marshmellow
+// find viking preamble 0xF200 in already demoded data
+int detectViking(uint8_t *dest, size_t *size) {
+    //make sure buffer has data
+    if (*size < 64 * 2) return -2;
+    size_t startIdx = 0;
+    uint8_t preamble[] = {1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    if (!preambleSearch(dest, preamble, sizeof(preamble), size, &startIdx))
+        return -4; //preamble not found
+
+    uint32_t checkCalc = bytebits_to_byte(dest + startIdx, 8) ^
+                         bytebits_to_byte(dest + startIdx + 8, 8) ^
+                         bytebits_to_byte(dest + startIdx + 16, 8) ^
+                         bytebits_to_byte(dest + startIdx + 24, 8) ^
+                         bytebits_to_byte(dest + startIdx + 32, 8) ^
+                         bytebits_to_byte(dest + startIdx + 40, 8) ^
+                         bytebits_to_byte(dest + startIdx + 48, 8) ^
+                         bytebits_to_byte(dest + startIdx + 56, 8);
+    if (checkCalc != 0xA8) return -5;
+    if (*size != 64) return -6;
+    //return start position
+    return (int)startIdx;
+}
+
+int demodViking(void) {
+    return CmdVikingDemod("");
+}
+

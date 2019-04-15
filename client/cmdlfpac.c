@@ -11,21 +11,8 @@
 
 static int CmdHelp(const char *Cmd);
 
-// by marshmellow
-// find PAC preamble in already demoded data
-int detectPac(uint8_t *dest, size_t *size) {
-    if (*size < 128) return -1; //make sure buffer has data
-    size_t startIdx = 0;
-    uint8_t preamble[] = {1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0};
-    if (!preambleSearch(dest, preamble, sizeof(preamble), size, &startIdx))
-        return -2; //preamble not found
-    if (*size != 128) return -3; //wrong demoded size
-    //return start position
-    return (int)startIdx;
-}
-
 //see NRZDemod for what args are accepted
-int CmdPacDemod(const char *Cmd) {
+static int CmdPacDemod(const char *Cmd) {
 
     //NRZ
     if (!NRZrawDemod(Cmd, false)) {
@@ -64,7 +51,7 @@ int CmdPacDemod(const char *Cmd) {
     return 1;
 }
 
-int CmdPacRead(const char *Cmd) {
+static int CmdPacRead(const char *Cmd) {
     lf_read(true, 4096 * 2 + 20);
     return CmdPacDemod(Cmd);
 }
@@ -76,13 +63,32 @@ static command_t CommandTable[] = {
     {NULL, NULL, 0, NULL}
 };
 
+static int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
+    CmdsHelp(CommandTable);
+    return 0;
+}
+
 int CmdLFPac(const char *Cmd) {
     clearCommandBuffer();
     CmdsParse(CommandTable, Cmd);
     return 0;
 }
 
-int CmdHelp(const char *Cmd) {
-    CmdsHelp(CommandTable);
-    return 0;
+// by marshmellow
+// find PAC preamble in already demoded data
+int detectPac(uint8_t *dest, size_t *size) {
+    if (*size < 128) return -1; //make sure buffer has data
+    size_t startIdx = 0;
+    uint8_t preamble[] = {1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0};
+    if (!preambleSearch(dest, preamble, sizeof(preamble), size, &startIdx))
+        return -2; //preamble not found
+    if (*size != 128) return -3; //wrong demoded size
+    //return start position
+    return (int)startIdx;
 }
+
+int demodPac(void) {
+    return CmdPacDemod("");
+}
+

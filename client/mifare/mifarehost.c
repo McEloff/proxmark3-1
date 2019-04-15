@@ -89,13 +89,13 @@ int mfDarkside(uint8_t blockno, uint8_t key_type, uint64_t *key) {
 
         PrintAndLogEx(SUCCESS, "found %u candidate key%s\n", keycount, (keycount > 1) ? "s." : ".");
 
-        *key = -1;
+        *key = UINT64_C(-1);
         uint8_t keyBlock[USB_CMD_DATA_SIZE];
-        int max_keys = USB_CMD_DATA_SIZE / 6;
-        for (int i = 0; i < keycount; i += max_keys) {
+        uint32_t max_keys = USB_CMD_DATA_SIZE / 6;
+        for (uint32_t i = 0; i < keycount; i += max_keys) {
 
-            int size = keycount - i > max_keys ? max_keys : keycount - i;
-            for (int j = 0; j < size; j++) {
+            uint32_t size = keycount - i > max_keys ? max_keys : keycount - i;
+            for (uint32_t j = 0; j < size; j++) {
                 if (par_list == 0) {
                     num_to_bytes(last_keylist[i * max_keys + j], 6, keyBlock + (j * 6));
                 } else {
@@ -108,7 +108,7 @@ int mfDarkside(uint8_t blockno, uint8_t key_type, uint64_t *key) {
             }
         }
 
-        if (*key != -1) {
+        if (*key != UINT64_C(-1)) {
             break;
         } else {
             PrintAndLogEx(FAILED, "all candidate keys failed. Restarting darkside attack");
@@ -263,14 +263,14 @@ int mfKeyBrute(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint64_t *resultk
 }
 
 // Compare 16 Bits out of cryptostate
-int Compare16Bits(const void *a, const void *b) {
+static int Compare16Bits(const void *a, const void *b) {
     if ((*(uint64_t *)b & 0x00ff000000ff0000) == (*(uint64_t *)a & 0x00ff000000ff0000)) return 0;
     if ((*(uint64_t *)b & 0x00ff000000ff0000) > (*(uint64_t *)a & 0x00ff000000ff0000)) return 1;
     return -1;
 }
 
 // wrapper function for multi-threaded lfsr_recovery32
-void
+static void
 #ifdef __has_attribute
 #if __has_attribute(force_align_arg_pointer)
 __attribute__((force_align_arg_pointer))

@@ -756,6 +756,7 @@ static int GetIso14443aCommandFromReader(uint8_t *received, uint8_t *par, int *l
 
     // clear RXRDY:
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
+    (void)b;
 
     while (!BUTTON_PRESS() && !usb_poll_validate_length()) {
         WDT_HIT();
@@ -908,6 +909,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
             response1[1] = 0x00;
             sak = 0x0A;
         }
+        break;
         default: {
             Dbprintf("Error: unkown tagtype (%d)", tagType);
             return;
@@ -1432,8 +1434,7 @@ void PrepareDelayedTransfer(uint16_t delay) {
     delay &= 0x07;
     if (!delay) return;
 
-    uint8_t bitmask = 0;
-    uint8_t bits_to_shift = 0;
+    uint8_t bitmask = 0, bits_to_shift;
     uint8_t bits_shifted = 0;
     uint16_t i = 0;
 
@@ -1573,7 +1574,6 @@ void CodeIso14443aBitsAsReaderPar(const uint8_t *cmd, uint16_t bits, const uint8
     } else {
         // Sequence Y
         ToSend[++ToSendMax] = SEC_Y;
-        last = 0;
     }
     ToSend[++ToSendMax] = SEC_Y;
 
@@ -1596,7 +1596,7 @@ void CodeIso14443aAsReaderPar(const uint8_t *cmd, uint16_t len, const uint8_t *p
 int EmGetCmd(uint8_t *received, uint16_t *len, uint8_t *par) {
     *len = 0;
 
-    uint32_t timer = 0, vtime = 0;
+    uint32_t timer = 0, vtime;
     int analogCnt = 0;
     int analogAVG = 0;
 
@@ -1621,6 +1621,7 @@ int EmGetCmd(uint8_t *received, uint16_t *len, uint8_t *par) {
 
     // Clear RXRDY:
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
+    (void)b;
 
     for (;;) {
         WDT_HIT();
@@ -1833,6 +1834,7 @@ static int GetIso14443aAnswerFromTag(uint8_t *receivedResponse, uint8_t *receive
 
     // clear RXRDY:
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
+    (void)b;
 
     uint32_t timeout = iso14a_get_timeout();
     for (;;) {
@@ -2382,7 +2384,7 @@ void ReaderIso14443a(UsbCommand *c) {
     size_t lenbits = c->arg[1] >> 16;
     uint32_t timeout = c->arg[2];
     uint8_t *cmd = c->d.asBytes;
-    uint32_t arg0 = 0;
+    uint32_t arg0;
     uint8_t buf[USB_CMD_DATA_SIZE] = {0x00};
     uint8_t par[MAX_PARITY_SIZE] = {0x00};
 

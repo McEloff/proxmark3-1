@@ -49,13 +49,13 @@
 
 static int CmdHelp(const char *Cmd);
 
-int CmdHFFidoInfo(const char *cmd) {
+static int CmdHFFidoInfo(const char *cmd) {
 
     if (cmd && strlen(cmd) > 0)
         PrintAndLog("WARNING: command don't have any parameters.\n");
 
     // info about 14a part
-    CmdHF14AInfo("");
+    infoHF14A(false, false);
 
     // FIDO info
     PrintAndLog("--------------------------------------------");
@@ -124,7 +124,7 @@ int CmdHFFidoInfo(const char *cmd) {
     return 0;
 }
 
-json_t *OpenJson(int paramnum, char *fname, void *argtable[], bool *err) {
+static json_t *OpenJson(int paramnum, char *fname, void *argtable[], bool *err) {
     json_t *root = NULL;
     json_error_t error;
     *err = false;
@@ -168,7 +168,7 @@ json_t *OpenJson(int paramnum, char *fname, void *argtable[], bool *err) {
     return root;
 }
 
-int CmdHFFidoRegister(const char *cmd) {
+static int CmdHFFidoRegister(const char *cmd) {
     uint8_t data[64] = {0};
     int chlen = 0;
     uint8_t cdata[250] = {0};
@@ -397,7 +397,7 @@ int CmdHFFidoRegister(const char *cmd) {
     return 0;
 };
 
-int CmdHFFidoAuthenticate(const char *cmd) {
+static int CmdHFFidoAuthenticate(const char *cmd) {
     uint8_t data[512] = {0};
     uint8_t hdata[250] = {0};
     bool public_key_loaded = false;
@@ -615,13 +615,13 @@ int CmdHFFidoAuthenticate(const char *cmd) {
     return 0;
 };
 
-void CheckSlash(char *fileName) {
+static void CheckSlash(char *fileName) {
     if ((fileName[strlen(fileName) - 1] != '/') &&
             (fileName[strlen(fileName) - 1] != '\\'))
         strcat(fileName, "/");
 }
 
-int GetExistsFileNameJson(const char *prefixDir, const char *reqestedFileName, char *fileName) {
+static int GetExistsFileNameJson(const char *prefixDir, const char *reqestedFileName, char *fileName) {
     fileName[0] = 0x00;
     strcpy(fileName, get_my_executable_directory());
     CheckSlash(fileName);
@@ -648,7 +648,7 @@ int GetExistsFileNameJson(const char *prefixDir, const char *reqestedFileName, c
     return 0;
 }
 
-int CmdHFFido2MakeCredential(const char *cmd) {
+static int CmdHFFido2MakeCredential(const char *cmd) {
     json_error_t error;
     json_t *root = NULL;
     char fname[300] = {0};
@@ -775,7 +775,7 @@ int CmdHFFido2MakeCredential(const char *cmd) {
     return 0;
 };
 
-int CmdHFFido2GetAssertion(const char *cmd) {
+static int CmdHFFido2GetAssertion(const char *cmd) {
     json_error_t error;
     json_t *root = NULL;
     char fname[300] = {0};

@@ -7,6 +7,12 @@
 //-----------------------------------------------------------------------------
 // utilities
 //-----------------------------------------------------------------------------
+
+// ensure gmtime_r is available even with -std=c99; must be included before
+#if !defined(_WIN32)
+#define _POSIX_C_SOURCE 200112L
+#endif
+
 #include "util.h"
 
 #define UTIL_BUFFER_SIZE_SPRINT 4097
@@ -92,12 +98,15 @@ void AddLogUint64(const char *fn, const char *data, const uint64_t value) {
 }
 
 void AddLogCurrentDT(const char *fn) {
-    char buf[20];
-    memset(buf, 0x00, sizeof(buf));
-    struct tm *curTime;
-    time_t now = time(0);
-    curTime = gmtime(&now);
-    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", curTime);
+    char buf[20] = {0};
+    struct tm *ct, tm_buf;
+    time_t now = time(NULL);
+#if defined(_WIN32)
+    ct = gmtime_s(&tm_buf, &now) == 0 ? &tm_buf : NULL;
+#else
+    ct = gmtime_r(&now, &tm_buf);
+#endif
+    strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", ct);
     AddLogLine(fn, "\nanticollision: ", buf);
 }
 
@@ -151,7 +160,7 @@ int FillBuffer(uint8_t *data, size_t maxDataLength, size_t *dataLength, ...) {
 }
 
 bool CheckStringIsHEXValue(const char *value) {
-    for (int i = 0; i < strlen(value); i++)
+    for (size_t i = 0; i < strlen(value); i++)
         if (!isxdigit(value[i]))
             return false;
 
@@ -168,17 +177,17 @@ void hex_to_buffer(const uint8_t *buf, const uint8_t *hex_data, const size_t hex
     size_t i;
     memset(tmp, 0x00, hex_max_len);
 
-    int maxLen = (hex_len > hex_max_len) ? hex_max_len : hex_len;
+    size_t maxLen = (hex_len > hex_max_len) ? hex_max_len : hex_len;
 
     for (i = 0; i < maxLen; ++i, tmp += 2 + spaces_between) {
         sprintf(tmp, (uppercase) ? "%02X" : "%02x", (unsigned int) hex_data[i]);
 
-        for (int j = 0; j < spaces_between; j++)
+        for (size_t j = 0; j < spaces_between; j++)
             sprintf(tmp + 2 + j, " ");
     }
 
     i *= (2 + spaces_between);
-    int minStrLen = min_str_len > i ? min_str_len : 0;
+    size_t minStrLen = min_str_len > i ? min_str_len : 0;
     if (minStrLen > hex_max_len)
         minStrLen = hex_max_len;
     for (; i < minStrLen; i++, tmp += 1)
@@ -189,8 +198,7 @@ void hex_to_buffer(const uint8_t *buf, const uint8_t *hex_data, const size_t hex
 
 // printing and converting functions
 void print_hex(const uint8_t *data, const size_t len) {
-    size_t i;
-    for (i = 0; i < len; i++)
+    for (size_t i = 0; i < len; i++)
         printf("%02x ", data[i]);
     printf("\n");
 }
@@ -198,7 +206,7 @@ void print_hex(const uint8_t *data, const size_t len) {
 void print_hex_break(const uint8_t *data, const size_t len, uint8_t breaks) {
     int rownum = 0;
     printf("[%02d] | ", rownum);
-    for (int i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
 
         printf("%02X ", data[i]);
 
@@ -237,7 +245,7 @@ char *sprint_bin_break(const uint8_t *data, const size_t len, const uint8_t brea
     // make sure we don't go beyond our char array memory
     size_t in_index = 0, out_index = 0;
 
-    int rowlen = (len > MAX_BIN_BREAK_LENGTH) ? MAX_BIN_BREAK_LENGTH : len;
+    size_t rowlen = (len > MAX_BIN_BREAK_LENGTH) ? MAX_BIN_BREAK_LENGTH : len;
 
     if (breaks > 0 && len % breaks != 0)
         rowlen = (len + (len / breaks) > MAX_BIN_BREAK_LENGTH) ? MAX_BIN_BREAK_LENGTH : len + (len / breaks);
@@ -342,7 +350,7 @@ char *sprint_ascii_ex(const uint8_t *data, const size_t len, const size_t min_st
         ++i;
     }
 
-    int m = min_str_len > i ? min_str_len : 0;
+    size_t m = min_str_len > i ? min_str_len : 0;
     for (; i < m; ++i)
         tmp[i] = ' ';
 
@@ -390,7 +398,7 @@ void num_to_bytebits(uint64_t n, size_t len, uint8_t *dest) {
 
 //least significant bit first
 void num_to_bytebitsLSBF(uint64_t n, size_t len, uint8_t *dest) {
-    for (int i = 0 ; i < len ; ++i) {
+    for (size_t i = 0 ; i < len ; ++i) {
         dest[i] =  n & 1;
         n >>= 1;
     }
@@ -852,7 +860,7 @@ uint64_t HornerScheme(uint64_t num, uint64_t divider, uint64_t factor) {
 }
 
 // determine number of logical CPU cores (use for multithreaded functions)
-extern int num_CPUs(void) {
+int num_CPUs(void) {
 #if defined(_WIN32)
 #include <sysinfoapi.h>
     SYSTEM_INFO sysinfo;
@@ -866,16 +874,16 @@ extern int num_CPUs(void) {
 #endif
 }
 
-extern void str_lower(char *s) {
-    for (int i = 0; i < strlen(s); i++)
+void str_lower(char *s) {
+    for (size_t i = 0; i < strlen(s); i++)
         s[i] = tolower(s[i]);
 }
-extern bool str_startswith(const char *s,  const char *pre) {
+bool str_startswith(const char *s,  const char *pre) {
     return strncmp(pre, s, strlen(pre)) == 0;
 }
 
 // Replace unprintable characters with a dot in char buffer
-extern void clean_ascii(unsigned char *buf, size_t len) {
+void clean_ascii(unsigned char *buf, size_t len) {
     for (size_t i = 0; i < len; i++) {
         if (!isprint(buf[i]))
             buf[i] = '.';
@@ -883,20 +891,20 @@ extern void clean_ascii(unsigned char *buf, size_t len) {
 }
 
 // replace \r \n to \0
-extern void strcleanrn(char *buf, size_t len) {
+void strcleanrn(char *buf, size_t len) {
     strcreplace(buf, len, '\n', '\0');
     strcreplace(buf, len, '\r', '\0');
 }
 
 // replace char in buffer
-extern void strcreplace(char *buf, size_t len, char from, char to) {
+void strcreplace(char *buf, size_t len, char from, char to) {
     for (size_t i = 0; i < len; i++) {
         if (buf[i] == from)
             buf[i] = to;
     }
 }
 
-extern char *strmcopy(char *buf) {
+char *strmcopy(char *buf) {
     char *str = (char *) calloc(strlen(buf) + 1, sizeof(uint8_t));
     if (str != NULL) {
         memset(str, 0, strlen(buf) + 1);

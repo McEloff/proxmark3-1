@@ -27,22 +27,30 @@
 #include "cmdhw.h"
 #include "whereami.h"
 #include "comms.h"
+#include "usart.h"
 
-#if defined(__linux__) || (__APPLE__)
 static void showBanner(void) {
     printf("\n\n");
+#if defined(__linux__) || (__APPLE__)
     printf("\e[34m██████╗ ███╗   ███╗ ████╗\e[0m     ...iceman fork\n");
     printf("\e[34m██╔══██╗████╗ ████║   ══█║\e[0m      ...dedicated to \e[34mRDV40\e[0m\n");
     printf("\e[34m██████╔╝██╔████╔██║ ████╔╝\e[0m\n");
     printf("\e[34m██╔═══╝ ██║╚██╔╝██║   ══█║\e[0m    iceman@icesql.net\n");
-    printf("\e[34m██║     ██║ ╚═╝ ██║ ████╔╝\e[0m  https://github.com/iceman1001/proxmark3\n");
-    printf("\e[34m╚═╝     ╚═╝     ╚═╝ ╚═══╝\e[0m pre v4.0\n");
-    printf("\nKeep iceman fork alive with a donation!           https://paypal.me/iceman1001/");
-    printf("\nMONERO: 43mNJLpgBVaTvyZmX9ajcohpvVkaRy1kbZPm8tqAb7itZgfuYecgkRF36rXrKFUkwEGeZedPsASRxgv4HPBHvJwyJdyvQuP");
+    printf("\e[34m██║     ██║ ╚═╝ ██║ ████╔╝\e[0m   https://github.com/rfidresearchgroup/proxmark3/\n");
+    printf("\e[34m╚═╝     ╚═╝     ╚═╝ ╚═══╝\e[0m pre-release v4.0\n");
+#else
+    printf("======. ===.   ===. ====.     ...iceman fork\n");
+    printf("==...==.====. ====.   ..=.      ...dedicated to RDV40\n");
+    printf("======..==.====.==. ====..\n");
+    printf("==..... ==..==..==.   ..=.    iceman@icesql.net\n");
+    printf("==.     ==. ... ==. ====..   https://github.com/rfidresearchgroup/proxmark3/\n");
+    printf("...     ...     ... .....  pre-release v4.0\n");
+#endif
+    printf("\nSupport iceman on patreon,   https://www.patreon.com/iceman1001/");
+//    printf("\nMonero: 43mNJLpgBVaTvyZmX9ajcohpvVkaRy1kbZPm8tqAb7itZgfuYecgkRF36rXrKFUkwEGeZedPsASRxgv4HPBHvJwyJdyvQuP");
     printf("\n\n\n");
     fflush(stdout);
 }
-#endif
 
 void
 #ifdef __has_attribute
@@ -64,9 +72,9 @@ main_loop(char *script_cmds_file, char *script_cmd, bool usb_present) {
         SetOffline(false);
         // cache Version information now:
         if (execCommand || script_cmds_file || stdinOnPipe)
-            CmdVersion("s");
+            pm3_version(false);
         else
-            CmdVersion("");
+            pm3_version(true);
     } else {
         SetOffline(true);
     }
@@ -76,6 +84,8 @@ main_loop(char *script_cmds_file, char *script_cmd, bool usb_present) {
         sf = fopen(script_cmds_file, "r");
         if (sf)
             PrintAndLogEx(SUCCESS, "executing commands from file: %s\n", script_cmds_file);
+        else
+            PrintAndLogEx(ERR, "could not open " _YELLOW_("%s") "...", script_cmds_file);
     }
 
     read_history(".history");
@@ -216,37 +226,49 @@ const char *get_my_executable_directory(void) {
 
 static void set_my_executable_path(void) {
     int path_length = wai_getExecutablePath(NULL, 0, NULL);
-    if (path_length != -1) {
-        my_executable_path = (char *)calloc(path_length + 1, sizeof(uint8_t));
-        int dirname_length = 0;
-        if (wai_getExecutablePath(my_executable_path, path_length, &dirname_length) != -1) {
-            my_executable_path[path_length] = '\0';
-            my_executable_directory = (char *)calloc(dirname_length + 2, sizeof(uint8_t));
-            strncpy(my_executable_directory, my_executable_path, dirname_length + 1);
-            my_executable_directory[dirname_length + 1] = '\0';
-        }
+    if (path_length == -1)
+        return;
+
+    my_executable_path = (char *)calloc(path_length + 1, sizeof(uint8_t));
+    int dirname_length = 0;
+    if (wai_getExecutablePath(my_executable_path, path_length, &dirname_length) != -1) {
+        my_executable_path[path_length] = '\0';
+        my_executable_directory = (char *)calloc(dirname_length + 2, sizeof(uint8_t));
+        strncpy(my_executable_directory, my_executable_path, dirname_length + 1);
+        my_executable_directory[dirname_length + 1] = '\0';
     }
 }
 
-static void show_help(bool showFullHelp, char *command_line) {
-    PrintAndLogEx(NORMAL, "syntax: %s <port> [-h | -help | -m | -f | -flush | -w | -wait | -c | -command | -l | -lua] [cmd_script_file_name] [command][lua_script_name]\n", command_line);
-    PrintAndLogEx(NORMAL, "\texample:'%s "SERIAL_PORT_H"'\n\n", command_line);
+static void show_help(bool showFullHelp, char *exec_name) {
+
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(NORMAL, "syntax: %s [-h|-t|-m]\n", exec_name);
+    PrintAndLogEx(NORMAL, "        %s [[-p] <port>] [-b] [-w] [-f] [-c <command>]|[-l <lua_script_file>]|[-s <cmd_script_file>]\n", exec_name);
 
     if (showFullHelp) {
-        PrintAndLogEx(NORMAL, "help: <-h|-help> Dump all interactive command's help at once.\n");
-        PrintAndLogEx(NORMAL, "\t%s  -h\n\n", command_line);
-        PrintAndLogEx(NORMAL, "markdown: <-m> Dump all interactive help at once in markdown syntax\n");
-        PrintAndLogEx(NORMAL, "\t%s -m\n\n", command_line);
-        PrintAndLogEx(NORMAL, "flush: <-f|-flush> Output will be flushed after every print.\n");
-        PrintAndLogEx(NORMAL, "\t%s -f\n\n", command_line);
-        PrintAndLogEx(NORMAL, "wait: <-w|-wait> 20sec waiting the serial port to appear in the OS\n");
-        PrintAndLogEx(NORMAL, "\t%s "SERIAL_PORT_H" -w\n\n", command_line);
-        PrintAndLogEx(NORMAL, "script: A script file with one proxmark3 command per line.\n\n");
-        PrintAndLogEx(NORMAL, "command: <-c|-command> Execute one proxmark3 command.\n");
-        PrintAndLogEx(NORMAL, "\t%s "SERIAL_PORT_H" -c \"hf mf chk 1* ?\"\n", command_line);
-        PrintAndLogEx(NORMAL, "\t%s "SERIAL_PORT_H" -command \"hf mf nested 1 *\"\n\n", command_line);
-        PrintAndLogEx(NORMAL, "lua: <-l|-lua> Execute lua script.\n");
-        PrintAndLogEx(NORMAL, "\t%s "SERIAL_PORT_H" -l hf_read\n\n", command_line);
+        PrintAndLogEx(NORMAL, "options:");
+        PrintAndLogEx(NORMAL, "      -h/--help                           this help");
+        PrintAndLogEx(NORMAL, "      -t/--text                           dump all interactive command's help at once");
+        PrintAndLogEx(NORMAL, "      -m/--markdown                       dump all interactive help at once in markdown syntax");
+        PrintAndLogEx(NORMAL, "      -p/--port                           serial port to connect to");
+        PrintAndLogEx(NORMAL, "      -b/--baud                           serial port speed");
+        PrintAndLogEx(NORMAL, "      -w/--wait                           20sec waiting the serial port to appear in the OS");
+        PrintAndLogEx(NORMAL, "      -f/--flush                          output will be flushed after every print");
+        PrintAndLogEx(NORMAL, "      -c/--command <command>              execute one proxmark3 command.");
+        PrintAndLogEx(NORMAL, "      -l/--lua <lua script file>          execute lua script.");
+        PrintAndLogEx(NORMAL, "      -s/--script-file <cmd_script_file>  script file with one proxmark3 command per line");
+        PrintAndLogEx(NORMAL, "\nsamples:");
+        PrintAndLogEx(NORMAL, "      %s -h\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s -m\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H" -f             -- flush output everytime\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H" -w             -- wait for serial port\n", exec_name);
+        PrintAndLogEx(NORMAL, "\n  how to run proxmark3 client\n");
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H"                -- runs the pm3 client\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s                             -- runs the pm3 client in OFFLINE mode\n", exec_name);
+        PrintAndLogEx(NORMAL, "\n  how to execute different commands from terminal\n");
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H" -c \"hf mf chk 1* ?\"   -- execute cmd and quit client\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H" -l hf_read            -- execute lua script " _YELLOW_("`hf_read`")"and quit client\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H" -s mycmds.txt         -- execute each pm3 cmd in file and quit client\n", exec_name);
     }
 }
 
@@ -255,11 +277,9 @@ int main(int argc, char *argv[]) {
 
     bool usb_present = false;
     bool waitCOMPort = false;
-    bool executeCommand = false;
     bool addLuaExec = false;
     char *script_cmds_file = NULL;
     char *script_cmd = NULL;
-    char *lastarg = NULL;
     char *port = NULL;
     uint32_t speed = 0;
 
@@ -270,40 +290,83 @@ int main(int argc, char *argv[]) {
     rl_extend_line_buffer(1024);
 #endif
 
-    if (argc < 2) {
-        show_help(true, argv[0]);
-        return 1;
+    char *exec_name = argv[0];
+#if defined(_WIN32)
+    for (int m = strlen(exec_name); m > 0; m--) {
+        if (exec_name[m] == '\\') {
+            exec_name += (++m);
+            break;
+        }
     }
+#endif
 
-    uint32_t i = 1;
-    port = argv[i++];
-    for (; i < argc; i++) {
+    for (int i = 1; i < argc; i++) {
 
-        // helptext
-        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "-help") == 0) {
-            show_help(false, argv[0]);
+        if (argv[i][0] != '-') {
+            // For backward compatibility we accept direct port
+            if (port != NULL) {
+                // We got already one
+                PrintAndLogEx(ERR, _RED_("ERROR:") "cannot parse command line. We got " _YELLOW_("%s") " as port and now we got also: " _YELLOW_("%s") "\n", port, argv[i]);
+                show_help(false, exec_name);
+                return 1;
+            }
+            port = argv[i];
+            continue;
+        }
+
+        // port
+        if (strcmp(argv[i], "-p") == 0 || strcmp(argv[i], "--port") == 0) {
+            if (i + 1 == argc) {
+                PrintAndLogEx(ERR, _RED_("ERROR:") "missing port specification after -p\n");
+                show_help(false, exec_name);
+                return 1;
+            }
+            if (port != NULL) {
+                // We got already one
+                PrintAndLogEx(ERR, _RED_("ERROR:") "cannot parse command line. We got " _YELLOW_("%s") " as port and now we got also: " _YELLOW_("%s") "\n", port, argv[i + 1]);
+                show_help(false, exec_name);
+                return 1;
+            }
+            port = argv[++i];
+            continue;
+        }
+
+        // short help
+        if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
+            show_help(true, exec_name);
+            return 0;
+        }
+
+        // dump help
+        if (strcmp(argv[i], "-t") == 0 || strcmp(argv[i], "--text") == 0) {
+            show_help(false, exec_name);
             dumpAllHelp(0);
             return 0;
         }
 
         // dump markup
-        if (strcmp(argv[i], "-m") == 0) {
+        if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "--markdown") == 0) {
             dumpAllHelp(1);
             return 0;
         }
 
         // flush output
-        if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "-flush") == 0) {
+        if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--flush") == 0) {
             SetFlushAfterWrite(true);
             PrintAndLogEx(INFO, "Output will be flushed after every print.\n");
             continue;
         }
 
         // set baudrate
-        if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "-baud") == 0) {
+        if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--baud") == 0) {
+            if (i + 1 == argc) {
+                PrintAndLogEx(ERR, _RED_("ERROR:") "missing baud specification after -b\n");
+                show_help(false, exec_name);
+                return 1;
+            }
             uint32_t tmpspeed = strtoul(argv[i + 1], NULL, 10);
             if ((tmpspeed == ULONG_MAX) || (tmpspeed == 0)) {
-                PrintAndLogEx(WARNING, "ERROR: invalid baudrate: %s %s\n", argv[i], argv[i + 1]);
+                PrintAndLogEx(ERR, _RED_("ERROR:") "invalid baudrate: -b " _YELLOW_("%s") "\n", argv[i + 1]);
                 return 1;
             }
             speed = tmpspeed;
@@ -312,87 +375,101 @@ int main(int argc, char *argv[]) {
         }
 
         // wait for comport
-        if (strcmp(argv[i], "-w") == 0 || strcmp(argv[i], "-wait") == 0) {
+        if (strcmp(argv[i], "-w") == 0 || strcmp(argv[i], "--wait") == 0) {
             waitCOMPort = true;
             continue;
         }
 
         // execute pm3 command
-        if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "-command") == 0) {
-            executeCommand = true;
+        if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--command") == 0) {
+            if (i + 1 == argc) {
+                PrintAndLogEx(ERR, _RED_("ERROR:") "missing command specification after -c\n");
+                show_help(false, exec_name);
+                return 1;
+            }
+            script_cmd = argv[++i];
+            continue;
+        }
+
+        // execute pm3 command
+        if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--script-file") == 0) {
+            if (i + 1 == argc) {
+                PrintAndLogEx(ERR, _RED_("ERROR:") "missing script file specification after -s\n");
+                show_help(false, exec_name);
+                return 1;
+            }
+            script_cmds_file = argv[++i];
             continue;
         }
 
         // execute lua script
-        if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "-lua") == 0) {
-            executeCommand = true;
+        if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--lua") == 0) {
             addLuaExec = true;
+            if (i + 1 == argc) {
+                PrintAndLogEx(ERR, _RED_("ERROR:") "missing lua script specification after -l\n");
+                show_help(false, exec_name);
+                return 1;
+            }
+            script_cmd = argv[++i];
             continue;
         }
 
-        if (i < argc - 1) {
-            // We got an unknown parameter
-            PrintAndLogEx(WARNING, "WARNING: ignoring invalid parameter: %s\n", argv[i]);
-        }
-
-        if (i == argc - 1) {
-            // We got presumably a command or a filename
-            lastarg = argv[argc - 1];
-        }
+        // We got an unknown parameter
+        PrintAndLogEx(ERR, _RED_("ERROR:") "invalid parameter: " _YELLOW_("%s") "\n", argv[i]);
+        show_help(false, exec_name);
+        return 1;
     }
 
+    // default speed for USB 460800,  USART(FPC serial) 115200 baud
     if (speed == 0)
+#ifdef WITH_FPC_HOST
+        // Let's assume we're talking by default to pm3 over usart in this mode
+        speed = AT91_BAUD_RATE;
+#else
         speed = 460800;
+#endif
 
-    // If the user passed the filename of the 'script' to execute, get it from last parameter
-    if (lastarg) {
-        if (executeCommand) {
-            script_cmd = lastarg;
+    if (script_cmd) {
+        while (script_cmd[strlen(script_cmd) - 1] == ' ')
+            script_cmd[strlen(script_cmd) - 1] = 0x00;
 
-            while (script_cmd[strlen(script_cmd) - 1] == ' ')
-                script_cmd[strlen(script_cmd) - 1] = 0x00;
-
-            if (strlen(script_cmd) == 0) {
-                script_cmd = NULL;
-            } else {
-                if (addLuaExec) {
-                    // add "script run " to command
-                    int len = strlen(script_cmd) + 11 + 1;
-                    char *ctmp = (char *) calloc(len, sizeof(uint8_t));
-                    if (ctmp != NULL) {
-                        memset(ctmp, 0, len);
-                        strcpy(ctmp, "script run ");
-                        strcpy(&ctmp[11], script_cmd);
-                        script_cmd = ctmp;
-                    }
-                }
-
-                PrintAndLogEx(SUCCESS, "execute command from commandline: %s\n", script_cmd);
-            }
+        if (strlen(script_cmd) == 0) {
+            script_cmd = NULL;
+            PrintAndLogEx(WARNING, "ERROR: execute command: command not found.\n");
+            return 2;
         } else {
-            script_cmds_file = lastarg;
+            if (addLuaExec) {
+                // add "script run " to command
+                int len = strlen(script_cmd) + 11 + 1;
+                char *ctmp = (char *) calloc(len, sizeof(uint8_t));
+                if (ctmp != NULL) {
+                    memset(ctmp, 0, len);
+                    strcpy(ctmp, "script run ");
+                    strcpy(&ctmp[11], script_cmd);
+                    script_cmd = ctmp;
+                }
+            }
+
+            PrintAndLogEx(SUCCESS, "execute command from commandline: %s\n", script_cmd);
         }
     }
 
-    // check command
-    if (executeCommand && (!script_cmd || strlen(script_cmd) == 0)) {
-        PrintAndLogEx(WARNING, "ERROR: execute command: command not found.\n");
-        return 2;
-    }
-
-#if defined(__linux__) || (__APPLE__)
-// ascii art doesn't work well on mingw :(
-
+    // ascii art
     bool stdinOnPipe = !isatty(STDIN_FILENO);
-    if (!executeCommand && !script_cmds_file && !stdinOnPipe)
+    if (!script_cmds_file && !stdinOnPipe)
         showBanner();
-#endif
 
     // set global variables
     set_my_executable_path();
 
     // try to open USB connection to Proxmark
-    usb_present = OpenProxmark(port, waitCOMPort, 20, false, speed);
+    if (port != NULL)
+        usb_present = OpenProxmark(port, waitCOMPort, 20, false, speed);
+
+    if (TestProxmark() == 0)
+       usb_present = false;
+    if (!usb_present)
+        PrintAndLogEx(INFO, "Running in " _YELLOW_("OFFLINE") "mode. Check \"%s -h\" if it's not what you want.\n", exec_name);
 
 #ifdef HAVE_GUI
 

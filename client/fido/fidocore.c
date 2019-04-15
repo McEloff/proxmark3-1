@@ -150,7 +150,7 @@ fido2Desc_t fido2CmdGetInfoRespDesc[] = {
 };
 
 const char *fido2GetCmdErrorDescription(uint8_t errorCode) {
-    for (int i = 0; i < sizeof(fido2Errors) / sizeof(fido2Error_t); i++)
+    for (size_t i = 0; i < sizeof(fido2Errors) / sizeof(fido2Error_t); i++)
         if (fido2Errors[i].ErrorCode == errorCode)
             return fido2Errors[i].Description;
 
@@ -158,7 +158,7 @@ const char *fido2GetCmdErrorDescription(uint8_t errorCode) {
 }
 
 const char *fido2GetCmdMemberDescription(uint8_t cmdCode, bool isResponse, int memberNum) {
-    for (int i = 0; i < sizeof(fido2CmdGetInfoRespDesc) / sizeof(fido2Desc_t); i++)
+    for (size_t i = 0; i < sizeof(fido2CmdGetInfoRespDesc) / sizeof(fido2Desc_t); i++)
         if (fido2CmdGetInfoRespDesc[i].Command == cmdCode &&
                 fido2CmdGetInfoRespDesc[i].PckType == (isResponse ? ptResponse : ptQuery) &&
                 fido2CmdGetInfoRespDesc[i].MemberNumber == memberNum)
@@ -355,7 +355,7 @@ bool CheckrpIdHash(json_t *json, uint8_t *hash) {
 }
 
 // check ANSI X9.62 format ECDSA signature (on P-256)
-int FIDO2CheckSignature(json_t *root, uint8_t *publickey, uint8_t *sign, size_t signLen, uint8_t *authData, size_t authDataLen, bool verbose) {
+static int FIDO2CheckSignature(json_t *root, uint8_t *publickey, uint8_t *sign, size_t signLen, uint8_t *authData, size_t authDataLen, bool verbose) {
     int res;
     uint8_t rval[300] = {0};
     uint8_t sval[300] = {0};

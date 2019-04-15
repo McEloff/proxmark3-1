@@ -69,19 +69,6 @@ static uint8_t visa_parity(uint32_t id) {
     return par;
 }
 
-// by iceman
-// find Visa2000 preamble in already demoded data
-int detectVisa2k(uint8_t *dest, size_t *size) {
-    if (*size < 96) return -1; //make sure buffer has data
-    size_t startIdx = 0;
-    uint8_t preamble[] = {0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0};
-    if (!preambleSearch(dest, preamble, sizeof(preamble), size, &startIdx))
-        return -2; //preamble not found
-    if (*size != 96) return -3; //wrong demoded size
-    //return start position
-    return (int)startIdx;
-}
-
 /**
 *
 * 56495332 00096ebd 00000077 —> tag id 618173
@@ -94,7 +81,7 @@ int detectVisa2k(uint8_t *dest, size_t *size) {
 *
 **/
 //see ASKDemod for what args are accepted
-int CmdVisa2kDemod(const char *Cmd) {
+static int CmdVisa2kDemod(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
 
     save_restoreGB(GRAPH_SAVE);
@@ -154,12 +141,12 @@ int CmdVisa2kDemod(const char *Cmd) {
 }
 
 // 64*96*2=12288 samples just in case we just missed the first preamble we can still catch 2 of them
-int CmdVisa2kRead(const char *Cmd) {
+static int CmdVisa2kRead(const char *Cmd) {
     lf_read(true, 20000);
     return CmdVisa2kDemod(Cmd);
 }
 
-int CmdVisa2kClone(const char *Cmd) {
+static int CmdVisa2kClone(const char *Cmd) {
 
     uint64_t id = 0;
     uint32_t blocks[4] = {T55x7_MODULATION_MANCHESTER | T55x7_BITRATE_RF_64 | T55x7_ST_TERMINATOR | 3 << T55x7_MAXBLOCK_SHIFT, BL0CK1, 0};
@@ -195,7 +182,7 @@ int CmdVisa2kClone(const char *Cmd) {
     return 0;
 }
 
-int CmdVisa2kSim(const char *Cmd) {
+static int CmdVisa2kSim(const char *Cmd) {
 
     uint32_t id = 0;
     char cmdp = param_getchar(Cmd, 0);
@@ -232,14 +219,32 @@ static command_t CommandTable[] = {
     {NULL, NULL, 0, NULL}
 };
 
+static int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
+    CmdsHelp(CommandTable);
+    return 0;
+}
+
 int CmdLFVisa2k(const char *Cmd) {
     clearCommandBuffer();
     CmdsParse(CommandTable, Cmd);
     return 0;
 }
 
-int CmdHelp(const char *Cmd) {
-    (void)Cmd; // Cmd is not used so far
-    CmdsHelp(CommandTable);
-    return 0;
+// by iceman
+// find Visa2000 preamble in already demoded data
+int detectVisa2k(uint8_t *dest, size_t *size) {
+    if (*size < 96) return -1; //make sure buffer has data
+    size_t startIdx = 0;
+    uint8_t preamble[] = {0, 1, 0, 1, 0, 1, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 1, 0};
+    if (!preambleSearch(dest, preamble, sizeof(preamble), size, &startIdx))
+        return -2; //preamble not found
+    if (*size != 96) return -3; //wrong demoded size
+    //return start position
+    return (int)startIdx;
 }
+
+int demodVisa2k(void) {
+    return CmdVisa2kDemod("");
+}
+

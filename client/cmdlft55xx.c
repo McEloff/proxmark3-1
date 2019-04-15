@@ -6,6 +6,12 @@
 //-----------------------------------------------------------------------------
 // Low frequency T55xx commands
 //-----------------------------------------------------------------------------
+
+// ensure localtime_r is available even with -std=c99; must be included before
+#if !defined(_WIN32)
+#define _POSIX_C_SOURCE 200112L
+#endif
+
 #include "cmdlft55xx.h"
 
 // Default configuration
@@ -230,7 +236,7 @@ static int usage_lf_deviceconfig() {
     return 0;
 }
 
-int CmdHelp(const char *Cmd);
+static int CmdHelp(const char *Cmd);
 
 void printT5xxHeader(uint8_t page) {
     PrintAndLogEx(NORMAL, "Reading Page %d:", page);
@@ -238,7 +244,7 @@ void printT5xxHeader(uint8_t page) {
     PrintAndLogEx(NORMAL, "----+----------+----------------------------------+-------");
 }
 
-int CmdT55xxSetConfig(const char *Cmd) {
+static int CmdT55xxSetConfig(const char *Cmd) {
 
     uint8_t offset = 0, bitRate = 0;
     char modulation[6] = {0x00};
@@ -381,7 +387,7 @@ int T55xxReadBlock(uint8_t block, bool page1, bool usepwd, bool override, uint32
     return 1;
 }
 
-int CmdT55xxReadBlock(const char *Cmd) {
+static int CmdT55xxReadBlock(const char *Cmd) {
     uint8_t block = REGULAR_READ_MODE_BLOCK;
     uint32_t password = 0; //default to blank Block 7
     bool usepwd = false;
@@ -490,7 +496,7 @@ bool DecodeT55xxBlock(void) {
     return (bool) ans;
 }
 
-bool DecodeT5555TraceBlock(void) {
+static bool DecodeT5555TraceBlock(void) {
     DemodBufferLen = 0x00;
 
     // According to datasheet. Always: RF/64, not inverted, Manchester
@@ -506,7 +512,7 @@ static int SanityOfflineCheck(bool useGraphBuffer) {
     return 1;
 }
 
-int CmdT55xxDetect(const char *Cmd) {
+static int CmdT55xxDetect(const char *Cmd) {
     bool errors = false;
     bool useGB = false, usepwd = false;
     uint32_t password = 0;
@@ -786,7 +792,7 @@ void printT55xxBlock(uint8_t blockNum) {
     PrintAndLogEx(NORMAL, " %02d | %08X | %s | %s", blockNum, blockData, sprint_bin(DemodBuffer + config.offset, 32), sprint_ascii(bytes, 4));
 }
 
-bool testModulation(uint8_t mode, uint8_t modread) {
+static bool testModulation(uint8_t mode, uint8_t modread) {
     switch (mode) {
         case DEMOD_FSK:
             if (modread >= DEMOD_FSK1 && modread <= DEMOD_FSK2a) return true;
@@ -818,7 +824,7 @@ bool testModulation(uint8_t mode, uint8_t modread) {
     return false;
 }
 
-bool testQ5Modulation(uint8_t mode, uint8_t modread) {
+static bool testQ5Modulation(uint8_t mode, uint8_t modread) {
     switch (mode) {
         case DEMOD_FSK:
             if (modread >= 4 && modread <= 5) return true;
@@ -847,7 +853,7 @@ bool testQ5Modulation(uint8_t mode, uint8_t modread) {
     return false;
 }
 
-int convertQ5bitRate(uint8_t bitRateRead) {
+static int convertQ5bitRate(uint8_t bitRateRead) {
     uint8_t expected[] = {8, 16, 32, 40, 50, 64, 100, 128};
     for (int i = 0; i < 8; i++)
         if (expected[i] == bitRateRead)
@@ -856,7 +862,7 @@ int convertQ5bitRate(uint8_t bitRateRead) {
     return -1;
 }
 
-bool testQ5(uint8_t mode, uint8_t *offset, int *fndBitRate, uint8_t clk) {
+static bool testQ5(uint8_t mode, uint8_t *offset, int *fndBitRate, uint8_t clk) {
 
     if (DemodBufferLen < 64) return false;
 
@@ -901,7 +907,7 @@ bool testQ5(uint8_t mode, uint8_t *offset, int *fndBitRate, uint8_t clk) {
     return false;
 }
 
-bool testBitRate(uint8_t readRate, uint8_t clk) {
+static bool testBitRate(uint8_t readRate, uint8_t clk) {
     uint8_t expected[] = {8, 16, 32, 40, 50, 64, 100, 128};
     if (expected[readRate] == clk)
         return true;
@@ -991,7 +997,7 @@ int printConfiguration(t55xx_conf_block_t b) {
     return 0;
 }
 
-int CmdT55xxWakeUp(const char *Cmd) {
+static int CmdT55xxWakeUp(const char *Cmd) {
     uint32_t password = 0;
     uint8_t cmdp = 0;
     bool errors = false;
@@ -1019,7 +1025,7 @@ int CmdT55xxWakeUp(const char *Cmd) {
     return 0;
 }
 
-int CmdT55xxWriteBlock(const char *Cmd) {
+static int CmdT55xxWriteBlock(const char *Cmd) {
     uint8_t block = 0xFF; //default to invalid block
     uint32_t data = 0; //default to blank Block
     uint32_t password = 0; //default to blank Block 7
@@ -1093,7 +1099,7 @@ int CmdT55xxWriteBlock(const char *Cmd) {
     return 1;
 }
 
-int CmdT55xxReadTrace(const char *Cmd) {
+static int CmdT55xxReadTrace(const char *Cmd) {
     char cmdp = tolower(param_getchar(Cmd, 0));
     if (strlen(Cmd) > 1 || cmdp == 'h') return usage_t55xx_trace();
 
@@ -1199,9 +1205,15 @@ int CmdT55xxReadTrace(const char *Cmd) {
         si += 5;
         data.dw      = PackBits(si, 15, DemodBuffer);
 
-        time_t t = time(NULL);
-        struct tm tm = *localtime(&t);
-        if (data.year > tm.tm_year - 110)
+        struct tm *ct, tm_buf;
+        time_t now = time(NULL);
+#if defined(_WIN32)
+        ct = localtime_s(&tm_buf, &now) == 0 ? &tm_buf : NULL;
+#else
+        ct = localtime_r(&now, &tm_buf);
+#endif
+
+        if (data.year > ct->tm_year - 110)
             data.year += 2000;
         else
             data.year += 2010;
@@ -1333,7 +1345,7 @@ static void printT5x7KnownBlock0(uint32_t b0) {
         PrintAndLogEx(NORMAL, "\n Config block match        : " _YELLOW_("%s"), s);
 }
 
-int CmdT55xxInfo(const char *Cmd) {
+static int CmdT55xxInfo(const char *Cmd) {
     /*
         Page 0 Block 0 Configuration data.
         Normal mode
@@ -1471,7 +1483,7 @@ int CmdT55xxInfo(const char *Cmd) {
     return 0;
 }
 
-int CmdT55xxDump(const char *Cmd) {
+static int CmdT55xxDump(const char *Cmd) {
 
     uint32_t password = 0;
     bool override = false;
@@ -1734,14 +1746,13 @@ char *GetSelectedModulationStr(uint8_t id) {
     return buf;
 }
 
-void t55x7_create_config_block(int tagtype) {
+/*
+static void t55x7_create_config_block(int tagtype) {
 
-    /*
-     T55X7_DEFAULT_CONFIG_BLOCK, T55X7_RAW_CONFIG_BLOCK
-     T55X7_EM_UNIQUE_CONFIG_BLOCK, T55X7_FDXB_CONFIG_BLOCK,
-     T55X7_FDXB_CONFIG_BLOCK, T55X7_HID_26_CONFIG_BLOCK, T55X7_INDALA_64_CONFIG_BLOCK, T55X7_INDALA_224_CONFIG_BLOCK
-     T55X7_GUARDPROXII_CONFIG_BLOCK, T55X7_VIKING_CONFIG_BLOCK, T55X7_NORALYS_CONFIG_BLOCK, T55X7_IOPROX_CONFIG_BLOCK
-    */
+    // T55X7_DEFAULT_CONFIG_BLOCK, T55X7_RAW_CONFIG_BLOCK
+    // T55X7_EM_UNIQUE_CONFIG_BLOCK, T55X7_FDXB_CONFIG_BLOCK,
+    // T55X7_FDXB_CONFIG_BLOCK, T55X7_HID_26_CONFIG_BLOCK, T55X7_INDALA_64_CONFIG_BLOCK, T55X7_INDALA_224_CONFIG_BLOCK
+    // T55X7_GUARDPROXII_CONFIG_BLOCK, T55X7_VIKING_CONFIG_BLOCK, T55X7_NORALYS_CONFIG_BLOCK, T55X7_IOPROX_CONFIG_BLOCK
     static char buf[60];
     char *retStr = buf;
 
@@ -1760,8 +1771,9 @@ void t55x7_create_config_block(int tagtype) {
     }
     PrintAndLogEx(NORMAL, buf);
 }
+*/
 
-int CmdResetRead(const char *Cmd) {
+static int CmdResetRead(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
     UsbCommand c = {CMD_T55XX_RESET_READ, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
@@ -1780,7 +1792,7 @@ int CmdResetRead(const char *Cmd) {
     return 1;
 }
 
-int CmdT55xxWipe(const char *Cmd) {
+static int CmdT55xxWipe(const char *Cmd) {
     char writeData[20] = {0};
     char *ptrData = writeData;
     char cmdp = tolower(param_getchar(Cmd, 0));
@@ -1810,7 +1822,7 @@ int CmdT55xxWipe(const char *Cmd) {
     return 0;
 }
 
-bool IsCancelled(void) {
+static bool IsCancelled(void) {
     if (ukbhit()) {
         int gc = getchar();
         (void)gc;
@@ -1821,7 +1833,7 @@ bool IsCancelled(void) {
 }
 
 // load a default pwd file.
-int CmdT55xxChkPwds(const char *Cmd) {
+static int CmdT55xxChkPwds(const char *Cmd) {
 
     char filename[FILE_PATH_SIZE] = {0};
     bool found = false;
@@ -1943,7 +1955,7 @@ out:
 }
 
 // Bruteforce - incremental password range search
-int CmdT55xxBruteForce(const char *Cmd) {
+static int CmdT55xxBruteForce(const char *Cmd) {
 
     uint32_t start_password = 0x00000000; //start password
     uint32_t end_password   = 0xFFFFFFFF; //end   password
@@ -2009,7 +2021,7 @@ int tryOnePassword(uint32_t password) {
         return 0;
 }
 
-int CmdT55xxRecoverPW(const char *Cmd) {
+static int CmdT55xxRecoverPW(const char *Cmd) {
     int bit = 0;
     uint32_t orig_password = 0x0;
     uint32_t curr_password = 0x0;
@@ -2204,7 +2216,7 @@ bool tryDetectP1(bool getData) {
     return false;
 }
 //  does this need to be a callable command?
-int CmdT55xxDetectPage1(const char *Cmd) {
+static int CmdT55xxDetectPage1(const char *Cmd) {
     bool errors = false;
     bool useGB = false;
     bool usepwd = false;
@@ -2242,7 +2254,7 @@ int CmdT55xxDetectPage1(const char *Cmd) {
     return success;
 }
 
-int CmdT55xxSetDeviceConfig(const char *Cmd) {
+static int CmdT55xxSetDeviceConfig(const char *Cmd) {
     uint8_t startgap = 0, writegap = 0;
     uint8_t write0 = 0, write1 = 0, readgap = 0;
     bool errors = false, shall_persist = false;
@@ -2315,14 +2327,15 @@ static command_t CommandTable[] = {
     {NULL, NULL, 0, NULL}
 };
 
+static int CmdHelp(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
+    CmdsHelp(CommandTable);
+    return 0;
+}
+
 int CmdLFT55XX(const char *Cmd) {
     clearCommandBuffer();
     CmdsParse(CommandTable, Cmd);
     return 0;
 }
 
-int CmdHelp(const char *Cmd) {
-    (void)Cmd; // Cmd is not used so far
-    CmdsHelp(CommandTable);
-    return 0;
-}
