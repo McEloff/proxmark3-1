@@ -59,7 +59,7 @@ void SendCommand(UsbCommand *c) {
 #endif
 
     if (offline) {
-        PrintAndLogEx(NORMAL, "Sending bytes to proxmark failed - offline");
+        PrintAndLogEx(WARNING, "Sending bytes to Proxmark3 failed." _YELLOW_("offline") );
         return;
     }
 
@@ -209,7 +209,7 @@ bool hookUpPM3() {
         ret = false;
         offline = 1;
     } else {
-        PrintAndLogEx(SUCCESS, "Proxmark reconnected\n");
+        PrintAndLogEx(SUCCESS, "Proxmark3 reconnected\n");
         serial_port_name = ;
         ret = true;
         offline = 0;
@@ -275,7 +275,7 @@ __attribute__((force_align_arg_pointer))
         if (txBuffer_pending) {
             if (!uart_send(sp, (uint8_t *) &txBuffer, sizeof(UsbCommand))) {
                 //counter_to_offline++;
-                PrintAndLogEx(WARNING, "sending bytes to proxmark failed");
+                PrintAndLogEx(WARNING, "sending bytes to Proxmark3 device" _RED_("failed") );
             }
             txBuffer_pending = false;
 
@@ -305,7 +305,7 @@ bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, 
         PrintAndLogEx(INFO, "Using UART port " _YELLOW_("%s"), portname);
         sp = uart_open(portname, speed);
     } else {
-        PrintAndLogEx(SUCCESS, "Waiting for Proxmark to appear on " _YELLOW_("%s"), portname);
+        PrintAndLogEx(SUCCESS, "Waiting for Proxmark3 to appear on " _YELLOW_("%s"), portname);
         fflush(stdout);
         int openCount = 0;
         do {
@@ -342,24 +342,22 @@ bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, 
     }
 }
 
+// check if we can communicate with Pm3
 int TestProxmark(void) {
-    // check if we can communicate with Pm3
     clearCommandBuffer();
     UsbCommand resp;
     UsbCommand c = {CMD_PING, {0, 0, 0}, {{0}}};
     SendCommand(&c);
-    if (WaitForResponseTimeout(CMD_ACK, &resp, 1000)) {
-        PrintAndLogEx(INFO, "Ping successful, communicating with PM3 over %s.", resp.arg[0] == 1 ? "FPC" : "USB");
+    if (WaitForResponseTimeout(CMD_ACK, &resp, 5000)) {
+        PrintAndLogEx(INFO, "Communicating with PM3 over %s.", resp.arg[0] == 1 ? "FPC" : "USB");
         return 1;
     } else {
-        PrintAndLogEx(WARNING, _RED_("Ping failed"));
         return 0;
     }
 }
 
 void CloseProxmark(void) {
     conn.run = false;
-
 
 #ifdef __BIONIC__
     if (USB_communication_thread != 0) {
@@ -421,8 +419,8 @@ bool WaitForResponseTimeoutW(uint32_t cmd, UsbCommand *response, size_t ms_timeo
 
         if (msclock() - start_time > 3000 && show_warning) {
             // 3 seconds elapsed (but this doesn't mean the timeout was exceeded)
-            PrintAndLogEx(NORMAL, "Waiting for a response from the proxmark...");
-            PrintAndLogEx(NORMAL, "You can cancel this operation by pressing the pm3 button");
+            PrintAndLogEx(INFO, "Waiting for a response from the proxmark3...");
+            PrintAndLogEx(INFO, "You can cancel this operation by pressing the pm3 button");
             show_warning = false;
         }
     }
@@ -531,7 +529,7 @@ bool dl_it(uint8_t *dest, uint32_t bytes, uint32_t start_index, UsbCommand *resp
 
         if (msclock() - start_time > 3000 && show_warning) {
             // 3 seconds elapsed (but this doesn't mean the timeout was exceeded)
-            PrintAndLogEx(NORMAL, "Waiting for a response from the proxmark...");
+            PrintAndLogEx(NORMAL, "Waiting for a response from the Proxmark3...");
             PrintAndLogEx(NORMAL, "You can cancel this operation by pressing the pm3 button");
             show_warning = false;
         }
