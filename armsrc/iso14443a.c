@@ -1392,7 +1392,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
     }
 
     Dbprintf("Emulator stopped.  Trace length: %d ", BigBuf_get_traceLen());
-    
+
     // print collected ar/nr nonces
     for (uint8_t i = 0; i < nonces_count; i++) {
         // for interactive call send collected nonces to client
@@ -2070,7 +2070,7 @@ int iso14443a_select_card(uint8_t *uid_ptr, iso14a_card_select_t *p_card, uint32
     for (; sak & 0x04; cascade_level++) {
         // SELECT_* (L1: 0x93, L2: 0x95, L3: 0x97)
         sel_uid[0] = sel_all[0] = 0x93 + cascade_level * 2;
-		bool ignoreBCC = false;
+        bool ignoreBCC = false;
 
         if (anticollision) {
             // SELECT_ALL
@@ -2107,7 +2107,7 @@ int iso14443a_select_card(uint8_t *uid_ptr, iso14a_card_select_t *p_card, uint32
 
             } else {        // no collision, use the response to SELECT_ALL as current uid
                 memcpy(uid_resp, resp, 5); // UID + original BCC
-				ignoreBCC = true;
+                ignoreBCC = true;
             }
 
         } else {
@@ -2127,11 +2127,11 @@ int iso14443a_select_card(uint8_t *uid_ptr, iso14a_card_select_t *p_card, uint32
         // Construct SELECT UID command
         sel_uid[1] = 0x70;                                              // transmitting a full UID (1 Byte cmd, 1 Byte NVB, 4 Byte UID, 1 Byte BCC, 2 Bytes CRC)
         memcpy(sel_uid + 2, uid_resp, 5);                               // the UID received during anticollision with original BCC, or the provided UID
-		uint8_t bcc = sel_uid[2] ^ sel_uid[3] ^ sel_uid[4] ^ sel_uid[5]; // calculate BCC
-		if (ignoreBCC && sel_uid[6] != bcc)
-			Dbprintf("BCC%d incorrect, expected value: 0x%02x", cascade_level, bcc);
-		else
-			sel_uid[6] = bcc;
+        uint8_t bcc = sel_uid[2] ^ sel_uid[3] ^ sel_uid[4] ^ sel_uid[5]; // calculate BCC
+        if (ignoreBCC && sel_uid[6] != bcc)
+            Dbprintf("BCC%d incorrect, expected value: 0x%02x", cascade_level, bcc);
+        else
+            sel_uid[6] = bcc;
         AddCrc14A(sel_uid, 7);                                          // calculate and add CRC
         ReaderTransmit(sel_uid, sizeof(sel_uid), NULL);
 

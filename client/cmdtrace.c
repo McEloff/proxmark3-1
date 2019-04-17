@@ -633,7 +633,7 @@ int CmdTraceList(const char *Cmd) {
                     isOnline = false;
                     cmdp++;
                     break;
-				case 'n' :
+                case 'n' :
                     maxNested = param_get32ex(Cmd, cmdp + 1, 16383, 10);
                     cmdp += 2;
                     break;
