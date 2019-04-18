@@ -1,4 +1,5 @@
 ## [@mceloff]
+ - 'hf mf sim' full-byte split anti-collision support
  - 'hf mf sim' bugfix, RATS support, etc
  - New release of Mifare1ksim() used, merged with @iceman 'mifaresim.c'
  - 'hf mf sim', 'hf 14a sim' online and offline ar/nr nonces collection
