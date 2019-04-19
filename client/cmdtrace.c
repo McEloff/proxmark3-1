@@ -21,7 +21,6 @@ static int usage_trace_list() {
     PrintAndLogEx(NORMAL, "    f      - show frame delay times as well");
     PrintAndLogEx(NORMAL, "    c      - mark CRC bytes");
     PrintAndLogEx(NORMAL, "    <0|1>  - use data from Tracebuffer, if not set, try reading data from tag.");
-    PrintAndLogEx(NORMAL, "    n cnt  - max cycles for mifare nested probable keys find, default 16383");
     PrintAndLogEx(NORMAL, "Supported <protocol> values:");
     PrintAndLogEx(NORMAL, "    raw    - just show raw data without annotations");
     PrintAndLogEx(NORMAL, "    14a    - interpret data as iso14443a communications");
@@ -42,7 +41,6 @@ static int usage_trace_list() {
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "        trace list 14a f");
     PrintAndLogEx(NORMAL, "        trace list iclass");
-    PrintAndLogEx(NORMAL, "        trace list mf n 65535");
     return 0;
 }
 static int usage_trace_load() {
@@ -107,7 +105,7 @@ static bool merge_topaz_reader_frames(uint32_t timestamp, uint32_t *duration, ui
     return true;
 }
 
-static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *trace, uint8_t protocol, bool showWaitCycles, bool markCRCBytes, int maxNested) {
+static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *trace, uint8_t protocol, bool showWaitCycles, bool markCRCBytes) {
     // sanity check
     if (tracepos + sizeof(uint32_t) + sizeof(uint16_t) + sizeof(uint16_t) > traceLen) return traceLen;
 
@@ -283,7 +281,7 @@ static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *tr
         }
     }
 
-    if (DecodeMifareData(frame, data_len, parityBytes, isResponse, mfData, &mfDataLen, maxNested)) {
+    if (DecodeMifareData(frame, data_len, parityBytes, isResponse, mfData, &mfDataLen)) {
         memset(explanation, 0x00, sizeof(explanation));
         if (!isResponse) {
             annotateIso14443a(explanation, sizeof(explanation), mfData, mfDataLen);
@@ -602,7 +600,6 @@ int CmdTraceList(const char *Cmd) {
     bool errors = false;
     uint8_t protocol = 0;
     char type[10] = {0};
-    uint32_t maxNested = 16383;
 
     //int tlen = param_getstr(Cmd,0,type);
     //char param1 = param_getchar(Cmd, 1);
@@ -632,10 +629,6 @@ int CmdTraceList(const char *Cmd) {
                 case '1':
                     isOnline = false;
                     cmdp++;
-                    break;
-                case 'n' :
-                    maxNested = param_get32ex(Cmd, cmdp + 1, 16383, 10);
-                    cmdp += 2;
                     break;
                 default:
                     PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
@@ -728,7 +721,7 @@ int CmdTraceList(const char *Cmd) {
 
         ClearAuthData();
         while (tracepos < traceLen) {
-            tracepos = printTraceLine(tracepos, traceLen, trace, protocol, showWaitCycles, markCRCBytes, maxNested);
+            tracepos = printTraceLine(tracepos, traceLen, trace, protocol, showWaitCycles, markCRCBytes);
         }
     }
     return 0;
