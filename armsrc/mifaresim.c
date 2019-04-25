@@ -150,7 +150,6 @@ static bool IsAccessAllowed(uint8_t blockNo, uint8_t keytype, uint8_t action) {
 }
 
 static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t **responses, uint32_t *cuid, uint8_t *uid_len, uint8_t **rats, uint8_t *rats_len) {
-
     // SPEC: https://www.nxp.com/docs/en/application-note/AN10833.pdf
     // ATQA
     static uint8_t rATQA_Mini[]  = {0x04, 0x00};             // indicate Mifare classic Mini 4Byte UID
@@ -224,7 +223,7 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
                 rSAK[0] = block0[7];
                 memcpy(rATQA, &block0[8], sizeof(rATQA));
             } else {
-                Dbprintf("[-] ERROR: Invalid dump. UID/SAK/ATQA not found");
+                if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("[-] ERROR: Invalid dump. UID/SAK/ATQA not found");
                 return false;
             }
         }
@@ -236,21 +235,21 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
     if ((flags & FLAG_MF_MINI) == FLAG_MF_MINI) {
         memcpy(rATQA, rATQA_Mini, sizeof(rATQA));
         rSAK[0] = rSAK_Mini;
-        Dbprintf("Mifare Mini");
+        if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("Mifare Mini");
     } else if ((flags & FLAG_MF_1K) == FLAG_MF_1K) {
         memcpy(rATQA, rATQA_1k, sizeof(rATQA));
         rSAK[0] = rSAK_1k;
-        Dbprintf("Mifare 1K");
+        if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("Mifare 1K");
     } else if ((flags & FLAG_MF_2K) == FLAG_MF_2K) {
         memcpy(rATQA, rATQA_2k, sizeof(rATQA));
         rSAK[0] = rSAK_2k;
         *rats = rRATS;
         *rats_len = sizeof(rRATS);
-        Dbprintf("Mifare 2K with RATS support");
+        if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("Mifare 2K with RATS support");
     } else if ((flags & FLAG_MF_4K) == FLAG_MF_4K) {
         memcpy(rATQA, rATQA_4k, sizeof(rATQA));
         rSAK[0] = rSAK_4k;
-        Dbprintf("Mifare 4K");
+        if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("Mifare 4K");
     }
 
     // Prepare UID arrays
@@ -264,8 +263,8 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
         *cuid = bytes_to_num(rUIDBCC1, 4);
         // BCC
         rUIDBCC1[4] = rUIDBCC1[0] ^ rUIDBCC1[1] ^ rUIDBCC1[2] ^ rUIDBCC1[3];
-        if (MF_DBGLEVEL >= MF_DBG_NONE)	{
-            Dbprintf("4B UID: %02x%02x%02x%02x", rUIDBCC1[0], rUIDBCC1[1], rUIDBCC1[2], rUIDBCC1[3]);
+        if (MF_DBGLEVEL >= MF_DBG_ERROR)	{
+            if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("4B UID: %02x%02x%02x%02x", rUIDBCC1[0], rUIDBCC1[1], rUIDBCC1[2], rUIDBCC1[3]);
         }
 
         // Correct uid size bits in ATQA
@@ -284,7 +283,7 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
         // BCC
         rUIDBCC1[4] = rUIDBCC1[0] ^ rUIDBCC1[1] ^ rUIDBCC1[2] ^ rUIDBCC1[3];
         rUIDBCC2[4] = rUIDBCC2[0] ^ rUIDBCC2[1] ^ rUIDBCC2[2] ^ rUIDBCC2[3];
-        if (MF_DBGLEVEL >= MF_DBG_NONE)	{
+        if (MF_DBGLEVEL >= MF_DBG_ERROR)	{
             Dbprintf("7B UID: %02x %02x %02x %02x %02x %02x %02x",
                      rUIDBCC1[1], rUIDBCC1[2], rUIDBCC1[3], rUIDBCC2[0], rUIDBCC2[1], rUIDBCC2[2], rUIDBCC2[3]);
         }
@@ -309,7 +308,7 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
         rUIDBCC2[4] = rUIDBCC2[0] ^ rUIDBCC2[1] ^ rUIDBCC2[2] ^ rUIDBCC2[3];
         rUIDBCC3[4] = rUIDBCC3[0] ^ rUIDBCC3[1] ^ rUIDBCC3[2] ^ rUIDBCC3[3];
 
-        if (MF_DBGLEVEL >= MF_DBG_NONE)	{
+        if (MF_DBGLEVEL >= MF_DBG_ERROR)	{
             Dbprintf("10B UID: %02x %02x %02x %02x %02x %02x %02x %02x %02x %02x",
                      rUIDBCC1[1], rUIDBCC1[2], rUIDBCC1[3],
                      rUIDBCC2[1], rUIDBCC2[2], rUIDBCC2[3],
@@ -320,7 +319,7 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
         // Correct uid size bits in ATQA
         rATQA[0] = (rATQA[0] & 0x3f) | 0x80; // triple size uid
     } else {
-        Dbprintf("[-] ERROR: UID size not defined");
+        if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("[-] ERROR: UID size not defined");
         return false;
     }
 
@@ -384,7 +383,7 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
 
     for (size_t i = 0; i < TAG_RESPONSE_COUNT; i++) {
         if (prepare_allocated_tag_modulation(&responses_init[i], &free_buffer_pointer, &free_buffer_size) == false) {
-            Dbprintf("Not enough modulation buffer size, exit after %d elements", i);
+            if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("Not enough modulation buffer size, exit after %d elements", i);
             return false;
         }
     }
@@ -417,6 +416,8 @@ static bool MifareSimInit(uint16_t flags, uint8_t *datain, tag_response_info_t *
 * (unless reader attack mode enabled then it runs util it gets enough nonces to recover all keys attmpted)
 */
 void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrites, uint8_t *datain) {
+    bool reinit = false;
+
     tag_response_info_t *responses;
     uint8_t	cardSTATE = MFEMUL_NOFIELD;
     uint8_t uid_len = 0; // 4,7, 10
@@ -489,7 +490,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
 
     // clear trace
     clear_trace();
-    set_tracing(true);
+    set_tracing((flags & FLAG_NO_TRACE) == 0);
     LED_D_ON();
     ResetSspClk();
 
@@ -517,6 +518,15 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
             LEDsoff();
             cardSTATE = MFEMUL_NOFIELD;
             if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("cardSTATE = MFEMUL_NOFIELD");
+            if (reinit) {
+                BigBuf_free_keep_EM();
+                if (MifareSimInit(FLAG_UID_IN_EMUL, datain, &responses, &cuid, &uid_len, &rats, &rats_len) == false) {
+                    BigBuf_free_keep_EM();
+                    break;
+                }
+                if (MF_DBGLEVEL >= MF_DBG_EXTENDED)	Dbprintf("Mifare1ksim - tag reinitialized");
+                reinit = false;
+            }
             continue;
         } else if (res == 1) { // button pressed
             button_pushed = true;
@@ -1076,6 +1086,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                             cardSTATE_TO_IDLE();
                         } else {
                             EmSend4bit(mf_crypto1_encrypt4bit(pcs, CARD_ACK));
+                            reinit |= (cardWRBL == 0); // reinitialize prepared response arrays after field drops
                             cardSTATE = MFEMUL_WORK;
                         }
                         if (MF_DBGLEVEL >= MF_DBG_EXTENDED) Dbprintf("[MFEMUL_WRITEBL2] cardSTATE = MFEMUL_WORK");

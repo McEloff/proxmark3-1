@@ -79,6 +79,7 @@ static int usage_hf14_mfsim(void) {
     PrintAndLogEx(NORMAL, "      x    (Optional) Crack, performs the 'reader attack', nr/ar attack against a reader");
     PrintAndLogEx(NORMAL, "      e    (Optional) Fill simulator keys from found keys");
     PrintAndLogEx(NORMAL, "      v    (Optional) Verbose");
+    PrintAndLogEx(NORMAL, "      s    (Optional) Silent, no trace log saves");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "           hf mf sim u 0a0a0a0a");
     PrintAndLogEx(NORMAL, "           hf mf sim u 11223344556677");
@@ -2218,6 +2219,10 @@ static int CmdHF14AMfSim(const char *Cmd) {
                 break;
             case 'x':
                 flags |= FLAG_NR_AR_ATTACK;
+                cmdp++;
+                break;
+            case 's':
+                flags |= FLAG_NO_TRACE;
                 cmdp++;
                 break;
             default:
