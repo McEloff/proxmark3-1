@@ -174,6 +174,7 @@ static int usage_hf_14a_sim(void) {
     PrintAndLogEx(NORMAL, "    x     : (Optional) Performs the 'reader attack', nr/ar attack against a reader");
     PrintAndLogEx(NORMAL, "    e     : (Optional) Fill simulator keys from found keys");
     PrintAndLogEx(NORMAL, "    v     : (Optional) Verbose");
+    PrintAndLogEx(NORMAL, "    s     : (Optional) Silent, no trace log saves");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "          hf 14a sim t 1 u 11223344 x");
     PrintAndLogEx(NORMAL, "          hf 14a sim t 1 u 11223344");
@@ -475,6 +476,11 @@ int CmdHF14ASim(const char *Cmd) {
             case 'e':
             case 'E':
                 setEmulatorMem = true;
+                cmdp++;
+                break;
+            case 's':
+            case 'S':
+                flags |= FLAG_NO_TRACE;
                 cmdp++;
                 break;
             default:

@@ -1034,6 +1034,9 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
     uint32_t counters[3] = { 0x00, 0x00, 0x00 };
     uint8_t tearings[3] = { 0xbd, 0xbd, 0xbd };
     uint8_t pages = 0;
+    bool reinit = false;
+
+    int vHf = 0;	// in mV
 
     // Here, we collect CUID, block1, keytype1, NT1, NR1, AR1, CUID, block2, keytyp2, NT2, NR2, AR2
     // it should also collect block, keytype.
@@ -1077,10 +1080,10 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
     // We need to listen to the high-frequency, peak-detected path.
     iso14443a_setup(FPGA_HF_ISO14443A_TAGSIM_LISTEN);
 
-    int len = 0;
+    uint16_t len = 0;
 
     // To control where we are in the protocol
-    int order = 0;
+    int order = -1;
     int lastorder;
 
     // Just to allow some checks
@@ -1090,14 +1093,42 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
     tag_response_info_t *p_response;
 
     clear_trace();
-    set_tracing(true);
-    LED_A_ON();
+    set_tracing((flags & FLAG_NO_TRACE) == 0);
+    LED_D_ON();
     for (;;) {
         WDT_HIT();
 
-        // Clean receive command buffer
-        if (!GetIso14443aCommandFromReader(receivedCmd, receivedCmdPar, &len))
+        // find reader field
+        if (order == -1) {
+            vHf = (MAX_ADC_HF_VOLTAGE_RDV40 * AvgAdc(ADC_CHAN_HF)) >> 10;
+            if (vHf > MF_MINFIELDV) {
+                order = 0;
+                LED_A_ON();
+            }
+            if (BUTTON_PRESS())
+                break;
+            continue;
+        }
+        
+        //Now, get data
+        int res = EmGetCmd(receivedCmd, &len, receivedCmdPar);
+
+        if (res == 2) { //Field is off!
+            LEDsoff();
+            order = -1;
+            if (reinit) {
+                BigBuf_free_keep_EM();
+                if (SimulateIso14443aInit(tagType, FLAG_UID_IN_EMUL, data, &responses, &cuid, counters, tearings, &pages) == false) {
+                    BigBuf_free_keep_EM();
+                    return;
+                }
+                reinit = false;
+            }
+            continue;
+        } else if (res == 1) { // button pressed
             break;
+        }
+        
         p_response = NULL;
 
         // Okay, look at the command now.
@@ -1182,6 +1213,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
                         emlSetMem_xt(&receivedCmd[2], block + MFU_DUMP_PREFIX_LENGTH / 4, 1, 4);
                         // send ACK
                         EmSend4bit(CARD_ACK);
+                        reinit |= (block < 2); // reinitialize prepared response arrays after field drops
                     }
                 } else {
                     // send NACK 0x1 == crc/parity error

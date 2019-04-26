@@ -137,6 +137,7 @@ static int usage_hf_mfu_sim(void) {
     PrintAndLogEx(NORMAL, "    h       : this help");
     PrintAndLogEx(NORMAL, "    t 7     : 7 = NTAG or Ultralight sim (required)");
     PrintAndLogEx(NORMAL, "    u <uid> : 4 or 7 byte UID (optional)");
+    PrintAndLogEx(NORMAL, "    s       : (Optional) Silent, no trace log saves");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "        hf mfu sim t 7");
