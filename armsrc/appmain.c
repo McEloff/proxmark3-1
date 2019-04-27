@@ -114,16 +114,16 @@ void print_result(char *name, uint8_t *buf, size_t len) {
 // Debug print functions, to go out over USB, to the usual PC-side client.
 //=============================================================================
 
-void DbpStringEx(char *str, uint32_t cmd) {
+void DbpStringEx(uint32_t flags, char *str) {
 #if DEBUG
     uint8_t len = strlen(str);
-    cmd_send(CMD_DEBUG_PRINT_STRING, len, cmd, 0, (uint8_t *)str, len);
+    cmd_send(CMD_DEBUG_PRINT_STRING, len, flags, 0, (uint8_t *)str, len);
 #endif
 }
 
 void DbpString(char *str) {
 #if DEBUG
-    DbpStringEx(str, 0);
+    DbpStringEx(FLAG_LOG, str);
 #endif
 }
 
@@ -132,7 +132,7 @@ void DbpIntegers(int x1, int x2, int x3) {
     cmd_send(CMD_DEBUG_PRINT_INTEGERS, x1, x2, x3, 0, 0);
 }
 #endif
-void DbprintfEx(uint32_t cmd, const char *fmt, ...) {
+void DbprintfEx(uint32_t flags, const char *fmt, ...) {
 #if DEBUG
     // should probably limit size here; oh well, let's just use a big buffer
     char output_string[128] = {0x00};
@@ -141,7 +141,7 @@ void DbprintfEx(uint32_t cmd, const char *fmt, ...) {
     kvsprintf(fmt, output_string, 10, ap);
     va_end(ap);
 
-    DbpStringEx(output_string, cmd);
+    DbpStringEx(flags, output_string);
 #endif
 }
 
@@ -310,10 +310,10 @@ void MeasureAntennaTuningHf(void) {
         } else {
             volt = (MAX_ADC_HF_VOLTAGE_RDV40 * AvgAdc(ADC_CHAN_HF_RDV40)) >> 10;
         }
-        DbprintfEx(FLAG_NONEWLINE, "%u mV / %5u V", volt, (uint16_t)(volt / 1000));
+        DbprintfEx(FLAG_INPLACE, "%u mV / %5u V", volt, (uint16_t)(volt / 1000));
     }
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    DbprintfEx(FLAG_NOOPT, "\n[+] cancelled", 1);
+    DbprintfEx(FLAG_LOG, "\n[+] cancelled", 1);
 }
 
 void ReadMem(int addr) {
@@ -365,8 +365,8 @@ void SendVersion(void) {
 // measure the USB Speed by sending SpeedTestBufferSize bytes to client and measuring the elapsed time.
 // Note: this mimics GetFromBigbuf(), i.e. we have the overhead of the UsbCommand structure included.
 void printUSBSpeed(void) {
-    Dbprintf("USB Speed");
-    Dbprintf("  Sending USB packets to client...");
+    DbpStringEx(FLAG_LOG|FLAG_ANSI, _BLUE_("Transfer Speed"));
+    Dbprintf("  Sending packets to client...");
 
 #define USB_SPEED_TEST_MIN_TIME 1500 // in milliseconds
     uint8_t *test_data = BigBuf_get_addr();
@@ -386,7 +386,7 @@ void printUSBSpeed(void) {
 
     Dbprintf("  Time elapsed............%dms", end_time - start_time);
     Dbprintf("  Bytes transferred.......%d", bytes_transferred);
-    Dbprintf("  USB Transfer Speed PM3 -> Client = %d Bytes/s", 1000 * bytes_transferred / (end_time - start_time));
+    Dbprintf("  Transfer Speed PM3 -> Client = " _YELLOW_("%d") " bytes/s", 1000 * bytes_transferred / (end_time - start_time));
 }
 
 /**
@@ -406,12 +406,20 @@ void SendStatus(void) {
     printT55xxConfig(); // LF T55XX Config
 #endif
     printUSBSpeed();
-    Dbprintf("Various");
+    DbpStringEx(FLAG_LOG|FLAG_ANSI, _BLUE_("Various"));
     Dbprintf("  MF_DBGLEVEL.............%d", MF_DBGLEVEL);
     Dbprintf("  ToSendMax...............%d", ToSendMax);
     Dbprintf("  ToSendBit...............%d", ToSendBit);
     Dbprintf("  ToSend BUFFERSIZE.......%d", TOSEND_BUFFER_SIZE);
-    printStandAloneModes();
+    DbpStringEx(FLAG_LOG|FLAG_ANSI, _BLUE_("Installed StandAlone Mode"));
+    ModInfo();
+
+    //DbpString("Running ");
+    //Dbprintf("  Is Device attached to USB| %s", USB_ATTACHED() ? "Yes" : "No");
+    //Dbprintf("  Is Device attached to FPC| %s", send_using_0 ? "Yes" : "No");
+    //Dbprintf("  Is USB_reconnect value   | %d", GetUSBreconnect() );
+    //Dbprintf("  Is USB_configured value  | %d", GetUSBconfigured() );
+    
     cmd_send(CMD_ACK, 1, 0, 0, 0, 0);
 }
 
@@ -426,48 +434,6 @@ void StandAloneMode(void) {
     SpinOff(50);
     SpinDown(50);
     SpinDelay(500);
-}
-// detection of which Standalone Modes is installed
-// (iceman)
-void printStandAloneModes(void) {
-
-    DbpString("Installed StandAlone Mode");
-
-#if defined(WITH_LF_ICERUN)
-    DbpString("   LF sniff/clone/simulation -  aka IceRun (iceman)");
-#endif
-#if defined(WITH_HF_YOUNG)
-    DbpString("   HF Mifare sniff/simulation - (Craig Young)");
-#endif
-#if defined(WITH_LF_SAMYRUN)
-    DbpString("   LF HID26 standalone - aka SamyRun (Samy Kamkar)");
-#endif
-#if defined(WITH_LF_PROXBRUTE)
-    DbpString("   LF HID ProxII bruteforce - aka Proxbrute (Brad Antoniewicz)");
-#endif
-#if defined(WITH_LF_HIDBRUTE)
-    DbpString("   LF HID corporate 1000 bruteforce - aka Corporatebrute (Federico dotta & Maurizio Agazzini)");
-#endif
-#if defined(WITH_HF_MATTYRUN)
-    DbpString("   HF Mifare sniff/clone - aka MattyRun (Matías A. Ré Medina)");
-#endif
-#if defined(WITH_HF_COLIN)
-    DbpString("   HF Mifare ultra fast sniff/sim/clone - aka VIGIKPWN (Colin Brigato)");
-#endif
-#if defined(WITH_HF_BOG)
-    DbpString("   HF 14a sniff standalone with ULC/ULEV1/NTAG auth storing in flashmem - aka BogitoRun (Bogito)");
-#endif
-
-    //DbpString("Running ");
-    //Dbprintf("  Is Device attached to USB| %s", USB_ATTACHED() ? "Yes" : "No");
-    //Dbprintf("  Is Device attached to FPC| %s", 0 ? "Yes" : "No");
-    //Dbprintf("  Is USB_reconnect value   | %d", GetUSBreconnect() );
-    //Dbprintf("  Is USB_configured value  | %d", GetUSBconfigured() );
-
-    //.. add your own standalone detection based on with compiler directive you are used.
-    // don't "reuse" the already taken ones, this will make things easier when trying to detect the different modes
-    // 2017-08-06  must adapt the makefile and have individual compilation flags for all mods
-    //
 }
 
 /*
@@ -1583,16 +1549,8 @@ void  __attribute__((noreturn)) AppMain(void) {
             /*
             * So this is the trigger to execute a standalone mod.  Generic entrypoint by following the standalone/standalone.h headerfile
             * All standalone mod "main loop" should be the RunMod() function.
-            * Since the standalone is either LF or HF, the somewhat bisarr defines below exists.
             */
-#if defined (WITH_LF) && ( defined (WITH_LF_SAMYRUN) || defined (WITH_LF_HIDBRUTE) || defined (WITH_LF_PROXBRUTE) )
             RunMod();
-#endif
-
-#if defined (WITH_ISO14443a) && ( defined (WITH_HF_YOUNG) || defined(WITH_HF_COLIN) || defined(WITH_HF_MATTYRUN) || defined(WITH_HF_BOG) )
-            RunMod();
-#endif
-
         }
     }
 }

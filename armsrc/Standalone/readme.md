@@ -1,18 +1,32 @@
 # StandAlone Modes
 
-This contains functionality for different StandAlone modes. The fullimage will be built given the correct compiler flags used. Build targets for these files are contained in `armsrc/Makefile`.
+This contains functionality for different StandAlone modes. The fullimage will be built given the correct compiler flags used. Build targets for these files are contained in `armsrc/Makefile` and `common/Makefile.hal`
 
 If you want to implement a new standalone mode, you need to implement the methods provided in `standalone.h`.
+Have a look at the skeleton standalone mode called IceRun, in the files `lf_icerun.c lf_icerun.h`.
+
+As it is now, you can only have one standalone mode installed at the time.  
 
 ## Implementing a standalone mode
 
-Each standalone mod needs to have its own compiler flag to be added in `armsrc\makefile` and inside the function `AppMain` inside  AppMain.c.  Inside Appmain a call to RunMod is needed.  It looks strange because of what kinds of dependencies your mode will have.  
+We suggest you keep your standalone code inside the `armsrc/Standalone` folder. And that you name your files according to your standalone mode name.
 
-The RunMod function is your "main" function when running.  You need to check for Usb commands,  in order to let the pm3 client break the standalone mode.  See this basic skeleton of main function RunMod().
+The `standalone.h` states that you must have two functions implemented. 
+
+The ModInfo function, which is your identification of your standalone mode.  This string will show when running the command `hw status` on the client.
+
+The RunMod function, which is your "main" function when running.  You need to check for Usb commands, in order to let the pm3 client break the standalone mode.  See this basic skeleton of main function RunMod() and Modinfo() below.
+
 ````
-void RunMod() {
+void ModInfo(void) {
+    DbpString("   LF good description of your mode - aka FooRun (your name)");
+}
+
+void RunMod(void) {
     // led show
     StandAloneMode();
+
+    // Do you target LF or HF?
     FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
 
     // main loop
@@ -26,77 +40,69 @@ void RunMod() {
     }
 ````
 
-As it is now, you can only have one standalone mode installed at the time.  
+Each standalone mode needs to have its own compiler flag to be added in `armsrc/Makefile`.
 
-## Name
-Use HF/LF to denote which frequence your mod is targeting.  
-Use you own github name/similar for perpetual honour to denote your mod
+## Naming your standalone mode
 
-Samples of directive flag used in the `armsrc\makefile`:
+We suggest that you follow these guidelines:
+- Use HF/LF to denote which frequency your mode is targeting.  
+- Use you own github name/similar for perpetual honour to denote your mode.
+
+sample:
+ `LF_FOO`
+
+Which indicates your mode targets LF and is called FOO.
+
+This leads to your next step, your DEFINE name needed in Makefile.
+
+`WITH_STANDALONE_LF_FOO`
+
+
+## Update COMMON/MAKEFILE.HAL
+
+Add your suggested DEFINE to the samples of directive flag provided in the `common/Makefile.hal`.
 ```
-### -DWITH_LF_ICERUN
-### -DWITH_LF_SAMYRUN
-### -DWITH_LF_PROXBRUTE
-### -DWITH_LF_HIDBRUTE
-### -DWITH_HF_COLIN
-### -DWITH_HF_YOUNG
-### -DWITH_HF_MATTYRUN
+#PLATFORM_DEFS += -DWITH_STANDALONE_LF_SAMYRUN
+#PLATFORM_DEFS += -DWITH_STANDALONE_LF_ICERUN
+#PLATFORM_DEFS += -DWITH_STANDALONE_LF_PROXBRUTE
+#PLATFORM_DEFS += -DWITH_STANDALONE_LF_HIDBRUTE
+#PLATFORM_DEFS += -DWITH_STANDALONE_HF_YOUNG
+#PLATFORM_DEFS += -DWITH_STANDALONE_HF_MATTYRUN
+#PLATFORM_DEFS += -DWITH_STANDALONE_HF_COLIN
+#PLATFORM_DEFS += -DWITH_STANDALONE_HF_BOG
+#PLATFORM_DEFS += -DWITH_STANDALONE_LF_FOO
 ```
-Add your source code file like the following sample in the `armsrc\makefile`
+
+## Update ARMSRC/MAKEFILE
+Add your source code files like the following sample in the `armsrc/Makefile`
 
 ```
-# WITH_HF_COLIN
-ifneq (,$(findstring WITH_HF_COLIN,$(APP_CFLAGS)))
-    SRC_STANDALONE = hf_colin.c vtsend.c
-else
-    SRC_STANDALONE =
+# WITH_STANDALONE_LF_ICERUN
+ifneq (,$(findstring WITH_STANDALONE_LF_ICERUN,$(APP_CFLAGS)))
+	SRC_STANDALONE = lf_icerun.c
+endif
+
+# WITH_STANDALONE_LF_FOO
+ifneq (,$(findstring WITH_STANDALONE_LF_FOO,$(APP_CFLAGS)))
+    SRC_STANDALONE = lf_foo.c
 endif
 ```
 
-## Adding identification of your mode
-Do please add a identification string in the function `printStandAloneModes` inside `armsrc\appmain.c`
-This will enable an easy way to detect on client side which standalone mods has been installed on the device.
+## Adding identification string of your mode
+Do please add a identification string in a function called `ModInfo` inside your source code file.
+This will enable an easy way to detect on client side which standalone mode has been installed on the device.
+
+````
+void ModInfo(void) {
+    DbpString("   LF good description of your mode - aka FooRun (your name)");
+}
+````
+
+## Compiling your standalone mode
+Once all this is done, you and others can now easily compile different standalone modes by just selecting one of the standalone modes in `common/Makefile.hal`, e.g.:
+
 ```
-#if defined(WITH_HF_COLIN)
-    DbpString("   HF Mifare ultra fast sniff/sim/clone - aka VIGIKPWN (Colin Brigato)");
-#endif
-````
+PLATFORM_DEFS += -DWITH_STANDALONE_LF_FOO
+```
 
-Once all this is done, you and others can now easily compile different standalone modes by just swapping the -D directive in `armsrc\makefile`
-
-````
-#remove one of the following defines and comment out the relevant line
-#in the next section to remove that particular feature from compilation.
-# NO space,TABs after the "\" sign.
-APP_CFLAGS = -DWITH_CRC \
-             -DON_DEVICE \
-             -DWITH_LF \
-             -DWITH_HITAG \
-             -DWITH_ISO15693 \
-             -DWITH_LEGICRF \
-             -DWITH_ISO14443b \
-             -DWITH_ISO14443a \
-             -DWITH_ICLASS \
-             -DWITH_FELICA \
-             -DWITH_FLASH \
-             -DWITH_SMARTCARD \
-             -DWITH_HFSNOOP \
-             -DWITH_HF_COLIN \
-             -DWITH_FPC \
-             -fno-strict-aliasing -ffunction-sections -fdata-sections
-
-### IMPORTANT -  move the commented variable below this line
-#             -DWITH_LCD \
-#             -DWITH_EMV \
-#             -DWITH_FPC \
-#
-# Standalone Mods
-#-------------------------------------------------------
-#             -DWITH_LF_ICERUN
-#             -DWITH_LF_SAMYRUN
-#             -DWITH_LF_PROXBRUTE
-#             -DWITH_LF_HIDBRUTE
-#             -DWITH_HF_YOUNG
-#             -DWITH_HF_MATTYRUN
-#             -DWITH_HF_COLIN
-````
+Remember only one can be selected at a time for now.
