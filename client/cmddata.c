@@ -874,9 +874,8 @@ static int CmdBuffClear(const char *Cmd) {
     char cmdp = tolower(param_getchar(Cmd, 0));
     if (cmdp == 'h') return usage_data_buffclear();
 
-    UsbCommand c = {CMD_BUFF_CLEAR, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_BUFF_CLEAR, 0, 0, 0, NULL, 0);
     ClearGraph(true);
     return 0;
 }
@@ -1457,7 +1456,7 @@ int getSamples(uint32_t n, bool silent) {
 
     if (!silent) PrintAndLogEx(NORMAL, "Reading %d bytes from device memory\n", n);
 
-    UsbCommand response;
+    PacketResponseNG response;
     if (!GetFromDevice(BIG_BUF, got, n, 0, &response, 10000, true)) {
         PrintAndLogEx(WARNING, "timeout while waiting for reply.");
         return 1;
@@ -1468,8 +1467,8 @@ int getSamples(uint32_t n, bool silent) {
     uint8_t bits_per_sample = 8;
 
     //Old devices without this feature would send 0 at arg[0]
-    if (response.arg[0] > 0) {
-        sample_config *sc = (sample_config *) response.d.asBytes;
+    if (response.oldarg[0] > 0) {
+        sample_config *sc = (sample_config *) response.data.asBytes;
         if (!silent) PrintAndLogEx(NORMAL, "Samples @ %d bits/smpl, decimation 1:%d ", sc->bits_per_sample, sc->decimation);
         bits_per_sample = sc->bits_per_sample;
     }
@@ -1529,10 +1528,9 @@ int CmdTuneSamples(const char *Cmd) {
     int timeout = 0;
     PrintAndLogEx(INFO, "\nMeasuring antenna characteristics, please wait...");
 
-    UsbCommand c = {CMD_MEASURE_ANTENNA_TUNING, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
-    UsbCommand resp;
+    SendCommandOLD(CMD_MEASURE_ANTENNA_TUNING, 0, 0, 0, NULL, 0);
+    PacketResponseNG resp;
     while (!WaitForResponseTimeout(CMD_MEASURED_ANTENNA_TUNING, &resp, 2000)) {
         timeout++;
         printf(".");
@@ -1544,12 +1542,12 @@ int CmdTuneSamples(const char *Cmd) {
     }
     PrintAndLogEx(NORMAL, "\n");
 
-    uint32_t v_lf125 = resp.arg[0];
-    uint32_t v_lf134 = resp.arg[0] >> 32;
+    uint32_t v_lf125 = resp.oldarg[0];
+    uint32_t v_lf134 = resp.oldarg[0] >> 32;
 
-    uint32_t v_hf = resp.arg[1];
-    uint32_t peakf = resp.arg[2];
-    uint32_t peakv = resp.arg[2] >> 32;
+    uint32_t v_hf = resp.oldarg[1];
+    uint32_t peakf = resp.oldarg[2];
+    uint32_t peakv = resp.oldarg[2] >> 32;
 
     if (v_lf125 > NON_VOLTAGE)
         PrintAndLogEx(SUCCESS, "LF antenna: %5.2f V - 125.00 kHz", (v_lf125 * ANTENNA_ERROR) / 1000.0);
@@ -1595,8 +1593,8 @@ int CmdTuneSamples(const char *Cmd) {
     // even here, these values has 3% error.
     uint16_t test1 = 0;
     for (int i = 0; i < 256; i++) {
-        GraphBuffer[i] = resp.d.asBytes[i] - 128;
-        test1 += resp.d.asBytes[i];
+        GraphBuffer[i] = resp.data.asBytes[i] - 128;
+        test1 += resp.data.asBytes[i];
     }
 
     if (test1 > 0) {
@@ -2147,7 +2145,6 @@ static int CmdHelp(const char *Cmd) {
 
 int CmdData(const char *Cmd) {
     clearCommandBuffer();
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }
 

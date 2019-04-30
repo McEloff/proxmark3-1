@@ -524,10 +524,10 @@ static int CmdLegicRfSim(const char *Cmd) {
     char cmdp = tolower(param_getchar(Cmd, 0));
     if (strlen(Cmd) == 0 || cmdp == 'h') return usage_legic_sim();
 
-    UsbCommand c = {CMD_SIMULATE_TAG_LEGIC_RF, {1}, {{0}}};
-    sscanf(Cmd, " %" SCNi64, &c.arg[0]);
+    uint64_t id = 1;
+    sscanf(Cmd, " %" SCNi64, &id);
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_SIMULATE_TAG_LEGIC_RF, id, 0, 0, NULL, 0);
     return 0;
 }
 
@@ -642,11 +642,9 @@ static int CmdLegicRfWrite(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "Writing to tag");
 
-    UsbCommand c = {CMD_WRITER_LEGIC_RF, {offset, len, IV}, {{0}}};
-    memcpy(c.d.asBytes, data, len);
-    UsbCommand resp;
+    PacketResponseNG resp;
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_WRITER_LEGIC_RF, offset, len, IV, data, len);
 
 
     uint8_t timeout = 0;
@@ -661,7 +659,7 @@ static int CmdLegicRfWrite(const char *Cmd) {
     }
     PrintAndLogEx(NORMAL, "\n");
 
-    uint8_t isOK = resp.arg[0] & 0xFF;
+    uint8_t isOK = resp.oldarg[0] & 0xFF;
     if (!isOK) {
         PrintAndLogEx(WARNING, "Failed writing tag");
         return 1;
@@ -756,10 +754,9 @@ int legic_read_mem(uint32_t offset, uint32_t len, uint32_t iv, uint8_t *out, uin
 
     legic_chk_iv(&iv);
 
-    UsbCommand c = {CMD_READER_LEGIC_RF, {offset, len, iv}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
-    UsbCommand resp;
+    SendCommandOLD(CMD_READER_LEGIC_RF, offset, len, iv, NULL, 0);
+    PacketResponseNG resp;
 
     uint8_t timeout = 0;
     while (!WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
@@ -773,8 +770,8 @@ int legic_read_mem(uint32_t offset, uint32_t len, uint32_t iv, uint8_t *out, uin
     }
     PrintAndLogEx(NORMAL, "\n");
 
-    uint8_t isOK = resp.arg[0] & 0xFF;
-    *outlen = resp.arg[1];
+    uint8_t isOK = resp.oldarg[0] & 0xFF;
+    *outlen = resp.oldarg[1];
     if (!isOK) {
         PrintAndLogEx(WARNING, "Failed reading tag");
         return 2;
@@ -810,18 +807,17 @@ int legic_get_type(legic_card_select_t *card) {
 
     if (card == NULL) return 1;
 
-    UsbCommand c = {CMD_LEGIC_INFO, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
-    UsbCommand resp;
+    SendCommandOLD(CMD_LEGIC_INFO, 0, 0, 0, NULL, 0);
+    PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500))
         return 2;
 
-    uint8_t isOK = resp.arg[0] & 0xFF;
+    uint8_t isOK = resp.oldarg[0] & 0xFF;
     if (!isOK)
         return 3;
 
-    memcpy(card, (legic_card_select_t *)resp.d.asBytes, sizeof(legic_card_select_t));
+    memcpy(card, (legic_card_select_t *)resp.data.asBytes, sizeof(legic_card_select_t));
     return 0;
 }
 void legic_chk_iv(uint32_t *iv) {
@@ -837,15 +833,11 @@ void legic_chk_iv(uint32_t *iv) {
 }
 void legic_seteml(uint8_t *src, uint32_t offset, uint32_t numofbytes) {
 
-    UsbCommand c = {CMD_LEGIC_ESET, {0, 0, 0}, {{0}}};
     for (size_t i = offset; i < numofbytes; i += USB_CMD_DATA_SIZE) {
 
         size_t len = MIN((numofbytes - i), USB_CMD_DATA_SIZE);
-        c.arg[0] = i; // offset
-        c.arg[1] = len; // number of bytes
-        memcpy(c.d.asBytes, src + i, len);
         clearCommandBuffer();
-        SendCommand(&c);
+        SendCommandOLD(CMD_LEGIC_ESET, i, len, 0, src + i, len);
     }
 }
 
@@ -900,10 +892,9 @@ static int CmdLegicDump(const char *Cmd) {
     legic_print_type(dumplen, 0);
     PrintAndLogEx(SUCCESS, "Reading tag memory %d b...", dumplen);
 
-    UsbCommand c = {CMD_READER_LEGIC_RF, {0x00, dumplen, 0x55}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
-    UsbCommand resp;
+    SendCommandOLD(CMD_READER_LEGIC_RF, 0x00, dumplen, 0x55, NULL, 0);
+    PacketResponseNG resp;
 
     uint8_t timeout = 0;
     while (!WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
@@ -917,13 +908,13 @@ static int CmdLegicDump(const char *Cmd) {
     }
     PrintAndLogEx(NORMAL, "\n");
 
-    uint8_t isOK = resp.arg[0] & 0xFF;
+    uint8_t isOK = resp.oldarg[0] & 0xFF;
     if (!isOK) {
         PrintAndLogEx(WARNING, "Failed dumping tag data");
         return 2;
     }
 
-    uint16_t readlen = resp.arg[1];
+    uint16_t readlen = resp.oldarg[1];
     uint8_t *data = calloc(readlen, sizeof(uint8_t));
     if (!data) {
         PrintAndLogEx(WARNING, "Fail, cannot allocate memory");
@@ -1049,16 +1040,12 @@ static int CmdLegicRestore(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "Restoring to card");
 
     // transfer to device
-    UsbCommand c = {CMD_WRITER_LEGIC_RF, {0, 0, 0x55}, {{0}}};
-    UsbCommand resp;
+    PacketResponseNG resp;
     for (size_t i = 7; i < numofbytes; i += USB_CMD_DATA_SIZE) {
 
         size_t len = MIN((numofbytes - i), USB_CMD_DATA_SIZE);
-        c.arg[0] = i; // offset
-        c.arg[1] = len; // number of bytes
-        memcpy(c.d.asBytes, data + i, len);
         clearCommandBuffer();
-        SendCommand(&c);
+        SendCommandOLD(CMD_WRITER_LEGIC_RF, i, len, 0x55, data + i, len);
 
         uint8_t timeout = 0;
         while (!WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
@@ -1073,9 +1060,9 @@ static int CmdLegicRestore(const char *Cmd) {
         }
         PrintAndLogEx(NORMAL, "\n");
 
-        uint8_t isOK = resp.arg[0] & 0xFF;
+        uint8_t isOK = resp.oldarg[0] & 0xFF;
         if (!isOK) {
-            PrintAndLogEx(WARNING, "Failed writing tag [msg = %u]", resp.arg[1] & 0xFF);
+            PrintAndLogEx(WARNING, "Failed writing tag [msg = %u]", resp.oldarg[1] & 0xFF);
             free(data);
             return 1;
         }
@@ -1212,8 +1199,8 @@ static int CmdLegicESave(const char *Cmd) {
     else
         sprintf(fnameptr + fileNlen, ".bin");
 
-    saveFileEML(filename, "eml", data, numofbytes, 8);
-    saveFile(filename, "bin", data, numofbytes);
+    saveFileEML(filename, data, numofbytes, 8);
+    saveFile(filename, ".bin", data, numofbytes);
     return 0;
 }
 
@@ -1242,18 +1229,14 @@ static int CmdLegicWipe(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "Erasing");
 
     // transfer to device
-    UsbCommand c = {CMD_WRITER_LEGIC_RF, {0, 0, 0x55}, {{0}}};
-    UsbCommand resp;
+    PacketResponseNG resp;
     for (size_t i = 7; i < card.cardsize; i += USB_CMD_DATA_SIZE) {
 
         printf(".");
         fflush(stdout);
         size_t len = MIN((card.cardsize - i), USB_CMD_DATA_SIZE);
-        c.arg[0] = i; // offset
-        c.arg[1] = len; // number of bytes
-        memcpy(c.d.asBytes, data + i, len);
         clearCommandBuffer();
-        SendCommand(&c);
+        SendCommandOLD(CMD_WRITER_LEGIC_RF, i, len, 0x55, data + i, len);
 
         uint8_t timeout = 0;
         while (!WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
@@ -1268,9 +1251,9 @@ static int CmdLegicWipe(const char *Cmd) {
         }
         PrintAndLogEx(NORMAL, "\n");
 
-        uint8_t isOK = resp.arg[0] & 0xFF;
+        uint8_t isOK = resp.oldarg[0] & 0xFF;
         if (!isOK) {
-            PrintAndLogEx(WARNING, "Failed writing tag [msg = %u]", resp.arg[1] & 0xFF);
+            PrintAndLogEx(WARNING, "Failed writing tag [msg = %u]", resp.oldarg[1] & 0xFF);
             free(data);
             return 4;
         }
@@ -1311,8 +1294,7 @@ static int CmdHelp(const char *Cmd) {
 
 int CmdHFLegic(const char *Cmd) {
     clearCommandBuffer();
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }
 
 int readLegicUid(bool verbose) {

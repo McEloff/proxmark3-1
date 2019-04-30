@@ -31,29 +31,25 @@ static struct {
 } topaz_tag;
 
 static void topaz_switch_on_field(void) {
-    UsbCommand c = {CMD_READER_ISO_14443a, {ISO14A_CONNECT | ISO14A_NO_SELECT | ISO14A_NO_DISCONNECT | ISO14A_TOPAZMODE | ISO14A_NO_RATS, 0, 0}, {{0}}};
-    SendCommand(&c);
+    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_SELECT | ISO14A_NO_DISCONNECT | ISO14A_TOPAZMODE | ISO14A_NO_RATS, 0, 0, NULL, 0);
 }
 
 static void topaz_switch_off_field(void) {
-    UsbCommand c = {CMD_READER_ISO_14443a, {0, 0, 0}, {{0}}};
-    SendCommand(&c);
+    SendCommandOLD(CMD_READER_ISO_14443a, 0, 0, 0, NULL, 0);
 }
 
 // send a raw topaz command, returns the length of the response (0 in case of error)
 static int topaz_send_cmd_raw(uint8_t *cmd, uint8_t len, uint8_t *response) {
-    UsbCommand c = {CMD_READER_ISO_14443a, {ISO14A_RAW | ISO14A_NO_DISCONNECT | ISO14A_TOPAZMODE | ISO14A_NO_RATS, len, 0}, {{0}}};
-    memcpy(c.d.asBytes, cmd, len);
-    SendCommand(&c);
+    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_RAW | ISO14A_NO_DISCONNECT | ISO14A_TOPAZMODE | ISO14A_NO_RATS, len, 0, cmd, len);
 
-    UsbCommand resp;
+    PacketResponseNG resp;
     WaitForResponse(CMD_ACK, &resp);
 
-    if (resp.arg[0] > 0) {
-        memcpy(response, resp.d.asBytes, resp.arg[0]);
+    if (resp.oldarg[0] > 0) {
+        memcpy(response, resp.data.asBytes, resp.oldarg[0]);
     }
 
-    return resp.arg[0];
+    return resp.oldarg[0];
 }
 
 
@@ -525,8 +521,7 @@ static int CmdHelp(const char *Cmd) {
 
 int CmdHFTopaz(const char *Cmd) {
     clearCommandBuffer();
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }
 
 int readTopazUid(void) {

@@ -26,7 +26,7 @@
 
 volatile unsigned long c;
 
-// Direct use the loop to delay. 6 instructions loop, Masterclock 48Mhz, 
+// Direct use the loop to delay. 6 instructions loop, Masterclock 48Mhz,
 // delay=1 is about 200kbps
 // timer.
 // I2CSpinDelayClk(4) = 12.31us
@@ -593,7 +593,7 @@ bool I2C_WriteFW(uint8_t *data, uint8_t len, uint8_t msb, uint8_t lsb, uint8_t d
 }
 
 void I2C_print_status(void) {
-    DbpStringEx(FLAG_LOG|FLAG_ANSI, _BLUE_("Smart card module (ISO 7816)"));
+    DbpStringEx(FLAG_LOG | FLAG_ANSI, _BLUE_("Smart card module (ISO 7816)"));
     uint8_t resp[] = {0, 0, 0, 0};
     I2C_Reset_EnterMainProgram();
     uint8_t len = I2C_BufferRead(resp, sizeof(resp), I2C_DEVICE_CMD_GETVERSION, I2C_DEVICE_ADDRESS_MAIN);
@@ -690,7 +690,7 @@ void SmartCardAtr(void) {
     set_tracing(true);
     I2C_Reset_EnterMainProgram();
     bool isOK = GetATR(&card);
-    cmd_send(CMD_ACK, isOK, sizeof(smart_card_atr_t), 0, &card, sizeof(smart_card_atr_t));
+    reply_old(CMD_ACK, isOK, sizeof(smart_card_atr_t), 0, &card, sizeof(smart_card_atr_t));
     set_tracing(false);
     LEDsoff();
 }
@@ -715,7 +715,7 @@ void SmartCardRaw(uint64_t arg0, uint64_t arg1, uint8_t *data) {
         if ((flags & SC_SELECT)) {
             smart_card_atr_t card;
             bool gotATR = GetATR(&card);
-            //cmd_send(CMD_ACK, gotATR, sizeof(smart_card_atr_t), 0, &card, sizeof(smart_card_atr_t));
+            //reply_old(CMD_ACK, gotATR, sizeof(smart_card_atr_t), 0, &card, sizeof(smart_card_atr_t));
             if (!gotATR)
                 goto OUT;
         }
@@ -741,7 +741,7 @@ void SmartCardRaw(uint64_t arg0, uint64_t arg1, uint8_t *data) {
         }
     }
 OUT:
-    cmd_send(CMD_ACK, len, 0, 0, resp, len);
+    reply_old(CMD_ACK, len, 0, 0, resp, len);
     BigBuf_free();
     set_tracing(false);
     LEDsoff();
@@ -800,7 +800,7 @@ void SmartCardUpgrade(uint64_t arg0) {
         length -= size;
         pos += size;
     }
-    cmd_send(CMD_ACK, isOK, pos, 0, 0, 0);
+    reply_old(CMD_ACK, isOK, pos, 0, 0, 0);
     LED_C_OFF();
     BigBuf_free();
 }
@@ -817,7 +817,7 @@ void SmartCardSetClock(uint64_t arg0) {
     // start [C0 05 xx] stop
     I2C_WriteByte(arg0, I2C_DEVICE_CMD_SIM_CLC, I2C_DEVICE_ADDRESS_MAIN);
 
-    cmd_send(CMD_ACK, 1, 0, 0, 0, 0);
+    reply_old(CMD_ACK, 1, 0, 0, 0, 0);
     set_tracing(false);
     LEDsoff();
 }

@@ -11,8 +11,12 @@
 
 --]]
 -- Loads the commands-library
+local taglib = require('taglib')
 local cmds = require('commands')
-local TIMEOUT = 2000 -- Shouldn't take longer than 2 seconds
+
+-- Shouldn't take longer than 2 seconds
+local TIMEOUT = 2000
+
 local ISO14A_COMMAND = {
     ISO14A_CONNECT = 1,
     ISO14A_NO_DISCONNECT = 2,
@@ -43,16 +47,12 @@ ISO14443a_TYPES[0x38] = "Nokia 6212 or 6131 MIFARE CLASSIC 4K"
 ISO14443a_TYPES[0x88] = "Infineon MIFARE CLASSIC 1K"
 ISO14443a_TYPES[0x98] = "Gemplus MPCOS"
 
-
 local function tostring_14443a(sak)
     return ISO14443a_TYPES[sak] or ("Unknown (SAK=%x)"):format(sak)
 end
 
 local function parse14443a(data)
     --[[
-
-    Based on this struct :
-
     typedef struct {
         uint8_t uid[10];
         uint8_t uidlen;
@@ -61,34 +61,20 @@ local function parse14443a(data)
         uint8_t ats_len;
         uint8_t ats[256];
     } __attribute__((__packed__)) iso14a_card_select_t;
-
     --]]
 
     local count, uid, uidlen, atqa, sak, ats_len, ats = bin.unpack('H10CH2CC',data)
-    uid = uid:sub(1, 2*uidlen)
-    --print("uid, atqa, sak: ",uid, atqa, sak)
-    --print("TYPE: ", tostring_1443a(sak))
-    return { uid = uid, atqa  = atqa, sak = sak, name = tostring_14443a(sak), data = data}
-end
+    uid = uid:sub(1, 2 * uidlen)
+    local man_byte = tonumber(uid:sub(1,2), 16)
 
---- Sends a USBpacket to the device
--- @param command - the usb packet to send
--- @param ignoreresponse - if set to true, we don't read the device answer packet
---     which is usually recipe for fail. If not sent, the host will wait 2s for a
---     response of type CMD_ACK
--- @return packet,nil if successfull
---         nil, errormessage if unsuccessfull
-local function sendToDevice(command, ignoreresponse)
-    --core.clearCommandBuffer()
-    local err = core.SendCommand(command:getBytes())
-    if err then
-        print(err)
-        return nil, err
-    end
-    if ignoreresponse then return nil,nil end
-
-    local response = core.WaitForResponseTimeout(cmds.CMD_ACK, TIMEOUT)
-    return response,nil
+    return {
+        uid = uid,
+        atqa  = atqa,
+        sak = sak,
+        name = tostring_14443a(sak),
+        data = data,
+        manufacturer = taglib.lookupManufacturer(man_byte)
+    }
 end
 
 -- This function does a connect and retrieves som einfo
@@ -98,7 +84,10 @@ end
 local function read14443a(dont_disconnect, no_rats)
     local command, result, info, err, data
 
-    command = Command:new{cmd = cmds.CMD_READER_ISO_14443a, arg1 = ISO14A_COMMAND.ISO14A_CONNECT }
+    command = Command:newMIX{
+            cmd = cmds.CMD_READER_ISO_14443a,
+            arg1 = ISO14A_COMMAND.ISO14A_CONNECT
+            }
 
     if dont_disconnect then
         command.arg1 = command.arg1 + ISO14A_COMMAND.ISO14A_NO_DISCONNECT
@@ -107,16 +96,16 @@ local function read14443a(dont_disconnect, no_rats)
         command.arg1 = command.arg1 + ISO14A_COMMAND.ISO14A_NO_RATS
     end
 
-    local result,err = sendToDevice(command)
+    local result,err = command:sendMIX()
     if result then
         local count,cmd,arg0,arg1,arg2 = bin.unpack('LLLL',result)
         if arg0 == 0 then
-            return nil, "iso14443a card select failed"
+            return nil, 'iso14443a card select failed'
         end
-        data = string.sub(result,count)
+        data = string.sub(result, count)
         info, err = parse14443a(data)
     else
-        err ="No response from card"
+        err = 'No response from card'
     end
 
     if err then
@@ -143,7 +132,6 @@ local library = {
     read = read14443a,
     waitFor14443a = waitFor14443a,
     parse14443a = parse14443a,
-    sendToDevice = sendToDevice,
     ISO14A_COMMAND = ISO14A_COMMAND,
 }
 

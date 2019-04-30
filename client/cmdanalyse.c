@@ -512,16 +512,14 @@ static int CmdAnalyseA(const char *Cmd) {
     if (errors || cmdp == 0) return usage_analyse_a();
 
 
-    UsbCommand c = {CMD_FPC_SEND, {0, 0, 0}, {{0}}};
-    memcpy(c.d.asBytes, data, USB_CMD_DATA_SIZE);
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_FPC_SEND, 0, 0, 0, data, USB_CMD_DATA_SIZE);
 
-    UsbCommand resp;
+    PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
         return 1;
     }
-    PrintAndLogEx(NORMAL, "got ack.  Status %d", resp.arg[0]);
+    PrintAndLogEx(NORMAL, "got ack.  Status %d", resp.oldarg[0]);
     return 0;
     /*
         PrintAndLogEx(NORMAL, "-- " _BLUE_("its my message") "\n");
@@ -925,6 +923,5 @@ static int CmdHelp(const char *Cmd) {
 
 int CmdAnalyse(const char *Cmd) {
     clearCommandBuffer();
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }

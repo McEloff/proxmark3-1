@@ -1159,7 +1159,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
     for (uint8_t i = 0; i < nonces_count; i++) {
         // for interactive call send collected nonces to client
         if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
-            cmd_send(CMD_ACK, CMD_SIMULATE_MIFARE_CARD, 0, 0, &ar_nr_collected[i], sizeof(nonces_t));
+            reply_old(CMD_ACK, CMD_SIMULATE_MIFARE_CARD, 0, 0, &ar_nr_collected[i], sizeof(nonces_t));
         else {
             // for non-interactive call print nonces
             Dbprintf("%s, sector %2d: mfkey32v2 %08x %08x %08x %08x %08x %08x %08x",
@@ -1175,9 +1175,11 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                     );
         }
     }
-    // interrupt interactive client
-    if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
-        cmd_send(CMD_ACK, 1, 0, 0, 0, 0);
+
+    if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE) {  // Interactive mode flag, means we need to send ACK
+        //Send the collected ar_nr in the response
+        reply_old(CMD_ACK, 1, 0, 0, 0, 0);
+    }
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();

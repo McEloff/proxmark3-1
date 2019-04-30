@@ -136,12 +136,10 @@ void RunMod() {
             SpinDelay(500);
             // Begin clone function here:
             /* Example from client/mifarehost.c for commanding a block write for "magic Chinese" cards:
-                    UsbCommand c = {CMD_MIFARE_CSETBLOCK, {params & (0xFE | (uid == NULL ? 0:1)), blockNo, 0}};
-                    memcpy(c.d.asBytes, data, 16);
-                    SendCommand(&c);
+                    SendCommandOLD(CMD_MIFARE_CSETBLOCK, params & (0xFE | (uid == NULL ? 0:1)), blockNo, 0, data, 16);
 
                 Block read is similar:
-                    UsbCommand c = {CMD_MIFARE_CGETBLOCK, {params, blockNo, 0}};
+                    SendCommandOLD(CMD_MIFARE_CGETBLOCK, params, blockNo, 0,...};
                 We need to imitate that call with blockNo 0 to set a uid.
 
                 The get and set commands are handled in this file:

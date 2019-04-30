@@ -84,9 +84,8 @@ int CmdHFSearch(const char *Cmd) {
 int CmdHFTune(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
     PrintAndLogEx(SUCCESS, "Measuring HF antenna, press button to exit");
-    UsbCommand c = {CMD_MEASURE_ANTENNA_TUNING_HF, {0, 0, 0}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_MEASURE_ANTENNA_TUNING_HF, 0, 0, 0, NULL, 0);
     return 0;
 }
 
@@ -97,9 +96,8 @@ int CmdHFSniff(const char *Cmd) {
     int skippairs =  param_get32ex(Cmd, 0, 0, 10);
     int skiptriggers =  param_get32ex(Cmd, 1, 0, 10);
 
-    UsbCommand c = {CMD_HF_SNIFFER, {skippairs, skiptriggers, 0}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_HF_SNIFFER, skippairs, skiptriggers, 0, NULL, 0);
     return 0;
 }
 
@@ -127,8 +125,7 @@ static command_t CommandTable[] = {
 
 int CmdHF(const char *Cmd) {
     clearCommandBuffer();
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }
 
 int CmdHelp(const char *Cmd) {

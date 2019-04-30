@@ -155,14 +155,11 @@ static int CmdJablotronClone(const char *Cmd) {
     PrintAndLogEx(INFO, "Preparing to clone Jablotron to T55x7 with FullCode: %"PRIx64, fullcode);
     print_blocks(blocks, 3);
 
-    UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
+    PacketResponseNG resp;
 
     for (uint8_t i = 0; i < 3; i++) {
-        c.arg[0] = blocks[i];
-        c.arg[1] = i;
         clearCommandBuffer();
-        SendCommand(&c);
+        SendCommandOLD(CMD_T55XX_WRITE_BLOCK, blocks[i], i, 0, NULL, 0);
         if (!WaitForResponseTimeout(CMD_ACK, &resp, T55XX_WRITE_TIMEOUT)) {
             PrintAndLogEx(WARNING, "Error occurred, device did not respond during write operation.");
             return -1;
@@ -186,17 +183,12 @@ static int CmdJablotronSim(const char *Cmd) {
     }
 
     uint8_t clk = 64, encoding = 2, separator = 0, invert = 1;
-    uint16_t arg1, arg2;
-    size_t size = 64;
-    arg1 = clk << 8 | encoding;
-    arg2 = invert << 8 | separator;
-
     PrintAndLogEx(SUCCESS, "Simulating Jablotron - FullCode: %"PRIx64, fullcode);
 
-    UsbCommand c = {CMD_ASK_SIM_TAG, {arg1, arg2, size}, {{0}}};
-    getJablotronBits(fullcode, c.d.asBytes);
+    uint8_t data[64];
+    getJablotronBits(fullcode, data);
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_ASK_SIM_TAG, clk << 8 | encoding, invert << 8 | separator, sizeof(data), data, sizeof(data));
     return 0;
 }
 
@@ -217,8 +209,7 @@ static int CmdHelp(const char *Cmd) {
 
 int CmdLFJablotron(const char *Cmd) {
     clearCommandBuffer();
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }
 
 int getJablotronBits(uint64_t fullcode, uint8_t *bits) {

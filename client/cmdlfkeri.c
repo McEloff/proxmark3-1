@@ -146,15 +146,11 @@ static int CmdKeriClone(const char *Cmd) {
     print_blocks(blocks, 3);
 
 
-    UsbCommand resp;
-    UsbCommand c = {CMD_T55XX_WRITE_BLOCK, {0, 0, 0}, {{0}}};
-
+    PacketResponseNG resp;
 
     for (uint8_t i = 0; i < 3; i++) {
-        c.arg[0] = blocks[i];
-        c.arg[1] = i;
         clearCommandBuffer();
-        SendCommand(&c);
+        SendCommandOLD(CMD_T55XX_WRITE_BLOCK, blocks[i], i, 0, NULL, 0);
         if (!WaitForResponseTimeout(CMD_ACK, &resp, T55XX_WRITE_TIMEOUT)) {
             PrintAndLogEx(WARNING, "Error occurred, device did not respond during write operation.");
             return -1;
@@ -182,17 +178,11 @@ static int CmdKeriSim(const char *Cmd) {
     }
 
     uint8_t clk = 32, carrier = 2, invert = 0;
-    uint16_t arg1, arg2;
-    size_t size = 64;
-    arg1 = clk << 8 | carrier;
-    arg2 = invert;
 
     PrintAndLogEx(SUCCESS, "Simulating KERI - Internal Id: %u", internalid);
 
-    UsbCommand c = {CMD_PSK_SIM_TAG, {arg1, arg2, size}, {{0}}};
-    memcpy(c.d.asBytes, bits, size);
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_PSK_SIM_TAG, clk << 8 | carrier, invert, sizeof(bits), bits, sizeof(bits));
 
     return 0;
 }
@@ -214,8 +204,7 @@ static int CmdHelp(const char *Cmd) {
 
 int CmdLFKeri(const char *Cmd) {
     clearCommandBuffer();
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }
 
 // find KERI preamble in already demoded data

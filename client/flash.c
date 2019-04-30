@@ -259,9 +259,8 @@ fail:
 
 // Get the state of the proxmark, backwards compatible
 static int get_proxmark_state(uint32_t *state) {
-    UsbCommand c = {CMD_DEVICE_INFO};
-    SendCommand(&c);
-    UsbCommand resp;
+    SendCommandOLD(CMD_DEVICE_INFO, 0, 0, 0, NULL, 0);
+    PacketResponseNG resp;
     WaitForResponse(CMD_UNKNOWN, &resp);  // wait for any response. No timeout.
 
     // Three outcomes:
@@ -277,10 +276,10 @@ static int get_proxmark_state(uint32_t *state) {
             *state = DEVICE_INFO_FLAG_CURRENT_MODE_OS;
             break;
         case CMD_DEVICE_INFO:
-            *state = resp.arg[0];
+            *state = resp.oldarg[0];
             break;
         default:
-            fprintf(stderr, _RED_("Error:") "Couldn't get Proxmark3 state, bad response type: 0x%04" PRIx64 "\n", resp.cmd);
+            fprintf(stderr, _RED_("Error:") "Couldn't get Proxmark3 state, bad response type: 0x%04x\n", resp.cmd);
             return -1;
             break;
     }
@@ -300,20 +299,16 @@ static int enter_bootloader(char *serial_port_name) {
 
     if (state & DEVICE_INFO_FLAG_CURRENT_MODE_OS) {
         fprintf(stdout, _BLUE_("Entering bootloader...") "\n");
-        UsbCommand c;
-        memset(&c, 0, sizeof(c));
 
         if ((state & DEVICE_INFO_FLAG_BOOTROM_PRESENT)
                 && (state & DEVICE_INFO_FLAG_OSIMAGE_PRESENT)) {
             // New style handover: Send CMD_START_FLASH, which will reset the board
             // and enter the bootrom on the next boot.
-            c.cmd = CMD_START_FLASH;
-            SendCommand(&c);
+            SendCommandOLD(CMD_START_FLASH, 0, 0, 0, NULL, 0);
             fprintf(stdout, "(Press and release the button only to abort)\n");
         } else {
             // Old style handover: Ask the user to press the button, then reset the board
-            c.cmd = CMD_HARDWARE_RESET;
-            SendCommand(&c);
+            SendCommandOLD(CMD_HARDWARE_RESET, 0, 0, 0, NULL, 0);
             fprintf(stdout, "Press and hold down button NOW if your bootloader requires it.\n");
         }
         msleep(100);
@@ -335,11 +330,11 @@ static int enter_bootloader(char *serial_port_name) {
     return -1;
 }
 
-static int wait_for_ack(UsbCommand *ack) {
+static int wait_for_ack(PacketResponseNG *ack) {
     WaitForResponse(CMD_UNKNOWN, ack);
 
     if (ack->cmd != CMD_ACK) {
-        printf("Error: Unexpected reply 0x%04" PRIx64 " %s (expected ACK)\n",
+        printf("Error: Unexpected reply 0x%04x %s (expected ACK)\n",
                ack->cmd,
                (ack->cmd == CMD_NACK) ? "NACK" : ""
               );
@@ -361,19 +356,14 @@ int flash_start_flashing(int enable_bl_writes, char *serial_port_name) {
     if (state & DEVICE_INFO_FLAG_UNDERSTANDS_START_FLASH) {
         // This command is stupid. Why the heck does it care which area we're
         // flashing, as long as it's not the bootloader area? The mind boggles.
-        UsbCommand c = {CMD_START_FLASH};
+        PacketResponseNG resp;
 
         if (enable_bl_writes) {
-            c.arg[0] = FLASH_START;
-            c.arg[1] = FLASH_END;
-            c.arg[2] = START_FLASH_MAGIC;
+            SendCommandOLD(CMD_START_FLASH, FLASH_START, FLASH_END, START_FLASH_MAGIC, NULL, 0);
         } else {
-            c.arg[0] = BOOTLOADER_END;
-            c.arg[1] = FLASH_END;
-            c.arg[2] = 0;
+            SendCommandOLD(CMD_START_FLASH, BOOTLOADER_END, FLASH_END, 0, NULL, 0);
         }
-        SendCommand(&c);
-        return wait_for_ack(&c);
+        return wait_for_ack(&resp);
     } else {
         fprintf(stderr, _RED_("Note: Your bootloader does not understand the new START_FLASH command") "\n");
         fprintf(stderr, _RED_("It is recommended that you update your bootloader") "\n\n");
@@ -385,15 +375,14 @@ static int write_block(uint32_t address, uint8_t *data, uint32_t length) {
     uint8_t block_buf[BLOCK_SIZE];
     memset(block_buf, 0xFF, BLOCK_SIZE);
     memcpy(block_buf, data, length);
-    UsbCommand c = {CMD_FINISH_WRITE, {address, 0, 0}};
-    memcpy(c.d.asBytes, block_buf, length);
-    SendCommand(&c);
-    int ret = wait_for_ack(&c);
-    if (ret && c.arg[0]) {
-        uint32_t lock_bits = c.arg[0] >> 16;
-        bool lock_error = c.arg[0] & AT91C_MC_LOCKE;
-        bool prog_error = c.arg[0] & AT91C_MC_PROGE;
-        bool security_bit = c.arg[0] & AT91C_MC_SECURITY;
+    PacketResponseNG resp;
+    SendCommandOLD(CMD_FINISH_WRITE, address, 0, 0, block_buf, length);
+    int ret = wait_for_ack(&resp);
+    if (ret && resp.oldarg[0]) {
+        uint32_t lock_bits = resp.oldarg[0] >> 16;
+        bool lock_error = resp.oldarg[0] & AT91C_MC_LOCKE;
+        bool prog_error = resp.oldarg[0] & AT91C_MC_PROGE;
+        bool security_bit = resp.oldarg[0] & AT91C_MC_SECURITY;
         printf("%s", lock_error ? "       Lock Error\n" : "");
         printf("%s", prog_error ? "       Invalid Command or bad Keyword\n" : "");
         printf("%s", security_bit ? "       Security Bit is set!\n" : "");
@@ -457,8 +446,7 @@ void flash_free(flash_file_t *ctx) {
 
 // just reset the unit
 int flash_stop_flashing(void) {
-    UsbCommand c = {CMD_HARDWARE_RESET};
-    SendCommand(&c);
+    SendCommandOLD(CMD_HARDWARE_RESET, 0, 0, 0, NULL, 0);
     msleep(100);
     return 0;
 }

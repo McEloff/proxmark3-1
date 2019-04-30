@@ -140,6 +140,7 @@ THUMBSRC = start.c \
     $(SRC_HITAG) \
 	appmain.c \
 	printf.c \
+	commonutil.c \
 	util.c \
 	string.c \
 	BigBuf.c \

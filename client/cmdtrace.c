@@ -563,7 +563,7 @@ static int CmdTraceSave(const char *Cmd) {
     if (strlen(Cmd) < 1 || cmdp == 'h') return usage_trace_save();
 
     param_getstr(Cmd, 0, filename, sizeof(filename));
-    saveFile(filename, "bin", trace, traceLen);
+    saveFile(filename, ".bin", trace, traceLen);
     return 0;
 }
 
@@ -583,8 +583,7 @@ static int CmdHelp(const char *Cmd) {
 
 int CmdTrace(const char *Cmd) {
     clearCommandBuffer();
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }
 
 int CmdTraceList(const char *Cmd) {
@@ -669,13 +668,13 @@ int CmdTraceList(const char *Cmd) {
 
     if (isOnline) {
         // Query for the size of the trace,  downloading USB_CMD_DATA_SIZE
-        UsbCommand response;
+        PacketResponseNG response;
         if (!GetFromDevice(BIG_BUF, trace, USB_CMD_DATA_SIZE, 0, &response, 4000, true)) {
             PrintAndLogEx(WARNING, "timeout while waiting for reply.");
             return 1;
         }
 
-        traceLen = response.arg[2];
+        traceLen = response.oldarg[2];
         if (traceLen > USB_CMD_DATA_SIZE) {
             uint8_t *p = realloc(trace, traceLen);
             if (p == NULL) {

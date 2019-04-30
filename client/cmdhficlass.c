@@ -281,8 +281,7 @@ static int CmdHFiClassList(const char *Cmd) {
 static int CmdHFiClassSniff(const char *Cmd) {
     char cmdp = tolower(param_getchar(Cmd, 0));
     if (cmdp == 'h') return usage_hf_iclass_sniff();
-    UsbCommand c = {CMD_SNIFF_ICLASS, {0, 0, 0}, {{0}}};
-    SendCommand(&c);
+    SendCommandOLD(CMD_SNIFF_ICLASS, 0, 0, 0, NULL, 0);
     return 0;
 }
 
@@ -380,11 +379,9 @@ static int CmdHFiClassSim(const char *Cmd) {
         case 2: {
             PrintAndLogEx(INFO, "Starting iCLASS sim 2 attack (elite mode)");
             PrintAndLogEx(INFO, "press keyboard to cancel");
-            UsbCommand c = {CMD_SIMULATE_TAG_ICLASS, {simType, NUM_CSNS}, {{0}}};
-            UsbCommand resp;
-            memcpy(c.d.asBytes, csns, 8 * NUM_CSNS);
+            PacketResponseNG resp;
             clearCommandBuffer();
-            SendCommand(&c);
+            SendCommandOLD(CMD_SIMULATE_TAG_ICLASS, simType, NUM_CSNS, 0, csns, 8 * NUM_CSNS);
 
             while (!WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
                 tries++;
@@ -399,7 +396,7 @@ static int CmdHFiClassSim(const char *Cmd) {
                     return 0;
                 }
             }
-            uint8_t num_mac  = resp.arg[1];
+            uint8_t num_mac  = resp.oldarg[1];
             bool success = (NUM_CSNS == num_mac);
             PrintAndLogEx(NORMAL, "[%c] %d out of %d MAC obtained [%s]", (success) ? '+' : '!', num_mac, NUM_CSNS, (success) ? "OK" : "FAIL");
 
@@ -420,12 +417,12 @@ static int CmdHFiClassSim(const char *Cmd) {
                 //copy CSN
                 memcpy(dump + i * 24, csns + i * 8, 8);
                 //copy epurse
-                memcpy(dump + i * 24 + 8, resp.d.asBytes + i * 16, 8);
+                memcpy(dump + i * 24 + 8, resp.data.asBytes + i * 16, 8);
                 // NR_MAC (eight bytes from the response)  ( 8b csn + 8b epurse == 16)
-                memcpy(dump + i * 24 + 16, resp.d.asBytes + i * 16 + 8, 8);
+                memcpy(dump + i * 24 + 16, resp.data.asBytes + i * 16 + 8, 8);
             }
             /** Now, save to dumpfile **/
-            saveFile("iclass_mac_attack", "bin", dump, datalen);
+            saveFile("iclass_mac_attack", ".bin", dump, datalen);
             free(dump);
             break;
         }
@@ -433,11 +430,9 @@ static int CmdHFiClassSim(const char *Cmd) {
             // reader in key roll mode,  when it has two keys it alternates when trying to verify.
             PrintAndLogEx(INFO, "Starting iCLASS sim 4 attack (elite mode, reader in key roll mode)");
             PrintAndLogEx(INFO, "press keyboard to cancel");
-            UsbCommand c = {CMD_SIMULATE_TAG_ICLASS, {simType, NUM_CSNS}, {{0}}};
-            UsbCommand resp;
-            memcpy(c.d.asBytes, csns, 8 * NUM_CSNS);
+            PacketResponseNG resp;
             clearCommandBuffer();
-            SendCommand(&c);
+            SendCommandOLD(CMD_SIMULATE_TAG_ICLASS, simType, NUM_CSNS, 0, csns, 8 * NUM_CSNS);
 
             while (!WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
                 tries++;
@@ -452,7 +447,7 @@ static int CmdHFiClassSim(const char *Cmd) {
                     return 0;
                 }
             }
-            uint8_t num_mac = resp.arg[1];
+            uint8_t num_mac = resp.oldarg[1];
             bool success = ((NUM_CSNS * 2) == num_mac);
             PrintAndLogEx(NORMAL, "[%c] %d out of %d MAC obtained [%s]", (success) ? '+' : '!', num_mac, NUM_CSNS * 2, (success) ? "OK" : "FAIL");
 
@@ -475,11 +470,11 @@ static int CmdHFiClassSim(const char *Cmd) {
                 // copy CSN
                 memcpy(dump + i * MAC_ITEM_SIZE, csns + i * 8, 8); //CSN
                 // copy EPURSE
-                memcpy(dump + i * MAC_ITEM_SIZE + 8, resp.d.asBytes + i * 16, 8);
+                memcpy(dump + i * MAC_ITEM_SIZE + 8, resp.data.asBytes + i * 16, 8);
                 // copy NR_MAC (eight bytes from the response)  ( 8b csn + 8b epurse == 16)
-                memcpy(dump + i * MAC_ITEM_SIZE + 16, resp.d.asBytes + i * 16 + 8, 8);
+                memcpy(dump + i * MAC_ITEM_SIZE + 16, resp.data.asBytes + i * 16 + 8, 8);
             }
-            saveFile("iclass_mac_attack_keyroll_A", "bin", dump, datalen);
+            saveFile("iclass_mac_attack_keyroll_A", ".bin", dump, datalen);
 
             //KEYROLL 2
             memset(dump, 0, datalen);
@@ -489,22 +484,20 @@ static int CmdHFiClassSim(const char *Cmd) {
                 // Copy CSN
                 memcpy(dump + i * MAC_ITEM_SIZE, csns + i * 8, 8);
                 // copy EPURSE
-                memcpy(dump + i * MAC_ITEM_SIZE + 8, resp.d.asBytes + resp_index, 8);
+                memcpy(dump + i * MAC_ITEM_SIZE + 8, resp.data.asBytes + resp_index, 8);
                 // copy NR_MAC (eight bytes from the response)  ( 8b csn + 8 epurse == 16)
-                memcpy(dump + i * MAC_ITEM_SIZE + 16, resp.d.asBytes + resp_index + 8, 8);
+                memcpy(dump + i * MAC_ITEM_SIZE + 16, resp.data.asBytes + resp_index + 8, 8);
                 resp_index++;
             }
-            saveFile("iclass_mac_attack_keyroll_B", "bin", dump, datalen);
+            saveFile("iclass_mac_attack_keyroll_B", ".bin", dump, datalen);
             free(dump);
             break;
         }
         case 1:
         case 3:
         default: {
-            UsbCommand c = {CMD_SIMULATE_TAG_ICLASS, {simType, numberOfCSNs}, {{0}}};
-            memcpy(c.d.asBytes, CSN, 8);
             clearCommandBuffer();
-            SendCommand(&c);
+            SendCommandOLD(CMD_SIMULATE_TAG_ICLASS, simType, numberOfCSNs, 0, CSN, 8);
             break;
         }
     }
@@ -531,19 +524,15 @@ static int CmdHFiClassReader_Replay(const char *Cmd) {
         return 1;
     }
 
-    UsbCommand c = {CMD_READER_ICLASS_REPLAY, {readerType}, {{0}}};
-    memcpy(c.d.asBytes, MAC, 4);
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_READER_ICLASS_REPLAY, readerType, 0, 0, MAC, 4);
     return 0;
 }
 
 /*
 static int iclassEmlSetMem(uint8_t *data, int blockNum, int blocksCount) {
-    UsbCommand c = {CMD_MIFARE_EML_MEMSET, {blockNum, blocksCount, 0}, {{0}}};
-    memcpy(c.d.asBytes, data, blocksCount * 16);
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_MIFARE_EML_MEMSET, blockNum, blocksCount, 0, data, blocksCount * 16);
     return 0;
 }
 */
@@ -603,10 +592,8 @@ static int CmdHFiClassELoad(const char *Cmd) {
 
     while (bytes_remaining > 0) {
         uint32_t bytes_in_packet = MIN(USB_CMD_DATA_SIZE, bytes_remaining);
-        UsbCommand c = {CMD_ICLASS_EML_MEMSET, {bytes_sent, bytes_in_packet, 0}, {{0}}};
-        memcpy(c.d.asBytes, dump + bytes_sent, bytes_in_packet);
         clearCommandBuffer();
-        SendCommand(&c);
+        SendCommandOLD(CMD_ICLASS_EML_MEMSET, bytes_sent, bytes_in_packet, 0, dump + bytes_sent, bytes_in_packet);
         bytes_remaining -= bytes_in_packet;
         bytes_sent += bytes_in_packet;
     }
@@ -720,7 +707,7 @@ static int CmdHFiClassDecrypt(const char *Cmd) {
         }
     }
 
-    saveFile(outfilename, "bin", decrypted, fsize);
+    saveFile(outfilename, ".bin", decrypted, fsize);
     printIclassDumpContents(decrypted, 1, (fsize / 8), fsize);
     free(decrypted);
     return 0;
@@ -767,22 +754,21 @@ static void Calc_wb_mac(uint8_t blockno, uint8_t *data, uint8_t *div_key, uint8_
 }
 
 static bool select_only(uint8_t *CSN, uint8_t *CCNR, bool use_credit_key, bool verbose) {
-    UsbCommand resp;
-    UsbCommand c = {CMD_READER_ICLASS, {0}, {{0}}};
-    c.arg[0] = FLAG_ICLASS_READER_ONLY_ONCE | FLAG_ICLASS_READER_CC | FLAG_ICLASS_READER_ONE_TRY;
+    PacketResponseNG resp;
+    uint8_t flags = FLAG_ICLASS_READER_ONLY_ONCE | FLAG_ICLASS_READER_CC | FLAG_ICLASS_READER_ONE_TRY;
 
     if (use_credit_key)
-        c.arg[0] |= FLAG_ICLASS_READER_CEDITKEY;
+        flags |= FLAG_ICLASS_READER_CEDITKEY;
 
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_READER_ICLASS, flags, 0, 0, NULL, 0);
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 4000)) {
         PrintAndLogEx(WARNING, "command execute timeout");
         return false;
     }
 
-    uint8_t isOK = resp.arg[0] & 0xff;
-    uint8_t *data = resp.d.asBytes;
+    uint8_t isOK = resp.oldarg[0] & 0xff;
+    uint8_t *data = resp.data.asBytes;
 
     memcpy(CSN, data, 8);
 
@@ -818,16 +804,14 @@ static bool select_and_auth(uint8_t *KEY, uint8_t *MAC, uint8_t *div_key, bool u
     if (verbose) PrintAndLogEx(SUCCESS, "authing with %s: %s", rawkey ? "raw key" : "diversified key", sprint_hex(div_key, 8));
 
     doMAC(CCNR, div_key, MAC);
-    UsbCommand resp;
-    UsbCommand d = {CMD_ICLASS_AUTHENTICATION, {0, 0, 0}, {{0}}};
-    memcpy(d.d.asBytes, MAC, 4);
+    PacketResponseNG resp;
     clearCommandBuffer();
-    SendCommand(&d);
+    SendCommandOLD(CMD_ICLASS_AUTHENTICATION, 0, 0, 0, MAC, 4);
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 4000)) {
         if (verbose) PrintAndLogEx(FAILED, "auth command execute timeout");
         return false;
     }
-    uint8_t isOK = resp.arg[0] & 0xFF;
+    uint8_t isOK = resp.oldarg[0] & 0xFF;
     if (!isOK) {
         if (verbose) PrintAndLogEx(FAILED, "authentication error");
         return false;
@@ -939,12 +923,11 @@ static int CmdHFiClassReader_Dump(const char *Cmd) {
                      FLAG_ICLASS_READER_ONE_TRY;
 
     //get config and first 3 blocks
-    UsbCommand c = {CMD_READER_ICLASS, {flags, 0, 0}, {{0}}};
-    UsbCommand resp;
+    PacketResponseNG resp;
     uint8_t tag_data[255 * 8];
 
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_READER_ICLASS, flags, 0, 0, NULL, 0);
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 4500)) {
         PrintAndLogEx(WARNING, "command execute timeout");
         DropField();
@@ -952,8 +935,8 @@ static int CmdHFiClassReader_Dump(const char *Cmd) {
     }
     DropField();
 
-    uint8_t readStatus = resp.arg[0] & 0xff;
-    uint8_t *data  = resp.d.asBytes;
+    uint8_t readStatus = resp.oldarg[0] & 0xff;
+    uint8_t *data  = resp.data.asBytes;
 
     if (readStatus == 0) {
         PrintAndLogEx(FAILED, "no tag found");
@@ -981,9 +964,8 @@ static int CmdHFiClassReader_Dump(const char *Cmd) {
     }
 
     // begin dump
-    UsbCommand w = {CMD_ICLASS_DUMP, {blockno, numblks - blockno + 1}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&w);
+    SendCommandOLD(CMD_ICLASS_DUMP, blockno, numblks - blockno + 1, 0, NULL, 0);
     while (true) {
         printf(".");
         fflush(stdout);
@@ -1000,14 +982,14 @@ static int CmdHFiClassReader_Dump(const char *Cmd) {
     }
     // dump cmd switch off at device when finised.
 
-    uint32_t blocksRead = resp.arg[1];
-    uint8_t isOK = resp.arg[0] & 0xff;
+    uint32_t blocksRead = resp.oldarg[1];
+    uint8_t isOK = resp.oldarg[0] & 0xff;
     if (!isOK && !blocksRead) {
         PrintAndLogEx(WARNING, "read block failed");
         return 0;
     }
 
-    uint32_t startindex = resp.arg[2];
+    uint32_t startindex = resp.oldarg[2];
     if (blocksRead * 8 > sizeof(tag_data) - (blockno * 8)) {
         PrintAndLogEx(FAILED, "data exceeded buffer size!");
         blocksRead = (sizeof(tag_data) / 8) - blockno;
@@ -1038,22 +1020,20 @@ static int CmdHFiClassReader_Dump(const char *Cmd) {
         // do we still need to read more block?  (aa2 enabled?)
         if (maxBlk > blockno + numblks + 1) {
             // setup dump and start
-            w.arg[0] = blockno + blocksRead;
-            w.arg[1] = maxBlk - (blockno + blocksRead);
             clearCommandBuffer();
-            SendCommand(&w);
+            SendCommandOLD(CMD_ICLASS_DUMP, blockno + blocksRead, maxBlk - (blockno + blocksRead), 0, NULL, 0);
             if (!WaitForResponseTimeout(CMD_ACK, &resp, 4500)) {
                 PrintAndLogEx(WARNING, "command execute timeout 2");
                 return 0;
             }
-            isOK = resp.arg[0] & 0xff;
-            blocksRead = resp.arg[1];
+            isOK = resp.oldarg[0] & 0xff;
+            blocksRead = resp.oldarg[1];
             if (!isOK && !blocksRead) {
                 PrintAndLogEx(WARNING, "read block failed 2");
                 return 0;
             }
 
-            startindex = resp.arg[2];
+            startindex = resp.oldarg[2];
             if (blocksRead * 8 > sizeof(tag_data) - gotBytes) {
                 PrintAndLogEx(FAILED, "data exceeded buffer size!");
                 blocksRead = (sizeof(tag_data) - gotBytes) / 8;
@@ -1087,7 +1067,7 @@ static int CmdHFiClassReader_Dump(const char *Cmd) {
 
     // save the dump to .bin file
     PrintAndLogEx(SUCCESS, "saving dump file - %d blocks read", gotBytes / 8);
-    saveFile(filename, "bin", tag_data, gotBytes);
+    saveFile(filename, ".bin", tag_data, gotBytes);
     return 1;
 }
 
@@ -1097,20 +1077,20 @@ static int WriteBlock(uint8_t blockno, uint8_t *bldata, uint8_t *KEY, bool use_c
     if (!select_and_auth(KEY, MAC, div_key, use_credit_key, elite, rawkey, verbose))
         return 0;
 
-    UsbCommand resp;
+    PacketResponseNG resp;
 
     Calc_wb_mac(blockno, bldata, div_key, MAC);
-    UsbCommand w = {CMD_ICLASS_WRITEBLOCK, {blockno}, {{0}}};
-    memcpy(w.d.asBytes, bldata, 8);
-    memcpy(w.d.asBytes + 8, MAC, 4);
+    uint8_t data[12];
+    memcpy(data, bldata, 8);
+    memcpy(data + 8, MAC, 4);
 
     clearCommandBuffer();
-    SendCommand(&w);
+    SendCommandOLD(CMD_ICLASS_WRITEBLOCK, blockno, 0, 0, data, sizeof(data));
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 4500)) {
         if (verbose) PrintAndLogEx(WARNING, "Write Command execute timeout");
         return 0;
     }
-    uint8_t isOK = resp.arg[0] & 0xff;
+    uint8_t isOK = resp.oldarg[0] & 0xff;
     if (isOK)
         PrintAndLogEx(SUCCESS, "Write block successful");
     else
@@ -1321,8 +1301,8 @@ static int CmdHFiClassCloneTag(const char *Cmd) {
         return 0;
     }
 
-    UsbCommand w = {CMD_ICLASS_CLONE, {startblock, endblock}, {{0}}};
     uint8_t *ptr;
+    uint8_t data[(endblock - startblock) * 12];
     // calculate all mac for every the block we will write
     for (i = startblock; i <= endblock; i++) {
         Calc_wb_mac(i, tag_data[i - startblock].d, div_key, MAC);
@@ -1330,21 +1310,21 @@ static int CmdHFiClassCloneTag(const char *Cmd) {
         // memcpy(pointer,tag_data[i - 6],8) 8 bytes
         // memcpy(pointer + 8,mac,sizoof(mac) 4 bytes;
         // next one
-        ptr = w.d.asBytes + (i - startblock) * 12;
+        ptr = data + (i - startblock) * 12;
         memcpy(ptr, &(tag_data[i - startblock].d[0]), 8);
         memcpy(ptr + 8, MAC, 4);
     }
     uint8_t p[12];
     for (i = 0; i <= endblock - startblock; i++) {
-        memcpy(p, w.d.asBytes + (i * 12), 12);
+        memcpy(p, data + (i * 12), 12);
         PrintAndLogEx(NORMAL, "Block |%02x|", i + startblock);
         PrintAndLogEx(NORMAL, " %02x%02x%02x%02x%02x%02x%02x%02x |", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
         PrintAndLogEx(NORMAL, " MAC |%02x%02x%02x%02x|\n", p[8], p[9], p[10], p[11]);
     }
 
-    UsbCommand resp;
+    PacketResponseNG resp;
     clearCommandBuffer();
-    SendCommand(&w);
+    SendCommandOLD(CMD_ICLASS_CLONE, startblock, endblock, 0, data, (endblock - startblock) * 12);
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 4500)) {
         PrintAndLogEx(WARNING, "command execute timeout");
         return 0;
@@ -1367,22 +1347,21 @@ static int ReadBlock(uint8_t *KEY, uint8_t blockno, uint8_t keyType, bool elite,
             return 0;
     }
 
-    UsbCommand resp;
-    UsbCommand c = {CMD_ICLASS_READBLOCK, {blockno}, {{0}}};
+    PacketResponseNG resp;
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_ICLASS_READBLOCK, blockno, 0, 0, NULL, 0);
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 4500)) {
         PrintAndLogEx(WARNING, "Command execute timeout");
         return 0;
     }
 
-    uint8_t isOK = resp.arg[0] & 0xff;
+    uint8_t isOK = resp.oldarg[0] & 0xff;
     if (!isOK) {
         PrintAndLogEx(WARNING, "read block failed");
         return 0;
     }
-    //data read is stored in: resp.d.asBytes[0-15]
-    PrintAndLogEx(NORMAL, "block %02X: %s\n", blockno, sprint_hex(resp.d.asBytes, 8));
+    //data read is stored in: resp.data.asBytes[0-15]
+    PrintAndLogEx(NORMAL, "block %02X: %s\n", blockno, sprint_hex(resp.data.asBytes, 8));
     return 1;
 }
 
@@ -1977,17 +1956,15 @@ static int CmdHFiClassCheckKeys(const char *Cmd) {
         if (keys == keycnt - i)
             lastChunk = true;
 
-        UsbCommand c = {CMD_ICLASS_CHECK_KEYS, { (lastChunk << 8), keys, 0}, {{0}}};
-
+        uint32_t flags = lastChunk << 8;
         // bit 16
         //   - 1 indicates credit key
         //   - 0 indicates debit key (default)
-        c.arg[0] |= (use_credit_key << 16);
+        flags |= (use_credit_key << 16);
 
-        memcpy(c.d.asBytes, pre + i, 4 * keys);
         clearCommandBuffer();
-        SendCommand(&c);
-        UsbCommand resp;
+        SendCommandOLD(CMD_ICLASS_CHECK_KEYS, flags, keys, 0, pre + i, 4 * keys);
+        PacketResponseNG resp;
 
         while (!WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
             timeout++;
@@ -1999,8 +1976,8 @@ static int CmdHFiClassCheckKeys(const char *Cmd) {
             }
         }
 
-        uint8_t found = resp.arg[1] & 0xFF;
-        uint8_t isOK = resp.arg[0] & 0xFF;
+        uint8_t found = resp.oldarg[1] & 0xFF;
+        uint8_t isOK = resp.oldarg[0] & 0xFF;
 
         t2 = msclock() - t2;
         switch (isOK) {
@@ -2454,8 +2431,7 @@ static int CmdHelp(const char *Cmd) {
 
 int CmdHFiClass(const char *Cmd) {
     clearCommandBuffer();
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }
 
 int readIclass(bool loop, bool verbose) {
@@ -2465,16 +2441,15 @@ int readIclass(bool loop, bool verbose) {
                      FLAG_ICLASS_READER_CONF | FLAG_ICLASS_READER_ONLY_ONCE |
                      FLAG_ICLASS_READER_ONE_TRY;
 
-    UsbCommand c = {CMD_READER_ICLASS, {flags, 0, 0}, {{0}}};
     // loop in client not device - else on windows have a communication error
-    UsbCommand resp;
+    PacketResponseNG resp;
     while (!ukbhit()) {
 
         clearCommandBuffer();
-        SendCommand(&c);
+        SendCommandOLD(CMD_READER_ICLASS, flags, 0, 0, NULL, 0);
         if (WaitForResponseTimeout(CMD_ACK, &resp, 4500)) {
-            uint8_t readStatus = resp.arg[0] & 0xff;
-            uint8_t *data = resp.d.asBytes;
+            uint8_t readStatus = resp.oldarg[0] & 0xff;
+            uint8_t *data = resp.data.asBytes;
 
             if (verbose) PrintAndLogEx(NORMAL, "Readstatus:%02x", readStatus);
             // no tag found or button pressed

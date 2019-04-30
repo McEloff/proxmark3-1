@@ -42,16 +42,15 @@ static int CmdHFMFPInfo(const char *cmd) {
     infoHF14A(false, false);
 
     // Mifare Plus info
-    UsbCommand c = {CMD_READER_ISO_14443a, {ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0}, {{0}}};
-    SendCommand(&c);
+    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
 
-    UsbCommand resp;
+    PacketResponseNG resp;
     WaitForResponse(CMD_ACK, &resp);
 
     iso14a_card_select_t card;
-    memcpy(&card, (iso14a_card_select_t *)resp.d.asBytes, sizeof(iso14a_card_select_t));
+    memcpy(&card, (iso14a_card_select_t *)resp.data.asBytes, sizeof(iso14a_card_select_t));
 
-    uint64_t select_status = resp.arg[0]; // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS, 3: proprietary Anticollision
+    uint64_t select_status = resp.oldarg[0]; // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS, 3: proprietary Anticollision
 
     if (select_status == 1 || select_status == 2) {
         PrintAndLogEx(NORMAL, "----------------------------------------------");
@@ -862,7 +861,6 @@ static int CmdHelp(const char *Cmd) {
 
 int CmdHFMFP(const char *Cmd) {
     (void)WaitForResponseTimeout(CMD_ACK, NULL, 100);
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }
 

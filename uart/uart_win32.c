@@ -121,7 +121,7 @@ serial_port uart_open(const char *pcPortName, uint32_t speed) {
             }
         }
     }
-    printf("[=] UART Setting serial baudrate %i\n", speed);
+    conn.uart_speed = uart_get_speed(sp);
     return sp;
 }
 
@@ -152,6 +152,8 @@ bool uart_set_speed(serial_port sp, const uint32_t uiPortSpeed) {
     spw->dcb.BaudRate = uiPortSpeed;
     bool result = SetCommState(spw->hPort, &spw->dcb);
     PurgeComm(spw->hPort, PURGE_RXABORT | PURGE_RXCLEAR);
+    if (result)
+        conn.uart_speed = uiPortSpeed;
     return result;
 }
 
@@ -163,11 +165,11 @@ uint32_t uart_get_speed(const serial_port sp) {
     return 0;
 }
 
-bool uart_receive(const serial_port sp, uint8_t *p_rx, size_t pszMaxRxLen, size_t *len) {
-    return ReadFile(((serial_port_windows *)sp)->hPort, p_rx, pszMaxRxLen, (LPDWORD)len, NULL);
+bool uart_receive(const serial_port sp, uint8_t *pbtRx, uint32_t pszMaxRxLen, uint32_t *pszRxLen) {
+    return ReadFile(((serial_port_windows *)sp)->hPort, pbtRx, pszMaxRxLen, (LPDWORD)pszRxLen, NULL);
 }
 
-bool uart_send(const serial_port sp, const uint8_t *p_tx, const size_t len) {
+bool uart_send(const serial_port sp, const uint8_t *p_tx, const uint32_t len) {
     DWORD txlen = 0;
     return WriteFile(((serial_port_windows *)sp)->hPort, p_tx, len, &txlen, NULL);
 }

@@ -13,6 +13,9 @@
 #ifndef __USB_CMD_H
 #define __USB_CMD_H
 
+// Use it e.g. when using slow links such as BT
+#define USART_SLOW_LINK
+
 #ifdef _MSC_VER
 typedef DWORD uint32_t;
 typedef BYTE uint8_t;
@@ -25,6 +28,7 @@ typedef BYTE uint8_t;
 #endif
 
 #define USB_CMD_DATA_SIZE 512
+#define USB_CMD_DATA_SIZE_MIX ( USB_CMD_DATA_SIZE - 3 * sizeof(uint64_t) )
 
 typedef struct {
     uint64_t cmd;
@@ -33,12 +37,88 @@ typedef struct {
         uint8_t  asBytes[USB_CMD_DATA_SIZE];
         uint32_t asDwords[USB_CMD_DATA_SIZE / 4];
     } d;
-} PACKED UsbCommand;
+} PACKED PacketCommandOLD;
 
-#ifdef WITH_FPC_HOST
-// "Session" flag, to tell via which interface next msgs should be sent: USB or FPC USART
-extern bool reply_via_fpc;
-#endif
+typedef struct {
+    uint32_t magic;
+    uint16_t length : 15;  // length of the variable part, 0 if none.
+    bool ng : 1;
+    uint16_t cmd;
+} PACKED PacketCommandNGPreamble;
+
+#define COMMANDNG_PREAMBLE_MAGIC  0x61334d50 // PM3a
+#define COMMANDNG_POSTAMBLE_MAGIC 0x3361     // a3
+
+typedef struct {
+    uint16_t crc;
+} PACKED PacketCommandNGPostamble;
+
+// For internal usage
+typedef struct {
+    uint16_t cmd;
+    uint16_t length;
+    uint32_t magic;      //  NG
+    uint16_t crc;        //  NG
+    uint64_t oldarg[3];  //  OLD
+    union {
+        uint8_t  asBytes[USB_CMD_DATA_SIZE];
+        uint32_t asDwords[USB_CMD_DATA_SIZE / 4];
+    } data;
+    bool ng;             // does it store NG data or OLD data?
+} PACKED PacketCommandNG;
+
+// For reception and CRC check
+typedef struct {
+    PacketCommandNGPreamble pre;
+    uint8_t data[USB_CMD_DATA_SIZE];
+    PacketCommandNGPostamble foopost; // Probably not at that offset!
+} PACKED PacketCommandNGRaw;
+
+typedef struct {
+    uint64_t cmd;
+    uint64_t arg[3];
+    union {
+        uint8_t  asBytes[USB_CMD_DATA_SIZE];
+        uint32_t asDwords[USB_CMD_DATA_SIZE / 4];
+    } d;
+} PACKED PacketResponseOLD;
+
+typedef struct {
+    uint32_t magic;
+    uint16_t length : 15;  // length of the variable part, 0 if none.
+    bool ng : 1;
+    int16_t  status;
+    uint16_t cmd;
+} PACKED PacketResponseNGPreamble;
+
+#define RESPONSENG_PREAMBLE_MAGIC  0x62334d50 // PM3b
+#define RESPONSENG_POSTAMBLE_MAGIC 0x3362     // b3
+
+typedef struct {
+    uint16_t crc;
+} PACKED PacketResponseNGPostamble;
+
+// For internal usage
+typedef struct {
+    uint16_t cmd;
+    uint16_t length;
+    uint32_t magic;      //  NG
+    int16_t  status;     //  NG
+    uint16_t crc;        //  NG
+    uint64_t oldarg[3];  //  OLD
+    union {
+        uint8_t  asBytes[USB_CMD_DATA_SIZE];
+        uint32_t asDwords[USB_CMD_DATA_SIZE / 4];
+    } data;
+    bool ng;             // does it store NG data or OLD data?
+} PACKED PacketResponseNG;
+
+// For reception and CRC check
+typedef struct {
+    PacketResponseNGPreamble pre;
+    uint8_t data[USB_CMD_DATA_SIZE];
+    PacketResponseNGPostamble foopost; // Probably not at that offset!
+} PACKED PacketResponseNGRaw;
 
 // A struct used to send sample-configs over USB
 typedef struct {
@@ -56,6 +136,14 @@ typedef struct {
     uint16_t write_1;
     uint16_t read_gap;
 } t55xx_config;
+
+// TODO add more fields to report all hw & sw capabilities of pm3
+typedef struct {
+    uint32_t baudrate;
+    bool via_fpc;
+} PACKED capabilities_t;
+
+extern capabilities_t pm3_capabilities;
 
 // For the bootloader
 #define CMD_DEVICE_INFO                                                   0x0000
@@ -77,12 +165,9 @@ typedef struct {
 #define CMD_VERSION                                                       0x0107
 #define CMD_STATUS                                                        0x0108
 #define CMD_PING                                                          0x0109
-
 #define CMD_DOWNLOAD_EML_BIGBUF                                           0x0110
 #define CMD_DOWNLOADED_EML_BIGBUF                                         0x0111
-
-
-
+#define CMD_CAPABILITIES                                                  0x0112
 
 // RDV40, Flash memory operations
 #define CMD_FLASHMEM_READ                                                 0x0120
@@ -317,6 +402,44 @@ typedef struct {
 #define FLAG_NEWLINE     0x02
 #define FLAG_INPLACE     0x04
 #define FLAG_ANSI        0x08
+
+// Error codes                          Usages:
+
+// Success (no error)
+#define PM3_SUCCESS             0
+
+// Undefined error
+#define PM3_EUNDEF             -1
+// Invalid argument(s)                  client:     user input parsing
+#define PM3_EINVARG            -2
+// Operation not supported by device    client/pm3: probably only on pm3 once client becomes universal
+#define PM3_EDEVNOTSUPP        -3
+// Operation timed out                  client:     no response in time from pm3
+#define PM3_ETIMEOUT           -4
+// Operation aborted (by user)          client/pm3: kbd/button pressed
+#define PM3_EOPABORTED         -5
+// Not (yet) implemented                client/pm3: TBD placeholder
+#define PM3_ENOTIMPL           -6
+// Error while RF transmission          client/pm3: fail between pm3 & card
+#define PM3_ERFTRANS           -7
+// Input / output error                 pm3:        error in client frame reception
+#define PM3_EIO                -8
+// Buffer overflow                      client/pm3: specified buffer too large for the operation
+#define PM3_EOVFLOW            -9
+// Software error                       client/pm3: e.g. error in parsing some data
+#define PM3_ESOFT             -10
+// Flash error                          client/pm3: error in RDV4 Flash operation
+#define PM3_EFLASH            -11
+// Memory allocation error              client:     error in memory allocation (maybe also for pm3 BigBuff?)
+#define PM3_EMALLOC           -12
+// File error                           client:     error related to file access on host
+#define PM3_EFILE             -13
+
+// No data                              pm3:        reserved, no host frame available (not really an error)
+#define PM3_ENODATA           -98
+// Quit program                         client:     reserved, order to quit the program
+#define PM3_EFATAL            -99
+
 
 // CMD_DEVICE_INFO response packet has flags in arg[0], flag definitions:
 /* Whether a bootloader that understands the common_area is present */

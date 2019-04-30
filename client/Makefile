@@ -117,9 +117,11 @@ POSTCOMPILE = $(MV) -f $(OBJDIR)/$*.Td $(OBJDIR)/$*.d
 CORESRCS =  uart_posix.c \
 			uart_win32.c \
 			ui.c \
+			commonutil.c \
 			util.c \
 			util_posix.c \
 			scandir.c \
+			crc16.c \
 			comms.c
 
 CMDSRCS =	crapto1/crapto1.c \
@@ -144,7 +146,6 @@ CMDSRCS =	crapto1/crapto1.c \
 			mifare/mifarehost.c \
 			parity.c \
 			crc.c \
-			crc16.c \
 			crc64.c \
 			legic_prng.c \
 			iso15693tools.c \

@@ -230,15 +230,14 @@ static int CmdHF14AList(const char *Cmd) {
 }
 
 int Hf14443_4aGetCardData(iso14a_card_select_t *card) {
-    UsbCommand c = {CMD_READER_ISO_14443a, {ISO14A_CONNECT, 0, 0}, {{0}}};
-    SendCommand(&c);
+    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT, 0, 0, NULL, 0);
 
-    UsbCommand resp;
+    PacketResponseNG resp;
     WaitForResponse(CMD_ACK, &resp);
 
-    memcpy(card, (iso14a_card_select_t *)resp.d.asBytes, sizeof(iso14a_card_select_t));
+    memcpy(card, (iso14a_card_select_t *)resp.data.asBytes, sizeof(iso14a_card_select_t));
 
-    uint64_t select_status = resp.arg[0]; // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS, 3: proprietary Anticollision
+    uint64_t select_status = resp.oldarg[0]; // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS, 3: proprietary Anticollision
 
     if (select_status == 0) {
         PrintAndLogEx(ERR, "E->iso14443a card select failed");
@@ -258,7 +257,7 @@ int Hf14443_4aGetCardData(iso14a_card_select_t *card) {
 
     PrintAndLogEx(NORMAL, " UID: %s", sprint_hex(card->uid, card->uidlen));
     PrintAndLogEx(NORMAL, "ATQA: %02x %02x", card->atqa[1], card->atqa[0]);
-    PrintAndLogEx(NORMAL, " SAK: %02x [%" PRIu64 "]", card->sak, resp.arg[0]);
+    PrintAndLogEx(NORMAL, " SAK: %02x [%" PRIu64 "]", card->sak, resp.oldarg[0]);
     if (card->ats_len < 3) { // a valid ATS consists of at least the length byte (TL) and 2 CRC bytes
         PrintAndLogEx(NORMAL, "E-> Error ATS length(%d) : %s", card->ats_len, sprint_hex(card->ats, card->ats_len));
         return 1;
@@ -300,12 +299,11 @@ static int CmdHF14AReader(const char *Cmd) {
     if (!disconnectAfter)
         cm |= ISO14A_NO_DISCONNECT;
 
-    UsbCommand c = {CMD_READER_ISO_14443a, {cm, 0, 0}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_READER_ISO_14443a, cm, 0, 0, NULL, 0);
 
     if (ISO14A_CONNECT & cm) {
-        UsbCommand resp;
+        PacketResponseNG resp;
         if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
             if (!silent) PrintAndLogEx(WARNING, "iso14443a card select failed");
             DropField();
@@ -313,7 +311,7 @@ static int CmdHF14AReader(const char *Cmd) {
         }
 
         iso14a_card_select_t card;
-        memcpy(&card, (iso14a_card_select_t *)resp.d.asBytes, sizeof(iso14a_card_select_t));
+        memcpy(&card, (iso14a_card_select_t *)resp.data.asBytes, sizeof(iso14a_card_select_t));
 
         /*
             0: couldn't read
@@ -321,7 +319,7 @@ static int CmdHF14AReader(const char *Cmd) {
             2: OK, no ATS
             3: proprietary Anticollision
         */
-        uint64_t select_status = resp.arg[0];
+        uint64_t select_status = resp.oldarg[0];
 
         if (select_status == 0) {
             if (!silent) PrintAndLogEx(WARNING, "iso14443a card select failed");
@@ -338,7 +336,7 @@ static int CmdHF14AReader(const char *Cmd) {
 
         PrintAndLogEx(NORMAL, " UID : %s", sprint_hex(card.uid, card.uidlen));
         PrintAndLogEx(NORMAL, "ATQA : %02x %02x", card.atqa[1], card.atqa[0]);
-        PrintAndLogEx(NORMAL, " SAK : %02x [%" PRIu64 "]", card.sak, resp.arg[0]);
+        PrintAndLogEx(NORMAL, " SAK : %02x [%" PRIu64 "]", card.sak, resp.oldarg[0]);
 
         if (card.ats_len >= 3) { // a valid ATS consists of at least the length byte (TL) and 2 CRC bytes
             PrintAndLogEx(NORMAL, " ATS : %s", sprint_hex(card.ats, card.ats_len));
@@ -387,16 +385,15 @@ static int CmdHF14ACUIDs(const char *Cmd) {
         }
 
         // execute anticollision procedure
-        UsbCommand c = {CMD_READER_ISO_14443a, {ISO14A_CONNECT | ISO14A_NO_RATS, 0, 0}, {{0}}};
-        SendCommand(&c);
+        SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_RATS, 0, 0, NULL, 0);
 
-        UsbCommand resp;
+        PacketResponseNG resp;
         WaitForResponse(CMD_ACK, &resp);
 
-        iso14a_card_select_t *card = (iso14a_card_select_t *) resp.d.asBytes;
+        iso14a_card_select_t *card = (iso14a_card_select_t *) resp.data.asBytes;
 
         // check if command failed
-        if (resp.arg[0] == 0) {
+        if (resp.oldarg[0] == 0) {
             PrintAndLogEx(WARNING, "card select failed.");
         } else {
             char uid_string[20];
@@ -496,20 +493,18 @@ int CmdHF14ASim(const char *Cmd) {
     if (useUIDfromEML)
         flags |= FLAG_UID_IN_EMUL;
 
-    UsbCommand c = {CMD_SIMULATE_TAG_ISO_14443a, { tagtype, flags, 0 }, {{0}}};
-    memcpy(c.d.asBytes, uid, uidlen >> 1);
     clearCommandBuffer();
-    SendCommand(&c);
-    UsbCommand resp;
+    SendCommandOLD(CMD_SIMULATE_TAG_ISO_14443a,  tagtype, flags, 0, uid, uidlen >> 1);
+    PacketResponseNG resp;
 
     if (flags & FLAG_INTERACTIVE) {
         PrintAndLogEx(INFO, "Press pm3-button or send another cmd to abort simulation");
         while (!ukbhit()) {
             if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) continue;
             if (!(flags & FLAG_NR_AR_ATTACK)) break;
-            if ((resp.arg[0] & 0xffff) != CMD_SIMULATE_MIFARE_CARD) break;
+            if ((resp.oldarg[0] & 0xffff) != CMD_SIMULATE_MIFARE_CARD) break;
 
-            memcpy(data, resp.d.asBytes, sizeof(data));
+            memcpy(data, resp.data.asBytes, sizeof(data));
             readerAttack(data[0], setEmulatorMem, verbose);
         }
         showSectorTable();
@@ -527,9 +522,8 @@ int CmdHF14ASniff(const char *Cmd) {
         if (ctmp == 'c') param |= 0x01;
         if (ctmp == 'r') param |= 0x02;
     }
-    UsbCommand c = {CMD_SNIFF_ISO_14443a, {param, 0, 0}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_SNIFF_ISO_14443a, param, 0, 0, NULL, 0);
     return 0;
 }
 
@@ -540,39 +534,36 @@ int ExchangeRAW14a(uint8_t *datain, int datainlen, bool activateField, bool leav
 
     if (activateField) {
         responseNum = 1;
-        UsbCommand resp;
+        PacketResponseNG resp;
 
         // Anticollision + SELECT card
-        UsbCommand ca = {CMD_READER_ISO_14443a, {ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0}, {{0}}};
-        SendCommand(&ca);
+        SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
         if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
             PrintAndLogEx(ERR, "Proxmark3 connection timeout.");
             return 1;
         }
 
         // check result
-        if (resp.arg[0] == 0) {
+        if (resp.oldarg[0] == 0) {
             PrintAndLogEx(ERR, "No card in field.");
             return 1;
         }
 
-        if (resp.arg[0] != 1 && resp.arg[0] != 2) {
-            PrintAndLogEx(ERR, "Card not in iso14443-4. res=%d.", resp.arg[0]);
+        if (resp.oldarg[0] != 1 && resp.oldarg[0] != 2) {
+            PrintAndLogEx(ERR, "Card not in iso14443-4. res=%d.", resp.oldarg[0]);
             return 1;
         }
 
-        if (resp.arg[0] == 2) { // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS, 3: proprietary Anticollision
+        if (resp.oldarg[0] == 2) { // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS, 3: proprietary Anticollision
             // get ATS
-            UsbCommand cr = {CMD_READER_ISO_14443a, {ISO14A_RAW | ISO14A_APPEND_CRC | ISO14A_NO_DISCONNECT, 2, 0}, {{0}}};
             uint8_t rats[] = { 0xE0, 0x80 }; // FSDI=8 (FSD=256), CID=0
-            memcpy(cr.d.asBytes, rats, 2);
-            SendCommand(&cr);
+            SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_RAW | ISO14A_APPEND_CRC | ISO14A_NO_DISCONNECT, 2, 0, rats, 2);
             if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
                 PrintAndLogEx(ERR, "Proxmark3 connection timeout.");
                 return 1;
             }
 
-            if (resp.arg[0] == 0) { // ats_len
+            if (resp.oldarg[0] == 0) { // ats_len
                 PrintAndLogEx(ERR, "Can't get ATS.");
                 return 1;
             }
@@ -582,19 +573,17 @@ int ExchangeRAW14a(uint8_t *datain, int datainlen, bool activateField, bool leav
     if (leaveSignalON)
         cmdc |= ISO14A_NO_DISCONNECT;
 
-    UsbCommand c = {CMD_READER_ISO_14443a, {ISO14A_RAW | ISO14A_APPEND_CRC | cmdc, (datainlen & 0xFFFF) + 2, 0}, {{0}}};
-    uint8_t header[] = { 0x0a | responseNum, 0x00};
+    uint8_t data[USB_CMD_DATA_SIZE] = { 0x0a | responseNum, 0x00};
     responseNum ^= 1;
-    memcpy(c.d.asBytes, header, 2);
-    memcpy(&c.d.asBytes[2], datain, datainlen);
-    SendCommand(&c);
+    memcpy(&data[2], datain, datainlen & 0xFFFF);
+    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_RAW | ISO14A_APPEND_CRC | cmdc, (datainlen & 0xFFFF) + 2, 0, data, (datainlen & 0xFFFF) + 2);
 
     uint8_t *recv;
-    UsbCommand resp;
+    PacketResponseNG resp;
 
     if (WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
-        recv = resp.d.asBytes;
-        int iLen = resp.arg[0];
+        recv = resp.data.asBytes;
+        int iLen = resp.oldarg[0];
 
         if (!iLen) {
             PrintAndLogEx(ERR, "No card response.");
@@ -610,8 +599,8 @@ int ExchangeRAW14a(uint8_t *datain, int datainlen, bool activateField, bool leav
             return 2;
         }
 
-        if (recv[0] != header[0]) {
-            PrintAndLogEx(ERR, "iso14443-4 framing error. Card send %2x must be %2x", dataout[0], header[0]);
+        if (recv[0] != data[0]) {
+            PrintAndLogEx(ERR, "iso14443-4 framing error. Card send %2x must be %2x", dataout[0], data[0]);
             return 2;
         }
 
@@ -632,7 +621,7 @@ int ExchangeRAW14a(uint8_t *datain, int datainlen, bool activateField, bool leav
 }
 
 static int SelectCard14443_4(bool disconnect, iso14a_card_select_t *card) {
-    UsbCommand resp;
+    PacketResponseNG resp;
 
     frameLength = 0;
 
@@ -642,49 +631,46 @@ static int SelectCard14443_4(bool disconnect, iso14a_card_select_t *card) {
     DropField();
 
     // Anticollision + SELECT card
-    UsbCommand ca = {CMD_READER_ISO_14443a, {ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0}, {{0}}};
-    SendCommand(&ca);
+    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
         PrintAndLogEx(ERR, "Proxmark3 connection timeout.");
         return 1;
     }
 
     // check result
-    if (resp.arg[0] == 0) {
+    if (resp.oldarg[0] == 0) {
         PrintAndLogEx(ERR, "No card in field.");
         return 1;
     }
 
-    if (resp.arg[0] != 1 && resp.arg[0] != 2) {
-        PrintAndLogEx(ERR, "Card not in iso14443-4. res=%d.", resp.arg[0]);
+    if (resp.oldarg[0] != 1 && resp.oldarg[0] != 2) {
+        PrintAndLogEx(ERR, "Card not in iso14443-4. res=%d.", resp.oldarg[0]);
         return 1;
     }
 
-    if (resp.arg[0] == 2) { // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS, 3: proprietary Anticollision
+    if (resp.oldarg[0] == 2) { // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS, 3: proprietary Anticollision
         // get ATS
-        UsbCommand cr = {CMD_READER_ISO_14443a, {ISO14A_RAW | ISO14A_APPEND_CRC | ISO14A_NO_DISCONNECT, 2, 0}, {{0}}};
         uint8_t rats[] = { 0xE0, 0x80 }; // FSDI=8 (FSD=256), CID=0
-        memcpy(cr.d.asBytes, rats, 2);
-        SendCommand(&cr);
+        SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_RAW | ISO14A_APPEND_CRC | ISO14A_NO_DISCONNECT, sizeof(rats), 0, rats, sizeof(rats));
         if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
             PrintAndLogEx(ERR, "Proxmark3 connection timeout.");
             return 1;
         }
 
-        if (resp.arg[0] == 0) { // ats_len
+        if (resp.oldarg[0] == 0) { // ats_len
             PrintAndLogEx(ERR, "Can't get ATS.");
             return 1;
         }
 
         // get frame length from ATS in data field
-        if (resp.arg[0] > 1) {
-            uint8_t fsci = resp.d.asBytes[1] & 0x0f;
+        if (resp.oldarg[0] > 1) {
+            uint8_t fsci = resp.data.asBytes[1] & 0x0f;
             if (fsci < sizeof(atsFSC) / sizeof(atsFSC[0]))
                 frameLength = atsFSC[fsci];
         }
     } else {
         // get frame length from ATS in card data structure
-        iso14a_card_select_t *vcard = (iso14a_card_select_t *) resp.d.asBytes;
+        iso14a_card_select_t *vcard = (iso14a_card_select_t *) resp.data.asBytes;
         if (vcard->ats_len > 1) {
             uint8_t fsci = vcard->ats[1] & 0x0f;
             if (fsci < sizeof(atsFSC) / sizeof(atsFSC[0]))
@@ -719,20 +705,18 @@ static int CmdExchangeAPDU(bool chainingin, uint8_t *datain, int datainlen, bool
     // https://stackoverflow.com/questions/32994936/safe-max-java-card-apdu-data-command-and-respond-size
     // here length USB_CMD_DATA_SIZE=512
     // timeout must be authomatically set by "get ATS"
-    UsbCommand c = {CMD_READER_ISO_14443a, {ISO14A_APDU | ISO14A_NO_DISCONNECT | cmdc, (datainlen & 0xFFFF), 0}, {{0}}};
-
     if (datain)
-        memcpy(c.d.asBytes, datain, datainlen);
-
-    SendCommand(&c);
+        SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_APDU | ISO14A_NO_DISCONNECT | cmdc, (datainlen & 0xFFFF), 0, datain, datainlen & 0xFFFF);
+    else
+        SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_APDU | ISO14A_NO_DISCONNECT | cmdc, 0, 0, NULL, 0);
 
     uint8_t *recv;
-    UsbCommand resp;
+    PacketResponseNG resp;
 
     if (WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
-        recv = resp.d.asBytes;
-        int iLen = resp.arg[0];
-        uint8_t res = resp.arg[1];
+        recv = resp.data.asBytes;
+        int iLen = resp.oldarg[0];
+        uint8_t res = resp.oldarg[1];
 
         int dlen = iLen - 2;
         if (dlen < 0)
@@ -906,7 +890,6 @@ static int CmdHF14AAPDU(const char *Cmd) {
 }
 
 static int CmdHF14ACmdRaw(const char *Cmd) {
-    UsbCommand c = {CMD_READER_ISO_14443a, {0, 0, 0}, {{0}}};
     bool reply = 1;
     bool crc = false;
     bool power = false;
@@ -1011,45 +994,44 @@ static int CmdHF14ACmdRaw(const char *Cmd) {
         data[datalen++] = second;
     }
 
+    uint16_t flags = 0;
     if (active || active_select) {
-        c.arg[0] |= ISO14A_CONNECT;
+        flags |= ISO14A_CONNECT;
         if (active)
-            c.arg[0] |= ISO14A_NO_SELECT;
+            flags |= ISO14A_NO_SELECT;
     }
 
+    uint32_t argtimeout = 0;
     if (bTimeout) {
 #define MAX_TIMEOUT 40542464 // = (2^32-1) * (8*16) / 13560000Hz * 1000ms/s
-        c.arg[0] |= ISO14A_SET_TIMEOUT;
+        flags |= ISO14A_SET_TIMEOUT;
         if (timeout > MAX_TIMEOUT) {
             timeout = MAX_TIMEOUT;
             PrintAndLogEx(NORMAL, "Set timeout to 40542 seconds (11.26 hours). The max we can wait for response");
         }
-        c.arg[2] = 13560000 / 1000 / (8 * 16) * timeout; // timeout in ETUs (time to transfer 1 bit, approx. 9.4 us)
+        argtimeout = 13560000 / 1000 / (8 * 16) * timeout; // timeout in ETUs (time to transfer 1 bit, approx. 9.4 us)
     }
 
     if (power) {
-        c.arg[0] |= ISO14A_NO_DISCONNECT;
+        flags |= ISO14A_NO_DISCONNECT;
     }
 
     if (datalen > 0) {
-        c.arg[0] |= ISO14A_RAW;
+        flags |= ISO14A_RAW;
     }
 
     if (topazmode) {
-        c.arg[0] |= ISO14A_TOPAZMODE;
+        flags |= ISO14A_TOPAZMODE;
     }
     if (no_rats) {
-        c.arg[0] |= ISO14A_NO_RATS;
+        flags |= ISO14A_NO_RATS;
     }
 
     // Max buffer is USB_CMD_DATA_SIZE
     datalen = (datalen > USB_CMD_DATA_SIZE) ? USB_CMD_DATA_SIZE : datalen;
 
-    c.arg[1] = (datalen & 0xFFFF) | ((uint32_t)(numbits << 16));
-    memcpy(c.d.asBytes, data, datalen);
-
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_READER_ISO_14443a, flags, (datalen & 0xFFFF) | ((uint32_t)(numbits << 16)), argtimeout, data, datalen & 0xFFFF);
 
     if (reply) {
         int res = 0;
@@ -1062,12 +1044,12 @@ static int CmdHF14ACmdRaw(const char *Cmd) {
 }
 
 static int waitCmd(uint8_t iSelect) {
-    UsbCommand resp;
+    PacketResponseNG resp;
 
     if (WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
-        uint16_t len = (resp.arg[0] & 0xFFFF);
+        uint16_t len = (resp.oldarg[0] & 0xFFFF);
         if (iSelect) {
-            len = (resp.arg[1] & 0xFFFF);
+            len = (resp.oldarg[1] & 0xFFFF);
             if (len) {
                 PrintAndLogEx(NORMAL, "Card selected. UID[%i]:", len);
             } else {
@@ -1080,7 +1062,7 @@ static int waitCmd(uint8_t iSelect) {
         if (!len)
             return 1;
 
-        PrintAndLogEx(NORMAL, "%s", sprint_hex(resp.d.asBytes, len));
+        PrintAndLogEx(NORMAL, "%s", sprint_hex(resp.data.asBytes, len));
     } else {
         PrintAndLogEx(WARNING, "timeout while waiting for reply.");
         return 3;
@@ -1111,9 +1093,8 @@ static int CmdHF14AAntiFuzz(const char *Cmd) {
         arg0 = FLAG_10B_UID_IN_DATA;
 
     CLIParserFree();
-    UsbCommand c = {CMD_ANTIFUZZ_ISO_14443a, {arg0, 0, 0}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
+    SendCommandOLD(CMD_ANTIFUZZ_ISO_14443a, arg0, 0, 0, NULL, 0);
     return 0;
 }
 
@@ -1171,15 +1152,13 @@ static int CmdHelp(const char *Cmd) {
 
 int CmdHF14A(const char *Cmd) {
     clearCommandBuffer();
-    CmdsParse(CommandTable, Cmd);
-    return 0;
+    return CmdsParse(CommandTable, Cmd);
 }
 
 int infoHF14A(bool verbose, bool do_nack_test) {
-    UsbCommand c = {CMD_READER_ISO_14443a, {ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0}, {{0}}};
     clearCommandBuffer();
-    SendCommand(&c);
-    UsbCommand resp;
+    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
+    PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
         if (verbose) PrintAndLogEx(WARNING, "iso14443a card select failed");
         DropField();
@@ -1187,7 +1166,7 @@ int infoHF14A(bool verbose, bool do_nack_test) {
     }
 
     iso14a_card_select_t card;
-    memcpy(&card, (iso14a_card_select_t *)resp.d.asBytes, sizeof(iso14a_card_select_t));
+    memcpy(&card, (iso14a_card_select_t *)resp.data.asBytes, sizeof(iso14a_card_select_t));
 
     /*
         0: couldn't read
@@ -1195,7 +1174,7 @@ int infoHF14A(bool verbose, bool do_nack_test) {
         2: OK, no ATS
         3: proprietary Anticollision
     */
-    uint64_t select_status = resp.arg[0];
+    uint64_t select_status = resp.oldarg[0];
 
     if (select_status == 0) {
         if (verbose) PrintAndLogEx(WARNING, "iso14443a card select failed");
@@ -1212,7 +1191,7 @@ int infoHF14A(bool verbose, bool do_nack_test) {
 
     PrintAndLogEx(NORMAL, " UID : %s", sprint_hex(card.uid, card.uidlen));
     PrintAndLogEx(NORMAL, "ATQA : %02x %02x", card.atqa[1], card.atqa[0]);
-    PrintAndLogEx(NORMAL, " SAK : %02x [%" PRIu64 "]", card.sak, resp.arg[0]);
+    PrintAndLogEx(NORMAL, " SAK : %02x [%" PRIu64 "]", card.sak, resp.oldarg[0]);
 
     bool isMifareClassic = true;
     switch (card.sak) {
@@ -1229,16 +1208,13 @@ int infoHF14A(bool verbose, bool do_nack_test) {
                 PrintAndLogEx(NORMAL, "TYPE: Possible AZTEK (iso14443a compliant)");
 
             // reconnect for further tests
-            c.arg[0] = ISO14A_CONNECT | ISO14A_NO_DISCONNECT;
-            c.arg[1] = 0;
-            c.arg[2] = 0;
             clearCommandBuffer();
-            SendCommand(&c);
+            SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
             WaitForResponse(CMD_ACK, &resp);
 
-            memcpy(&card, (iso14a_card_select_t *)resp.d.asBytes, sizeof(iso14a_card_select_t));
+            memcpy(&card, (iso14a_card_select_t *)resp.data.asBytes, sizeof(iso14a_card_select_t));
 
-            select_status = resp.arg[0]; // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS
+            select_status = resp.oldarg[0]; // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS
 
             if (select_status == 0) {
                 DropField();
@@ -1302,16 +1278,12 @@ int infoHF14A(bool verbose, bool do_nack_test) {
     // try to request ATS even if tag claims not to support it
     if (select_status == 2) {
         uint8_t rats[] = { 0xE0, 0x80 }; // FSDI=8 (FSD=256), CID=0
-        c.arg[0] = ISO14A_RAW | ISO14A_APPEND_CRC | ISO14A_NO_DISCONNECT;
-        c.arg[1] = 2;
-        c.arg[2] = 0;
-        memcpy(c.d.asBytes, rats, 2);
         clearCommandBuffer();
-        SendCommand(&c);
+        SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_RAW | ISO14A_APPEND_CRC | ISO14A_NO_DISCONNECT, 2, 0, rats, sizeof(rats));
         WaitForResponse(CMD_ACK, &resp);
 
-        memcpy(card.ats, resp.d.asBytes, resp.arg[0]);
-        card.ats_len = resp.arg[0]; // note: ats_len includes CRC Bytes
+        memcpy(card.ats, resp.data.asBytes, resp.oldarg[0]);
+        card.ats_len = resp.oldarg[0]; // note: ats_len includes CRC Bytes
     }
 
     if (card.ats_len >= 3) {        // a valid ATS consists of at least the length byte (TL) and 2 CRC bytes

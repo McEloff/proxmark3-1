@@ -97,7 +97,7 @@ main_loop(char *script_cmds_file, char *script_cmd, bool pm3_present) {
 
     // loops every time enter is pressed...
     while (1) {
-
+        bool printprompt = false;
         // this should hook up the PM3 again.
         /*
         if ( IsOffline() ) {
@@ -134,13 +134,13 @@ main_loop(char *script_cmds_file, char *script_cmd, bool pm3_present) {
                 strcleanrn(script_cmd_buf, sizeof(script_cmd_buf));
 
                 if ((cmd = strmcopy(script_cmd_buf)) != NULL)
-                    PrintAndLogEx(NORMAL, PROXPROMPT"%s\n", cmd);
+                    printprompt = true;
             }
         } else {
             // If there is a script command
             if (execCommand) {
                 if ((cmd = strmcopy(script_cmd)) != NULL)
-                    PrintAndLogEx(NORMAL, PROXPROMPT"%s", cmd);
+                    printprompt = true;
                 uint16_t len = strlen(script_cmd) + 1;
                 script_cmd += len;
                 if (script_cmd_len == len - 1)
@@ -165,7 +165,7 @@ main_loop(char *script_cmds_file, char *script_cmd, bool pm3_present) {
                     strcleanrn(script_cmd_buf, sizeof(script_cmd_buf));
 
                     if ((cmd = strmcopy(script_cmd_buf)) != NULL)
-                        PrintAndLogEx(NORMAL, PROXPROMPT"%s", cmd);
+                        printprompt = true;
 
                 } else {
                     cmd = readline(PROXPROMPT);
@@ -179,17 +179,28 @@ main_loop(char *script_cmds_file, char *script_cmd, bool pm3_present) {
 
             // rtrim
             size_t l = strlen(cmd);
-            if (l > 0 && isspace(cmd[l - 1]))
-                cmd[l - 1] = 0x00;
+            while (l > 0 && isspace(cmd[l - 1])) {
+                cmd[--l] = '\0';
+            }
+            // ltrim
+            size_t off = 0;
+            while ((cmd[off] != '\0') && isspace(cmd[off]))
+                off++;
+            for (size_t i = 0; i < strlen(cmd) - off; i++)
+                cmd[i] = cmd[i + off];
+            cmd[strlen(cmd) - off] = '\0';
 
-            if (cmd[0] != 0x00) {
+            if (cmd[0] != '\0') {
+                if (printprompt)
+                    PrintAndLogEx(NORMAL, PROXPROMPT"%s", cmd);
                 int ret = CommandReceived(cmd);
                 HIST_ENTRY *entry = history_get(history_length);
                 if ((!entry) || (strcmp(entry->line, cmd) != 0))
                     add_history(cmd);
 
+//                PrintAndLogEx(NORMAL, "RETVAL: %d\n", ret);
                 // exit or quit
-                if (ret == 99)
+                if (ret == PM3_EFATAL)
                     break;
             }
             free(cmd);
@@ -258,7 +269,7 @@ static void show_help(bool showFullHelp, char *exec_name) {
         PrintAndLogEx(NORMAL, "      -t/--text                           dump all interactive command's help at once");
         PrintAndLogEx(NORMAL, "      -m/--markdown                       dump all interactive help at once in markdown syntax");
         PrintAndLogEx(NORMAL, "      -p/--port                           serial port to connect to");
-        PrintAndLogEx(NORMAL, "      -b/--baud                           serial port speed");
+        PrintAndLogEx(NORMAL, "      -b/--baud                           serial port speed (only needed for physical UART, not for USB-CDC or BT)");
         PrintAndLogEx(NORMAL, "      -w/--wait                           20sec waiting the serial port to appear in the OS");
         PrintAndLogEx(NORMAL, "      -f/--flush                          output will be flushed after every print");
         PrintAndLogEx(NORMAL, "      -c/--command <command>              execute one proxmark3 command (or several separated by ';').");
@@ -432,15 +443,9 @@ int main(int argc, char *argv[]) {
     if (!script_cmds_file && !stdinOnPipe)
         showBanner();
 
-
-    // default speed for USB 460800,  USART(FPC serial) 115200 baud
+    // Let's take a baudrate ok for real UART, USB-CDC & BT don't use that info anyway
     if (speed == 0)
-#ifdef WITH_FPC_HOST
-        // Let's assume we're talking by default to pm3 over usart in this mode
-        speed = AT91_BAUD_RATE;
-#else
-        speed = 460800;
-#endif
+        speed = USART_BAUD_RATE;
 
     if (script_cmd) {
         while (script_cmd[strlen(script_cmd) - 1] == ' ')
@@ -474,8 +479,11 @@ int main(int argc, char *argv[]) {
     if (port != NULL)
         pm3_present = OpenProxmark(port, waitCOMPort, 20, false, speed);
 
-    if (pm3_present && (TestProxmark() == 0))
+    if (pm3_present && (TestProxmark() != PM3_SUCCESS)) {
+        PrintAndLogEx(ERR, _RED_("ERROR:") "cannot communicate with the Proxmark\n");
+        CloseProxmark();
         pm3_present = false;
+    }
     if (!pm3_present)
         PrintAndLogEx(INFO, "Running in " _YELLOW_("OFFLINE") "mode. Check \"%s -h\" if it's not what you want.\n", exec_name);
 

@@ -121,13 +121,13 @@ void AcquireRawAdcSamplesIso14443b(uint32_t parameter);
 void ReadSTMemoryIso14443b(uint8_t numofblocks);
 void RAMFUNC SniffIso14443b(void);
 void SendRawCommand14443B(uint32_t, uint32_t, uint8_t, uint8_t[]);
-void SendRawCommand14443B_Ex(UsbCommand *c);
+void SendRawCommand14443B_Ex(PacketCommandNG *c);
 void ClearFpgaShiftingRegisters(void);
 
 // iso14443a.h
 void RAMFUNC SniffIso14443a(uint8_t param);
 void SimulateIso14443aTag(int tagType, int flags, uint8_t *data);
-void ReaderIso14443a(UsbCommand *c);
+void ReaderIso14443a(PacketCommandNG *c);
 
 // Also used in iclass.c
 //bool RAMFUNC LogTrace(const uint8_t *btBytes, uint16_t len, uint32_t timestamp_start, uint32_t timestamp_end, uint8_t *parity, bool readerToTag);
@@ -138,8 +138,8 @@ void iso14a_set_trigger(bool enable);
 //int GetIso14443aCommandFromReader(uint8_t *received, uint8_t *parity, int *len);
 
 // epa.h
-void EPA_PACE_Collect_Nonce(UsbCommand *c);
-void EPA_PACE_Replay(UsbCommand *c);
+void EPA_PACE_Collect_Nonce(PacketCommandNG *c);
+void EPA_PACE_Replay(PacketCommandNG *c);
 
 // mifarecmd.h
 void MifareReadBlock(uint8_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain);
@@ -153,7 +153,7 @@ void MifareUWriteBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain);
 void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
 void MifareAcquireEncryptedNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, uint8_t *datain);
 void MifareAcquireNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, uint8_t *datain);
-void MifareChkKeys(uint16_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain);
+void MifareChkKeys(uint16_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain, bool ng);
 void MifareChkKeys_fast(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
 void MifareSetDbgLvl(uint16_t arg0);
 void MifareEMemClr(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
@@ -223,14 +223,16 @@ void iClass_Clone(uint8_t startblock, uint8_t endblock, uint8_t *data);
 void iClass_ReadCheck(uint8_t blockno, uint8_t keytype);
 
 // cmd.h
-uint8_t cmd_receive(UsbCommand *cmd);
-uint8_t cmd_send(uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len);
+int reply_old(uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len);
+int reply_mix(uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len);
+int reply_ng(uint16_t cmd, int16_t status, uint8_t *data, size_t len);
+int receive_ng(PacketCommandNG *rx);
 
 // util.h
 void HfSniff(int, int);
 
 //felica.c
-void felica_sendraw(UsbCommand *c);
+void felica_sendraw(PacketCommandNG *c);
 void felica_sniff(uint32_t samplesToSkip, uint32_t triggersToSkip);
 void felica_sim_lite(uint64_t uid);
 void felica_dump_lite_s();

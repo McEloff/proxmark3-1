@@ -420,7 +420,7 @@ const char *getStringDescriptor(uint8_t idx) {
         reg |= REG_NO_EFFECT_1_ALL; \
         reg &= ~(flags); \
         pUdp->UDP_CSR[(endpoint)] = reg; \
-    } \
+    }
 
 // reset flags in the UDP_CSR register and waits for synchronization
 #define UDP_SET_EP_FLAGS(endpoint, flags) { \
@@ -429,7 +429,7 @@ const char *getStringDescriptor(uint8_t idx) {
         reg |= REG_NO_EFFECT_1_ALL; \
         reg |= (flags); \
         pUdp->UDP_CSR[(endpoint)] = reg; \
-    } \
+    }
 
 
 typedef struct {
@@ -439,12 +439,12 @@ typedef struct {
     uint8_t DataBits;
 } AT91S_CDC_LINE_CODING, *AT91PS_CDC_LINE_CODING;
 
-AT91S_CDC_LINE_CODING line = {
-    115200, // baudrate
-    0,      // 1 Stop Bit
-    0,      // None Parity
-    8
-};     // 8 Data bits
+AT91S_CDC_LINE_CODING line = { // purely informative, actual values don't matter
+    USART_BAUD_RATE, // baudrate
+    0,               // 1 Stop Bit
+    0,               // None Parity
+    8                // 8 Data bits
+};
 
 static void SpinDelay(int ms) {
     int us = ms * 1000;
@@ -646,17 +646,76 @@ uint32_t usb_read(uint8_t *data, size_t len) {
     return nbBytesRcv;
 }
 
+static uint8_t usb_read_ng_buffer[64];
+static size_t usb_read_ng_bufoff = 0;
+static size_t usb_read_ng_buflen = 0;
+
+uint32_t usb_read_ng(uint8_t *data, size_t len) {
+
+    if (len == 0) return 0;
+
+    uint8_t bank = btReceiveBank;
+    uint32_t packetSize, nbBytesRcv = 0;
+    uint32_t time_out = 0;
+
+    // take first from local buffer
+    if (len <= usb_read_ng_buflen) {
+        for (uint32_t i = 0; i < len; i++)
+            data[nbBytesRcv++] = usb_read_ng_buffer[usb_read_ng_bufoff + i];
+        usb_read_ng_buflen -= len;
+        if (usb_read_ng_buflen == 0)
+            usb_read_ng_bufoff = 0;
+        else
+            usb_read_ng_bufoff += len;
+        return nbBytesRcv;
+    } else {
+        for (uint32_t i = 0; i < usb_read_ng_buflen; i++)
+            data[nbBytesRcv++] = usb_read_ng_buffer[usb_read_ng_bufoff + i];
+        len -= usb_read_ng_buflen;
+        usb_read_ng_buflen = 0;
+        usb_read_ng_bufoff = 0;
+    }
+
+    while (len)  {
+        if (!usb_check()) break;
+
+        if ((pUdp->UDP_CSR[AT91C_EP_OUT] & bank)) {
+
+            uint32_t available = (pUdp->UDP_CSR[AT91C_EP_OUT] & AT91C_UDP_RXBYTECNT) >> 16;
+            packetSize = MIN(available, len);
+            available -= packetSize;
+            len -= packetSize;
+            while (packetSize--)
+                data[nbBytesRcv++] = pUdp->UDP_FDR[AT91C_EP_OUT];
+            // fill the local buffer with the remaining bytes
+            for (uint32_t i = 0; i < available; i++)
+                usb_read_ng_buffer[i] = pUdp->UDP_FDR[AT91C_EP_OUT];
+            usb_read_ng_buflen = available;
+            // flip bank
+            UDP_CLEAR_EP_FLAGS(AT91C_EP_OUT, bank)
+            if (bank == AT91C_UDP_RX_DATA_BK0)
+                bank = AT91C_UDP_RX_DATA_BK1;
+            else
+                bank = AT91C_UDP_RX_DATA_BK0;
+        }
+        if (time_out++ == 0x1fff) break;
+    }
+
+    btReceiveBank = bank;
+    return nbBytesRcv;
+}
+
 //*----------------------------------------------------------------------------
 //* \fn    usb_write
 //* \brief Send through endpoint 2 (device to host)
 //*----------------------------------------------------------------------------
-uint32_t usb_write(const uint8_t *data, const size_t len) {
+int usb_write(const uint8_t *data, const size_t len) {
 
-    if (!len) return 0;
-    if (!usb_check()) return 0;
+    if (!len) return PM3_EINVARG;
+    if (!usb_check()) return PM3_EIO;
 
     // can we write?
-    if ((pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXPKTRDY) != 0) return 0;
+    if ((pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXPKTRDY) != 0) return PM3_EIO;
 
     size_t length = len;
     uint32_t cpt = 0;
@@ -682,7 +741,7 @@ uint32_t usb_write(const uint8_t *data, const size_t len) {
         // Wait for previous chunk to be sent
         // (iceman) when is the bankswapping done?
         while (!(pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP)) {
-            if (!usb_check()) return length;
+            if (!usb_check()) return PM3_EIO;
         }
 
         UDP_CLEAR_EP_FLAGS(AT91C_EP_IN, AT91C_UDP_TXCOMP);
@@ -693,13 +752,13 @@ uint32_t usb_write(const uint8_t *data, const size_t len) {
 
     // Wait for the end of transfer
     while (!(pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP)) {
-        if (!usb_check()) return length;
+        if (!usb_check()) return PM3_EIO;
     }
 
     UDP_CLEAR_EP_FLAGS(AT91C_EP_IN, AT91C_UDP_TXCOMP);
     while (pUdp->UDP_CSR[AT91C_EP_IN] & AT91C_UDP_TXCOMP) {};
 
-    return length;
+    return PM3_SUCCESS;
 }
 
 //*----------------------------------------------------------------------------
