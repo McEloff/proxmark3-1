@@ -1095,7 +1095,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
     clear_trace();
     set_tracing((flags & FLAG_NO_TRACE) == 0);
     LED_D_ON();
-    for (;;) {
+    while (!usb_poll_validate_length()) {
         WDT_HIT();
 
         // find reader field
