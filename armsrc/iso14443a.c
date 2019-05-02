@@ -850,7 +850,7 @@ static bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_res
             sak = 0x00;
             // some first pages of UL/NTAG dump is special data
             mfu_dump_t *mfu_header = (mfu_dump_t *) BigBuf_get_EM_addr();
-            *pages = mfu_header->pages;
+            *pages = MAX(mfu_header->pages, 16);
         }
         break;
         case 3: { // MIFARE DESFire
@@ -880,7 +880,7 @@ static bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_res
             sak = 0x00;
             // some first pages of UL/NTAG dump is special data
             mfu_dump_t *mfu_header = (mfu_dump_t *) BigBuf_get_EM_addr();
-            *pages = mfu_header->pages;
+            *pages = MAX(mfu_header->pages, 20);
             // counters and tearing flags
             for (int i = 0; i < 3; i++) {
                 counters[i] = le24toh(mfu_header->counter_tearing[i]);
@@ -893,7 +893,7 @@ static bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_res
             memcpy(rSIGN, mfu_header->signature, 32);
             AddCrc14A(rSIGN, sizeof(rSIGN) - 2);
             // PACK, from last page of dump
-            emlGetMemBt(rPACK, MFU_DUMP_PREFIX_LENGTH + mfu_header->pages * 4, 2);
+            emlGetMemBt(rPACK, MFU_DUMP_PREFIX_LENGTH + *pages * 4, 2);
             AddCrc14A(rPACK, sizeof(rPACK) - 2);
         }
         break;
