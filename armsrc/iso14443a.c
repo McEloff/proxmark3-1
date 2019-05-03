@@ -1109,7 +1109,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
                 break;
             continue;
         }
-        
+
         //Now, get data
         int res = EmGetCmd(receivedCmd, &len, receivedCmdPar);
 
@@ -1128,7 +1128,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
         } else if (res == 1) { // button pressed
             break;
         }
-        
+
         p_response = NULL;
 
         // Okay, look at the command now.
