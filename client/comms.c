@@ -11,6 +11,10 @@
 
 #include "comms.h"
 #include "crc16.h"
+#if defined(__linux__) || (__APPLE__)
+#include <sys/stat.h>
+#include <unistd.h>
+#endif
 
 //#define COMMS_DEBUG
 //#define COMMS_DEBUG_RAW
@@ -19,14 +23,10 @@
 static serial_port sp = NULL;
 static char *serial_port_name = NULL;
 
-// If TRUE, then there is no active connection to the PM3, and we will drop commands sent.
-static bool offline;
-
 communication_arg_t conn;
 capabilities_t pm3_capabilities;
 
 static pthread_t USB_communication_thread;
-//static pthread_t FPC_communication_thread;
 
 // Transmit buffer.
 static PacketCommandOLD txBuffer;
@@ -48,22 +48,14 @@ static int cmd_tail = 0;
 
 // to lock rxBuffer operations from different threads
 static pthread_mutex_t rxBufferMutex = PTHREAD_MUTEX_INITIALIZER;
+// serial port access from different threads
+static pthread_mutex_t spMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // Global start time for WaitForResponseTimeout & dl_it, so we can reset timeout when we get packets
 // as sending lot of these packets can slow down things wuite a lot on slow links (e.g. hw status or lf read at 9600)
 static uint64_t timeout_start_time;
 
 static bool dl_it(uint8_t *dest, uint32_t bytes, uint32_t start_index, PacketResponseNG *response, size_t ms_timeout, bool show_warning, uint32_t rec_cmd);
-
-// These wrappers are required because it is not possible to access a static
-// global variable outside of the context of a single file.
-void SetOffline(bool value) {
-    offline = value;
-}
-
-bool IsOffline() {
-    return offline;
-}
 
 void SendCommand(PacketCommandOLD *c) {
 
@@ -76,7 +68,7 @@ void SendCommand(PacketCommandOLD *c) {
     print_hex_break((uint8_t *)&c->d, sizeof(c->d), 32);
 #endif
 
-    if (offline) {
+    if (!session.pm3_present) {
         PrintAndLogEx(WARNING, "Sending bytes to Proxmark3 failed." _YELLOW_("offline"));
         return;
     }
@@ -119,11 +111,11 @@ static void SendCommandNG_internal(uint16_t cmd, uint8_t *data, size_t len, bool
     PrintAndLogEx(NORMAL, "Sending %s", ng ? "NG" : "MIX");
 #endif
 
-    if (offline) {
+    if (!session.pm3_present) {
         PrintAndLogEx(NORMAL, "Sending bytes to proxmark failed - offline");
         return;
     }
-    if (len > USB_CMD_DATA_SIZE) {
+    if (len > PM3_CMD_DATA_SIZE) {
         PrintAndLogEx(WARNING, "Sending %d bytes of payload is too much, abort", len);
         return;
     }
@@ -146,7 +138,7 @@ static void SendCommandNG_internal(uint16_t cmd, uint8_t *data, size_t len, bool
     txBufferNG.pre.cmd = cmd;
     memcpy(&txBufferNG.data, data, len);
 
-    if ((conn.send_via_fpc && conn.send_with_crc_on_fpc) || ((!conn.send_via_fpc) && conn.send_with_crc_on_usb)) {
+    if ((conn.send_via_fpc_usart && conn.send_with_crc_on_fpc) || ((!conn.send_via_fpc_usart) && conn.send_with_crc_on_usb)) {
         uint8_t first, second;
         compute_crc(CRC_14443_A, (uint8_t *)&txBufferNG, sizeof(PacketCommandNGPreamble) + len, &first, &second);
         tx_post->crc = (first << 8) + second;
@@ -182,11 +174,11 @@ void SendCommandNG(uint16_t cmd, uint8_t *data, size_t len) {
 
 void SendCommandMIX(uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len) {
     uint64_t arg[3] = {arg0, arg1, arg2};
-    if (len > USB_CMD_DATA_SIZE_MIX) {
+    if (len > PM3_CMD_DATA_SIZE_MIX) {
         PrintAndLogEx(WARNING, "Sending %d bytes of payload is too much for MIX frames, abort", len);
         return;
     }
-    uint8_t cmddata[USB_CMD_DATA_SIZE];
+    uint8_t cmddata[PM3_CMD_DATA_SIZE];
     memcpy(cmddata, arg, sizeof(arg));
     if (len && data)
         memcpy(cmddata + sizeof(arg), data, len);
@@ -249,48 +241,6 @@ static int getReply(PacketResponseNG *packet) {
     return 1;
 }
 
-static void memcpy_filtered(void *dest, const void *src, size_t n, bool filter) {
-#if defined(__linux__) || (__APPLE__)
-    memcpy(dest, src, n);
-#else
-    if (filter) {
-        // Filter out ANSI sequences on these OS
-        uint8_t *rdest = (uint8_t *)dest;
-        uint8_t *rsrc = (uint8_t *)src;
-        uint16_t si = 0;
-        for (uint16_t i = 0; i < n; i++) {
-            if ((rsrc[i] == '\x1b')
-                    && (i < n - 1)
-                    && (rsrc[i + 1] >= 0x40)
-                    && (rsrc[i + 1] <= 0x5F)) {  // entering ANSI sequence
-
-                i++;
-                if ((rsrc[i] == '[') && (i < n - 1)) { // entering CSI sequence
-                    i++;
-
-                    while ((i < n - 1) && (rsrc[i] >= 0x30) && (rsrc[i] <= 0x3F)) { // parameter bytes
-                        i++;
-                    }
-
-                    while ((i < n - 1) && (rsrc[i] >= 0x20) && (rsrc[i] <= 0x2F)) { // intermediate bytes
-                        i++;
-                    }
-
-                    if ((rsrc[i] >= 0x40) && (rsrc[i] <= 0x7F)) { // final byte
-                        continue;
-                    }
-                } else {
-                    continue;
-                }
-            }
-            rdest[si++] = rsrc[i];
-        }
-    } else {
-        memcpy(dest, src, n);
-    }
-#endif
-}
-
 //-----------------------------------------------------------------------------
 // Entry point into our code: called whenever we received a packet over USB
 // that we weren't necessarily expecting, for example a debug print.
@@ -301,13 +251,13 @@ static void PacketResponseReceived(PacketResponseNG *packet) {
 //                packet->ng ? "NG" : "OLD", packet->magic, packet->length, packet->status, packet->crc, packet->cmd);
 
     // we got a packet, reset WaitForResponseTimeout timeout
-    timeout_start_time = msclock();
+    __atomic_store_n(&timeout_start_time,  msclock(), __ATOMIC_SEQ_CST);
 
     switch (packet->cmd) {
         // First check if we are handling a debug message
         case CMD_DEBUG_PRINT_STRING: {
 
-            char s[USB_CMD_DATA_SIZE + 1];
+            char s[PM3_CMD_DATA_SIZE + 1];
             memset(s, 0x00, sizeof(s));
 
             size_t len;
@@ -315,16 +265,16 @@ static void PacketResponseReceived(PacketResponseNG *packet) {
             if (packet->ng) {
                 struct d {
                     uint16_t flag;
-                    uint8_t buf[USB_CMD_DATA_SIZE - sizeof(uint16_t)];
+                    uint8_t buf[PM3_CMD_DATA_SIZE - sizeof(uint16_t)];
                 } PACKED;
                 struct d *data = (struct d *)&packet->data.asBytes;
                 len = packet->length - sizeof(data->flag);
                 flag = data->flag;
-                memcpy_filtered(s, data->buf, len, flag & FLAG_ANSI);
+                memcpy(s, data->buf, len);
             } else {
-                len = MIN(packet->oldarg[0], USB_CMD_DATA_SIZE);
+                len = MIN(packet->oldarg[0], PM3_CMD_DATA_SIZE);
                 flag = packet->oldarg[1];
-                memcpy_filtered(s, packet->data.asBytes, len, flag & FLAG_ANSI);
+                memcpy(s, packet->data.asBytes, len);
             }
 
             if (flag & FLAG_LOG) {
@@ -345,7 +295,7 @@ static void PacketResponseReceived(PacketResponseNG *packet) {
             break;
         }
         // iceman:  hw status - down the path on device, runs printusbspeed which starts sending a lot of
-        // CMD_DOWNLOAD_RAW_ADC_SAMPLES_125K packages which is not dealt with. I wonder if simply ignoring them will
+        // CMD_DOWNLOAD_BIGBUF packages which is not dealt with. I wonder if simply ignoring them will
         // work. lets try it.
         default: {
             storeReply(packet);
@@ -364,18 +314,18 @@ bool hookUpPM3() {
         sp = NULL;
         serial_port_name = NULL;
         ret = false;
-        offline = 1;
+        session.pm3_present = false;
     } else if (sp == CLAIMED_SERIAL_PORT) {
         PrintAndLogEx(WARNING, "Reconnect failed, retrying... (reason: serial port is claimed by another process)\n");
         sp = NULL;
         serial_port_name = NULL;
         ret = false;
-        offline = 1;
+        session.pm3_present = false;
     } else {
         PrintAndLogEx(SUCCESS, "Proxmark3 reconnected\n");
         serial_port_name = ;
         ret = true;
-        offline = 0;
+        session.pm3_present = true;
     }
     return ret;
 }
@@ -403,6 +353,9 @@ __attribute__((force_align_arg_pointer))
         rxlen = 0;
         bool ACK_received = false;
         bool error = false;
+
+        pthread_mutex_lock(&spMutex);
+
         if (uart_receive(sp, (uint8_t *)&rx_raw.pre, sizeof(PacketResponseNGPreamble), &rxlen) && (rxlen == sizeof(PacketResponseNGPreamble))) {
             rx.magic = rx_raw.pre.magic;
             uint16_t length = rx_raw.pre.length;
@@ -410,7 +363,7 @@ __attribute__((force_align_arg_pointer))
             rx.status = rx_raw.pre.status;
             rx.cmd = rx_raw.pre.cmd;
             if (rx.magic == RESPONSENG_PREAMBLE_MAGIC) { // New style NG reply
-                if (length > USB_CMD_DATA_SIZE) {
+                if (length > PM3_CMD_DATA_SIZE) {
                     PrintAndLogEx(WARNING, "Received packet frame with incompatible length: 0x%04x", length);
                     error = true;
                 }
@@ -496,7 +449,7 @@ __attribute__((force_align_arg_pointer))
                     rx.oldarg[0] = rx_old.arg[0];
                     rx.oldarg[1] = rx_old.arg[1];
                     rx.oldarg[2] = rx_old.arg[2];
-                    rx.length = USB_CMD_DATA_SIZE;
+                    rx.length = PM3_CMD_DATA_SIZE;
                     memcpy(&rx.data, &rx_old.d, rx.length);
                     PacketResponseReceived(&rx);
                     if (rx.cmd == CMD_ACK) {
@@ -510,6 +463,9 @@ __attribute__((force_align_arg_pointer))
                 error = true;
             }
         }
+
+        pthread_mutex_unlock(&spMutex);
+
         // TODO if error, shall we resync ?
 
         pthread_mutex_lock(&txBufferMutex);
@@ -528,6 +484,8 @@ __attribute__((force_align_arg_pointer))
         }
 
         if (txBuffer_pending) {
+
+            pthread_mutex_lock(&spMutex);
             if (txBufferNGLen) { // NG packet
                 if (!uart_send(sp, (uint8_t *) &txBufferNG, txBufferNGLen)) {
                     //counter_to_offline++;
@@ -540,6 +498,8 @@ __attribute__((force_align_arg_pointer))
                     PrintAndLogEx(WARNING, "sending bytes to Proxmark3 device " _RED_("failed"));
                 }
             }
+            pthread_mutex_unlock(&spMutex);
+
             txBuffer_pending = false;
 
             // tell main thread that txBuffer is empty
@@ -577,17 +537,16 @@ bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, 
             printf(".");
             fflush(stdout);
         } while (++openCount < timeout && (sp == INVALID_SERIAL_PORT || sp == CLAIMED_SERIAL_PORT));
-        //PrintAndLogEx(NORMAL, "\n");
     }
 
     // check result of uart opening
     if (sp == INVALID_SERIAL_PORT) {
-        PrintAndLogEx(WARNING, _RED_("ERROR:") "invalid serial port " _YELLOW_("%s"), portname);
+        PrintAndLogEx(WARNING, "\n" _RED_("ERROR:") "invalid serial port " _YELLOW_("%s"), portname);
         sp = NULL;
         serial_port_name = NULL;
         return false;
     } else if (sp == CLAIMED_SERIAL_PORT) {
-        PrintAndLogEx(WARNING, _RED_("ERROR:") "serial port " _YELLOW_("%s") " is claimed by another process", portname);
+        PrintAndLogEx(WARNING, "\n" _RED_("ERROR:") "serial port " _YELLOW_("%s") " is claimed by another process", portname);
         sp = NULL;
         serial_port_name = NULL;
         return false;
@@ -600,10 +559,10 @@ bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, 
         conn.send_with_crc_on_usb = false;
         conn.send_with_crc_on_fpc = true;
         // "Session" flag, to tell via which interface next msgs should be sent: USB or FPC USART
-        conn.send_via_fpc = false;
+        conn.send_via_fpc_usart = false;
 
         pthread_create(&USB_communication_thread, NULL, &uart_communication, &conn);
-        //pthread_create(&FPC_communication_thread, NULL, &uart_communication, &conn);
+
         fflush(stdout);
         // create a mutex to avoid interlacing print commands from our different threads
         //pthread_mutex_init(&print_lock, NULL);
@@ -638,11 +597,28 @@ int TestProxmark(void) {
         SendCommandNG(CMD_CAPABILITIES, NULL, 0);
         if (WaitForResponseTimeoutW(CMD_PING, &resp, 1000, false)) {
             memcpy(&pm3_capabilities, resp.data.asBytes, resp.length);
-            conn.send_via_fpc = pm3_capabilities.via_fpc;
+            conn.send_via_fpc_usart = pm3_capabilities.via_fpc;
             conn.uart_speed = pm3_capabilities.baudrate;
-            PrintAndLogEx(INFO, "Communicating with PM3 over %s", conn.send_via_fpc ? _YELLOW_("FPC UART") : _YELLOW_("USB-CDC"));
-            if (conn.send_via_fpc)
+            PrintAndLogEx(INFO, "Communicating with PM3 over %s", conn.send_via_fpc_usart ? _YELLOW_("FPC UART") : _YELLOW_("USB-CDC"));
+            if (conn.send_via_fpc_usart) {
                 PrintAndLogEx(INFO, "UART Serial baudrate: " _YELLOW_("%u") "\n", conn.uart_speed);
+            }
+
+            // reconfigure.
+            if (conn.send_via_fpc_usart == false) {
+#if defined(_WIN32)
+                pthread_mutex_lock(&spMutex);
+#endif
+                int res = uart_reconfigure_timeouts(sp, UART_USB_CLIENT_RX_TIMEOUT_MS);
+#if defined(_WIN32)
+                pthread_mutex_unlock(&spMutex);
+#endif
+                if (res != PM3_SUCCESS) {
+                    PrintAndLogEx(ERR, "UART reconfigure failed");
+                    return res;
+                }
+
+            }
             return PM3_SUCCESS;
         } else {
             return PM3_ETIMEOUT;
@@ -661,7 +637,6 @@ void CloseProxmark(void) {
     }
 #else
     pthread_join(USB_communication_thread, NULL);
-    //pthread_join(FPC_communication_thread, NULL);
 #endif
 
     if (sp) {
@@ -693,7 +668,7 @@ void CloseProxmark(void) {
 //           ~ = 12000000 / USART_BAUD_RATE
 // Let's take 2x (maybe we need more for BT link?)
 static size_t communication_delay(void) {
-    if (conn.send_via_fpc)  // needed also for Windows USB USART??
+    if (conn.send_via_fpc_usart)  // needed also for Windows USB USART??
         return 2 * (12000000 / conn.uart_speed);
     return 100;
 }
@@ -719,29 +694,29 @@ bool WaitForResponseTimeoutW(uint32_t cmd, PacketResponseNG *response, size_t ms
     if (ms_timeout != (size_t) -1)
         ms_timeout += communication_delay();
 
-    timeout_start_time = msclock();
+    __atomic_store_n(&timeout_start_time,  msclock(), __ATOMIC_SEQ_CST);
+    uint64_t tmp_clk;
 
     // Wait until the command is received
     while (true) {
 
         while (getReply(response)) {
             if (cmd == CMD_UNKNOWN || response->cmd == cmd) {
-//                PrintAndLogEx(INFO, "Waited %i ms", msclock() - timeout_start_time);
                 return true;
             }
         }
 
-        if (msclock() - timeout_start_time > ms_timeout)
+        tmp_clk = __atomic_load_n(&timeout_start_time, __ATOMIC_SEQ_CST);
+        if (msclock() - tmp_clk > ms_timeout)
             break;
 
-        if (msclock() - timeout_start_time > 3000 && show_warning) {
+        if (msclock() - tmp_clk > 3000 && show_warning) {
             // 3 seconds elapsed (but this doesn't mean the timeout was exceeded)
             PrintAndLogEx(INFO, "Waiting for a response from the proxmark3...");
             PrintAndLogEx(INFO, "You can cancel this operation by pressing the pm3 button");
             show_warning = false;
         }
     }
-//    PrintAndLogEx(INFO, "Wait timeout after %i ms", msclock() - timeout_start_time);
     return false;
 }
 
@@ -780,8 +755,8 @@ bool GetFromDevice(DeviceMemType_t memtype, uint8_t *dest, uint32_t bytes, uint3
 
     switch (memtype) {
         case BIG_BUF: {
-            SendCommandOLD(CMD_DOWNLOAD_RAW_ADC_SAMPLES_125K, start_index, bytes, 0, NULL, 0);
-            return dl_it(dest, bytes, start_index, response, ms_timeout, show_warning, CMD_DOWNLOADED_RAW_ADC_SAMPLES_125K);
+            SendCommandOLD(CMD_DOWNLOAD_BIGBUF, start_index, bytes, 0, NULL, 0);
+            return dl_it(dest, bytes, start_index, response, ms_timeout, show_warning, CMD_DOWNLOADED_BIGBUF);
         }
         case BIG_BUF_EML: {
             SendCommandOLD(CMD_DOWNLOAD_EML_BIGBUF, start_index, bytes, 0, NULL, 0);
@@ -803,7 +778,8 @@ bool GetFromDevice(DeviceMemType_t memtype, uint8_t *dest, uint32_t bytes, uint3
 static bool dl_it(uint8_t *dest, uint32_t bytes, uint32_t start_index, PacketResponseNG *response, size_t ms_timeout, bool show_warning, uint32_t rec_cmd) {
 
     uint32_t bytes_completed = 0;
-    timeout_start_time = msclock();
+    __atomic_store_n(&timeout_start_time,  msclock(), __ATOMIC_SEQ_CST);
+    uint64_t tmp_clk;
 
     // Add delay depending on the communication channel & speed
     if (ms_timeout != (size_t) -1)
@@ -823,9 +799,9 @@ static bool dl_it(uint8_t *dest, uint32_t bytes, uint32_t start_index, PacketRes
                 uint32_t copy_bytes = MIN(bytes - bytes_completed, response->oldarg[1]);
                 //uint32_t tracelen = response->oldarg[2];
 
-                // extended bounds check1.  upper limit is USB_CMD_DATA_SIZE
+                // extended bounds check1.  upper limit is PM3_CMD_DATA_SIZE
                 // shouldn't happen
-                copy_bytes = MIN(copy_bytes, USB_CMD_DATA_SIZE);
+                copy_bytes = MIN(copy_bytes, PM3_CMD_DATA_SIZE);
 
                 // extended bounds check2.
                 if (offset + copy_bytes > bytes) {
@@ -840,12 +816,13 @@ static bool dl_it(uint8_t *dest, uint32_t bytes, uint32_t start_index, PacketRes
             }
         }
 
-        if (msclock() - timeout_start_time > ms_timeout) {
+        tmp_clk = __atomic_load_n(&timeout_start_time, __ATOMIC_SEQ_CST);
+        if (msclock() - tmp_clk > ms_timeout) {
             PrintAndLogEx(FAILED, "Timed out while trying to download data from device");
             break;
         }
 
-        if (msclock() - timeout_start_time > 3000 && show_warning) {
+        if (msclock() - tmp_clk > 3000 && show_warning) {
             // 3 seconds elapsed (but this doesn't mean the timeout was exceeded)
             PrintAndLogEx(NORMAL, "Waiting for a response from the Proxmark3...");
             PrintAndLogEx(NORMAL, "You can cancel this operation by pressing the pm3 button");

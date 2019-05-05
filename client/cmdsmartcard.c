@@ -395,7 +395,7 @@ static int CmdSmartRaw(const char *Cmd) {
     bool useT0 = false;
     uint8_t cmdp = 0;
     bool errors = false, reply = true, decodeTLV = false, breakloop = false;
-    uint8_t data[USB_CMD_DATA_SIZE] = {0x00};
+    uint8_t data[PM3_CMD_DATA_SIZE] = {0x00};
 
     while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
         switch (tolower(param_getchar(Cmd, cmdp))) {
@@ -470,7 +470,7 @@ static int CmdSmartRaw(const char *Cmd) {
     // reading response from smart card
     if (reply) {
 
-        uint8_t *buf = calloc(USB_CMD_DATA_SIZE, sizeof(uint8_t));
+        uint8_t *buf = calloc(PM3_CMD_DATA_SIZE, sizeof(uint8_t));
         if (!buf)
             return 1;
 
@@ -644,7 +644,7 @@ static int CmdSmartUpgrade(const char *Cmd) {
     uint32_t bytes_remaining = firmware_size;
 
     while (bytes_remaining > 0) {
-        uint32_t bytes_in_packet = MIN(USB_CMD_DATA_SIZE, bytes_remaining);
+        uint32_t bytes_in_packet = MIN(PM3_CMD_DATA_SIZE, bytes_remaining);
         clearCommandBuffer();
         SendCommandOLD(CMD_SMART_UPLOAD, index + bytes_sent, bytes_in_packet, 0, dump + bytes_sent, bytes_in_packet);
         if (!WaitForResponseTimeout(CMD_ACK, NULL, 2000)) {
@@ -858,7 +858,7 @@ static int CmdSmartList(const char *Cmd) {
 
 static void smart_brute_prim() {
 
-    uint8_t *buf = calloc(USB_CMD_DATA_SIZE, sizeof(uint8_t));
+    uint8_t *buf = calloc(PM3_CMD_DATA_SIZE, sizeof(uint8_t));
     if (!buf)
         return;
 
@@ -891,7 +891,7 @@ static void smart_brute_prim() {
 
 static int smart_brute_sfi(bool decodeTLV) {
 
-    uint8_t *buf = calloc(USB_CMD_DATA_SIZE, sizeof(uint8_t));
+    uint8_t *buf = calloc(PM3_CMD_DATA_SIZE, sizeof(uint8_t));
     if (!buf)
         return 1;
 
@@ -945,7 +945,7 @@ static int smart_brute_sfi(bool decodeTLV) {
                     }
                 }
             }
-            memset(buf, 0x00, USB_CMD_DATA_SIZE);
+            memset(buf, 0x00, PM3_CMD_DATA_SIZE);
         }
     }
     free(buf);
@@ -954,7 +954,7 @@ static int smart_brute_sfi(bool decodeTLV) {
 
 static void smart_brute_options(bool decodeTLV) {
 
-    uint8_t *buf = calloc(USB_CMD_DATA_SIZE, sizeof(uint8_t));
+    uint8_t *buf = calloc(PM3_CMD_DATA_SIZE, sizeof(uint8_t));
     if (!buf)
         return;
 
@@ -1019,7 +1019,7 @@ static int CmdSmartBruteforceSFI(const char *Cmd) {
     json_t *root = NULL;
     smart_loadjson("aidlist", "json", &root);
 
-    uint8_t *buf = calloc(USB_CMD_DATA_SIZE, sizeof(uint8_t));
+    uint8_t *buf = calloc(PM3_CMD_DATA_SIZE, sizeof(uint8_t));
     if (!buf)
         return 1;
 
@@ -1064,7 +1064,7 @@ static int CmdSmartBruteforceSFI(const char *Cmd) {
         snprintf(caid, 8 + 2 + aidlen + 1, SELECT, aidlen >> 1, aid);
 
         int hexlen = 0;
-        uint8_t cmddata[USB_CMD_DATA_SIZE];
+        uint8_t cmddata[PM3_CMD_DATA_SIZE];
         int res = param_gethex_to_eol(caid, 0, cmddata, sizeof(cmddata), &hexlen);
         if (res)
             continue;
@@ -1118,15 +1118,15 @@ static int CmdSmartBruteforceSFI(const char *Cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",     CmdHelp,               1, "This help"},
-    {"list",     CmdSmartList,          0, "List ISO 7816 history"},
-    {"info",     CmdSmartInfo,          1, "Tag information"},
-    {"reader",   CmdSmartReader,        1, "Act like an IS07816 reader"},
-    {"raw",      CmdSmartRaw,           1, "Send raw hex data to tag"},
-    {"upgrade",  CmdSmartUpgrade,       1, "Upgrade sim module firmware"},
-    {"setclock", CmdSmartSetClock,      1, "Set clock speed"},
-    {"brute",    CmdSmartBruteforceSFI, 1, "Bruteforce SFI"},
-    {NULL, NULL, 0, NULL}
+    {"help",     CmdHelp,               AlwaysAvailable, "This help"},
+    {"list",     CmdSmartList,          IfPm3Smartcard,  "List ISO 7816 history"},
+    {"info",     CmdSmartInfo,          IfPm3Smartcard,  "Tag information"},
+    {"reader",   CmdSmartReader,        IfPm3Smartcard,  "Act like an IS07816 reader"},
+    {"raw",      CmdSmartRaw,           IfPm3Smartcard,  "Send raw hex data to tag"},
+    {"upgrade",  CmdSmartUpgrade,       IfPm3Smartcard,  "Upgrade sim module firmware"},
+    {"setclock", CmdSmartSetClock,      IfPm3Smartcard,  "Set clock speed"},
+    {"brute",    CmdSmartBruteforceSFI, IfPm3Smartcard,  "Bruteforce SFI"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

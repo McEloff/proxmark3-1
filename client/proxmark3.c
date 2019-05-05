@@ -30,25 +30,25 @@
 #include "usart.h"
 
 static void showBanner(void) {
-    printf("\n\n");
+    PrintAndLogEx(NORMAL, "\n");
 #if defined(__linux__) || (__APPLE__)
-    printf(_BLUE_("██████╗ ███╗   ███╗ ████╗ ") "    ...iceman fork\n");
-    printf(_BLUE_("██╔══██╗████╗ ████║   ══█║") "      ...dedicated to " _BLUE_("RDV40") "\n");
-    printf(_BLUE_("██████╔╝██╔████╔██║ ████╔╝") "\n");
-    printf(_BLUE_("██╔═══╝ ██║╚██╔╝██║   ══█║") "    iceman@icesql.net\n");
-    printf(_BLUE_("██║     ██║ ╚═╝ ██║ ████╔╝") "   https://github.com/rfidresearchgroup/proxmark3/\n");
-    printf(_BLUE_("╚═╝     ╚═╝     ╚═╝ ╚═══╝ ") "pre-release v4.0\n");
+    PrintAndLogEx(NORMAL, _BLUE_("██████╗ ███╗   ███╗ ████╗ ") "    ...iceman fork");
+    PrintAndLogEx(NORMAL, _BLUE_("██╔══██╗████╗ ████║   ══█║") "      ...dedicated to " _BLUE_("RDV40"));
+    PrintAndLogEx(NORMAL, _BLUE_("██████╔╝██╔████╔██║ ████╔╝"));
+    PrintAndLogEx(NORMAL, _BLUE_("██╔═══╝ ██║╚██╔╝██║   ══█║") "    iceman@icesql.net");
+    PrintAndLogEx(NORMAL, _BLUE_("██║     ██║ ╚═╝ ██║ ████╔╝") "   https://github.com/rfidresearchgroup/proxmark3/");
+    PrintAndLogEx(NORMAL, _BLUE_("╚═╝     ╚═╝     ╚═╝ ╚═══╝ ") "pre-release v4.0");
 #else
-    printf("======. ===.   ===. ====.     ...iceman fork\n");
-    printf("==...==.====. ====.   ..=.      ...dedicated to RDV40\n");
-    printf("======..==.====.==. ====..\n");
-    printf("==..... ==..==..==.   ..=.    iceman@icesql.net\n");
-    printf("==.     ==. ... ==. ====..   https://github.com/rfidresearchgroup/proxmark3/\n");
-    printf("...     ...     ... .....  pre-release v4.0\n");
+    PrintAndLogEx(NORMAL, "======. ===.   ===. ====.     ...iceman fork");
+    PrintAndLogEx(NORMAL, "==...==.====. ====.   ..=.      ...dedicated to RDV40");
+    PrintAndLogEx(NORMAL, "======..==.====.==. ====..");
+    PrintAndLogEx(NORMAL, "==..... ==..==..==.   ..=.    iceman@icesql.net");
+    PrintAndLogEx(NORMAL, "==.     ==. ... ==. ====..   https://github.com/rfidresearchgroup/proxmark3/");
+    PrintAndLogEx(NORMAL, "...     ...     ... .....  pre-release v4.0");
 #endif
-    printf("\nSupport iceman on patreon,   https://www.patreon.com/iceman1001/");
+    PrintAndLogEx(NORMAL, "\nSupport iceman on patreon,   https://www.patreon.com/iceman1001/");
 //    printf("\nMonero: 43mNJLpgBVaTvyZmX9ajcohpvVkaRy1kbZPm8tqAb7itZgfuYecgkRF36rXrKFUkwEGeZedPsASRxgv4HPBHvJwyJdyvQuP");
-    printf("\n\n\n");
+    PrintAndLogEx(NORMAL, "\n");
     fflush(stdout);
 }
 
@@ -58,7 +58,7 @@ void
 __attribute__((force_align_arg_pointer))
 #endif
 #endif
-main_loop(char *script_cmds_file, char *script_cmd, bool pm3_present) {
+main_loop(char *script_cmds_file, char *script_cmd) {
 
     char *cmd = NULL;
     bool execCommand = (script_cmd != NULL);
@@ -73,15 +73,12 @@ main_loop(char *script_cmds_file, char *script_cmd, bool pm3_present) {
 
     PrintAndLogEx(DEBUG, "ISATTY/STDIN_FILENO == %s\n", (stdinOnPipe) ? "true" : "false");
 
-    if (pm3_present) {
-        SetOffline(false);
+    if (session.pm3_present) {
         // cache Version information now:
         if (execCommand || script_cmds_file || stdinOnPipe)
             pm3_version(false);
         else
             pm3_version(true);
-    } else {
-        SetOffline(true);
     }
 
     if (script_cmds_file) {
@@ -100,13 +97,13 @@ main_loop(char *script_cmds_file, char *script_cmd, bool pm3_present) {
         bool printprompt = false;
         // this should hook up the PM3 again.
         /*
-        if ( IsOffline() ) {
+        if ( !session.pm3_present ) {
 
             // sets the global variable, SP and offline)
-            pm3_present = hookUpPM3();
+            session.pm3_present = hookUpPM3();
 
             // usb and the reader_thread is NULL,  create a new reader thread.
-            if (pm3_present && !IsOffline() ) {
+            if (session.pm3_present) {
                 rarg.run = 1;
                 pthread_create(&reader_thread, NULL, &uart_receiver, &rarg);
                 // cache Version information now:
@@ -157,7 +154,7 @@ main_loop(char *script_cmds_file, char *script_cmd, bool pm3_present) {
                     // clear array
                     memset(script_cmd_buf, 0, sizeof(script_cmd_buf));
                     // get
-                    if (!fgets(script_cmd_buf, sizeof(script_cmd_buf), stdin)) {
+                    if (fgets(script_cmd_buf, sizeof(script_cmd_buf), stdin) == NULL) {
                         PrintAndLogEx(ERR, "STDIN unexpected end, exit...");
                         break;
                     }
@@ -223,12 +220,14 @@ main_loop(char *script_cmds_file, char *script_cmd, bool pm3_present) {
 }
 
 static void dumpAllHelp(int markdown) {
+    session.help_dump_mode = true;
     PrintAndLogEx(NORMAL, "\n%sProxmark3 command dump%s\n\n", markdown ? "# " : "", markdown ? "" : "\n======================");
     PrintAndLogEx(NORMAL, "Some commands are available only if a Proxmark3 is actually connected.%s\n", markdown ? "  " : "");
     PrintAndLogEx(NORMAL, "Check column \"offline\" for their availability.\n");
     PrintAndLogEx(NORMAL, "\n");
     command_t *cmds = getTopLevelCommandTable();
     dumpCommandsRecursive(cmds, markdown);
+    session.help_dump_mode = false;
 }
 
 static char *my_executable_path = NULL;
@@ -293,7 +292,8 @@ static void show_help(bool showFullHelp, char *exec_name) {
 int main(int argc, char *argv[]) {
     srand(time(0));
 
-    bool pm3_present = false;
+    session.pm3_present = false;
+    session.help_dump_mode = false;
     bool waitCOMPort = false;
     bool addLuaExec = false;
     char *script_cmds_file = NULL;
@@ -438,9 +438,21 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // ascii art
-    bool stdinOnPipe = !isatty(STDIN_FILENO);
-    if (!script_cmds_file && !stdinOnPipe)
+    session.supports_colors = false;
+    session.stdinOnTTY = isatty(STDIN_FILENO);
+    session.stdoutOnTTY = isatty(STDOUT_FILENO);
+#if defined(__linux__) || (__APPLE__)
+    // it's okay to use color if:
+    // * Linux or OSX
+    // * Not redirected to a file but printed to term
+    // For info, grep --color=auto is doing sth like this, plus test getenv("TERM") != "dumb":
+    //   struct stat tmp_stat;
+    //   if ((fstat (STDOUT_FILENO, &tmp_stat) == 0) && (S_ISCHR (tmp_stat.st_mode)) && isatty(STDIN_FILENO))
+    if (session.stdinOnTTY && session.stdoutOnTTY)
+        session.supports_colors = true;
+#endif
+    // ascii art only in interactive client
+    if (!script_cmds_file && !script_cmd && session.stdinOnTTY && session.stdoutOnTTY)
         showBanner();
 
     // Let's take a baudrate ok for real UART, USB-CDC & BT don't use that info anyway
@@ -477,38 +489,39 @@ int main(int argc, char *argv[]) {
 
     // try to open USB connection to Proxmark
     if (port != NULL)
-        pm3_present = OpenProxmark(port, waitCOMPort, 20, false, speed);
+        session.pm3_present = OpenProxmark(port, waitCOMPort, 20, false, speed);
 
-    if (pm3_present && (TestProxmark() != PM3_SUCCESS)) {
+    if (session.pm3_present && (TestProxmark() != PM3_SUCCESS)) {
         PrintAndLogEx(ERR, _RED_("ERROR:") "cannot communicate with the Proxmark\n");
         CloseProxmark();
-        pm3_present = false;
+        session.pm3_present = false;
     }
-    if (!pm3_present)
+
+    if (!session.pm3_present)
         PrintAndLogEx(INFO, "Running in " _YELLOW_("OFFLINE") "mode. Check \"%s -h\" if it's not what you want.\n", exec_name);
 
 #ifdef HAVE_GUI
 
 #  ifdef _WIN32
-    InitGraphics(argc, argv, script_cmds_file, script_cmd, pm3_present);
+    InitGraphics(argc, argv, script_cmds_file, script_cmd);
     MainGraphics();
 #  else
     // for *nix distro's,  check enviroment variable to verify a display
     char *display = getenv("DISPLAY");
     if (display && strlen(display) > 1) {
-        InitGraphics(argc, argv, script_cmds_file, script_cmd, pm3_present);
+        InitGraphics(argc, argv, script_cmds_file, script_cmd);
         MainGraphics();
     } else {
-        main_loop(script_cmds_file, script_cmd, pm3_present);
+        main_loop(script_cmds_file, script_cmd);
     }
 #  endif
 
 #else
-    main_loop(script_cmds_file, script_cmd, pm3_present);
+    main_loop(script_cmds_file, script_cmd);
 #endif
 
     // Clean up the port
-    if (pm3_present) {
+    if (session.pm3_present) {
         CloseProxmark();
     }
 

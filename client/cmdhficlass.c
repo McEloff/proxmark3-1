@@ -586,18 +586,28 @@ static int CmdHFiClassELoad(const char *Cmd) {
         free(dump);
         return 1;
     }
+
+    // fast push mode
+    conn.block_after_ACK = true;
+
     //Send to device
     uint32_t bytes_sent = 0;
     uint32_t bytes_remaining  = bytes_read;
 
     while (bytes_remaining > 0) {
-        uint32_t bytes_in_packet = MIN(USB_CMD_DATA_SIZE, bytes_remaining);
+        uint32_t bytes_in_packet = MIN(PM3_CMD_DATA_SIZE, bytes_remaining);
         clearCommandBuffer();
         SendCommandOLD(CMD_ICLASS_EML_MEMSET, bytes_sent, bytes_in_packet, 0, dump + bytes_sent, bytes_in_packet);
         bytes_remaining -= bytes_in_packet;
         bytes_sent += bytes_in_packet;
     }
     free(dump);
+
+    // Disable fast mode and send a dummy command to make it effective
+    conn.block_after_ACK = false;
+    SendCommandMIX(CMD_PING, 0, 0, 0, NULL, 0);
+    WaitForResponseTimeout(CMD_ACK, NULL, 1000);
+
     PrintAndLogEx(SUCCESS, "sent %d bytes of data to device emulator memory", bytes_sent);
     return 0;
 }
@@ -1262,10 +1272,10 @@ static int CmdHFiClassCloneTag(const char *Cmd) {
 
     FILE *f;
 
-    iclass_block_t tag_data[USB_CMD_DATA_SIZE / 12];
+    iclass_block_t tag_data[PM3_CMD_DATA_SIZE / 12];
 
-    if ((endblock - startblock + 1) * 12 > USB_CMD_DATA_SIZE) {
-        PrintAndLogEx(NORMAL, "Trying to write too many blocks at once.  Max: %d", USB_CMD_DATA_SIZE / 8);
+    if ((endblock - startblock + 1) * 12 > PM3_CMD_DATA_SIZE) {
+        PrintAndLogEx(NORMAL, "Trying to write too many blocks at once.  Max: %d", PM3_CMD_DATA_SIZE / 8);
     }
     // file handling and reading
     f = fopen(filename, "rb");
@@ -1934,8 +1944,11 @@ static int CmdHFiClassCheckKeys(const char *Cmd) {
     //PrintPreCalcMac(keyBlock, keycnt, pre);
 
     // max 42 keys inside USB_COMMAND.  512/4 = 103 mac
-    uint32_t chunksize = keycnt > (USB_CMD_DATA_SIZE / 4) ? (USB_CMD_DATA_SIZE / 4) : keycnt;
+    uint32_t chunksize = keycnt > (PM3_CMD_DATA_SIZE / 4) ? (PM3_CMD_DATA_SIZE / 4) : keycnt;
     bool lastChunk = false;
+
+    // fast push mode
+    conn.block_after_ACK = true;
 
     // main keychunk loop
     for (uint32_t i = 0; i < keycnt; i += chunksize) {
@@ -2021,6 +2034,11 @@ out:
     t1 = msclock() - t1;
 
     PrintAndLogEx(SUCCESS, "\nTime in iclass checkkeys: %.0f seconds\n", (float)t1 / 1000.0);
+
+    // Disable fast mode and send a dummy command to make it effective
+    conn.block_after_ACK = false;
+    SendCommandMIX(CMD_PING, 0, 0, 0, NULL, 0);
+    WaitForResponseTimeout(CMD_ACK, NULL, 1000);
 
     DropField();
     free(pre);
@@ -2400,27 +2418,27 @@ static int CmdHFiClassPermuteKey(const char *Cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",        CmdHelp,                    1, "This help"},
-    {"calcnewkey",  CmdHFiClassCalcNewKey,      1, "[options..] Calc Diversified keys (blocks 3 & 4) to write new keys"},
-    {"chk",         CmdHFiClassCheckKeys,       1, "            Check keys"},
-    {"clone",       CmdHFiClassCloneTag,        0, "[options..] Authenticate and Clone from iClass bin file"},
-    {"decrypt",     CmdHFiClassDecrypt,         1, "[f <fname>] Decrypt tagdump" },
-    {"dump",        CmdHFiClassReader_Dump,     0, "[options..] Authenticate and Dump iClass tag's AA1"},
-    {"eload",       CmdHFiClassELoad,           0, "[f <fname>] (experimental) Load data into iClass emulator memory"},
-    {"encryptblk",  CmdHFiClassEncryptBlk,      1, "<BlockData> Encrypt given block data"},
-    {"list",        CmdHFiClassList,            0, "            List iClass history"},
-    {"loclass",     CmdHFiClass_loclass,        1, "[options..] Use loclass to perform bruteforce of reader attack dump"},
-    {"lookup",      CmdHFiClassLookUp,          1, "[options..] Uses authentication trace to check for key in dictionary file"},
-    {"managekeys",  CmdHFiClassManageKeys,      1, "[options..] Manage the keys to use with iClass"},
-    {"permutekey",  CmdHFiClassPermuteKey,      0, "            Permute function from 'heart of darkness' paper"},
-    {"readblk",     CmdHFiClass_ReadBlock,      0, "[options..] Authenticate and Read iClass block"},
-    {"reader",      CmdHFiClassReader,          0, "            Act like an iClass reader"},
-    {"readtagfile", CmdHFiClassReadTagFile,     1, "[options..] Display Content from tagfile"},
-    {"replay",      CmdHFiClassReader_Replay,   0, "<mac>       Read an iClass tag via Replay Attack"},
-    {"sim",         CmdHFiClassSim,             0, "[options..] Simulate iClass tag"},
-    {"sniff",       CmdHFiClassSniff,           0, "            Eavesdrop iClass communication"},
-    {"writeblk",    CmdHFiClass_WriteBlock,     0, "[options..] Authenticate and Write iClass block"},
-    {NULL, NULL, 0, NULL}
+    {"help",        CmdHelp,                    AlwaysAvailable, "This help"},
+    {"calcnewkey",  CmdHFiClassCalcNewKey,      AlwaysAvailable, "[options..] Calc Diversified keys (blocks 3 & 4) to write new keys"},
+    {"chk",         CmdHFiClassCheckKeys,       AlwaysAvailable, "            Check keys"},
+    {"clone",       CmdHFiClassCloneTag,        IfPm3Iclass,     "[options..] Authenticate and Clone from iClass bin file"},
+    {"decrypt",     CmdHFiClassDecrypt,         AlwaysAvailable, "[f <fname>] Decrypt tagdump" },
+    {"dump",        CmdHFiClassReader_Dump,     IfPm3Iclass,     "[options..] Authenticate and Dump iClass tag's AA1"},
+    {"eload",       CmdHFiClassELoad,           IfPm3Iclass,     "[f <fname>] (experimental) Load data into iClass emulator memory"},
+    {"encryptblk",  CmdHFiClassEncryptBlk,      AlwaysAvailable, "<BlockData> Encrypt given block data"},
+    {"list",        CmdHFiClassList,            AlwaysAvailable,     "            List iClass history"},
+    {"loclass",     CmdHFiClass_loclass,        AlwaysAvailable, "[options..] Use loclass to perform bruteforce of reader attack dump"},
+    {"lookup",      CmdHFiClassLookUp,          AlwaysAvailable, "[options..] Uses authentication trace to check for key in dictionary file"},
+    {"managekeys",  CmdHFiClassManageKeys,      AlwaysAvailable, "[options..] Manage the keys to use with iClass"},
+    {"permutekey",  CmdHFiClassPermuteKey,      IfPm3Iclass,     "            Permute function from 'heart of darkness' paper"},
+    {"readblk",     CmdHFiClass_ReadBlock,      IfPm3Iclass,     "[options..] Authenticate and Read iClass block"},
+    {"reader",      CmdHFiClassReader,          IfPm3Iclass,     "            Act like an iClass reader"},
+    {"readtagfile", CmdHFiClassReadTagFile,     AlwaysAvailable, "[options..] Display Content from tagfile"},
+    {"replay",      CmdHFiClassReader_Replay,   IfPm3Iclass,     "<mac>       Read an iClass tag via Replay Attack"},
+    {"sim",         CmdHFiClassSim,             IfPm3Iclass,     "[options..] Simulate iClass tag"},
+    {"sniff",       CmdHFiClassSniff,           IfPm3Iclass,     "            Eavesdrop iClass communication"},
+    {"writeblk",    CmdHFiClass_WriteBlock,     IfPm3Iclass,     "[options..] Authenticate and Write iClass block"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

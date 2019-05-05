@@ -36,7 +36,7 @@
 #include "i2c.h"
 #endif
 
-#ifdef WITH_FPC
+#ifdef WITH_FPC_USART
 #include "usart.h"
 #endif
 
@@ -118,7 +118,7 @@ void DbpStringEx(uint32_t flags, char *str) {
 #if DEBUG
     struct {
         uint16_t flag;
-        uint8_t buf[USB_CMD_DATA_SIZE - sizeof(uint16_t)];
+        uint8_t buf[PM3_CMD_DATA_SIZE - sizeof(uint16_t)];
     } PACKED data;
     data.flag = flags;
     uint16_t len = MIN(strlen(str), sizeof(data.buf));
@@ -319,7 +319,9 @@ void MeasureAntennaTuningHf(void) {
         DbprintfEx(FLAG_INPLACE, "%u mV / %5u V", volt, (uint16_t)(volt / 1000));
     }
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    DbprintfEx(FLAG_LOG, "\n[+] cancelled", 1);
+    DbprintfEx(FLAG_NEWLINE, "");
+    Dbprintf("[+] cancelled", 1);
+    reply_ng(CMD_MEASURE_ANTENNA_TUNING_HF, PM3_EOPABORTED, NULL, 0);
 }
 
 void ReadMem(int addr) {
@@ -333,8 +335,8 @@ extern struct version_information version_information;
 /* bootrom version information is pointed to from _bootphase1_version_pointer */
 extern char *_bootphase1_version_pointer, _flash_start, _flash_end, _bootrom_start, _bootrom_end, __data_src_start__;
 void SendVersion(void) {
-    char temp[USB_CMD_DATA_SIZE]; /* Limited data payload in USB packets */
-    char VersionString[USB_CMD_DATA_SIZE] = { '\0' };
+    char temp[PM3_CMD_DATA_SIZE]; /* Limited data payload in USB packets */
+    char VersionString[PM3_CMD_DATA_SIZE] = { '\0' };
 
     /* Try to find the bootrom version information. Expect to find a pointer at
      * symbol _bootphase1_version_pointer, perform slight sanity checks on the
@@ -368,13 +370,13 @@ void SendVersion(void) {
     reply_old(CMD_ACK, *(AT91C_DBGU_CIDR), text_and_rodata_section_size + compressed_data_section_size, 0, VersionString, strlen(VersionString));
 }
 
-// measure the USB Speed by sending SpeedTestBufferSize bytes to client and measuring the elapsed time.
+// measure the Connection Speed by sending SpeedTestBufferSize bytes to client and measuring the elapsed time.
 // Note: this mimics GetFromBigbuf(), i.e. we have the overhead of the PacketCommandNG structure included.
-void printUSBSpeed(void) {
-    DbpStringEx(FLAG_LOG | FLAG_ANSI, _BLUE_("Transfer Speed"));
+void printConnSpeed(void) {
+    DbpString(_BLUE_("Transfer Speed"));
     Dbprintf("  Sending packets to client...");
 
-#define USB_SPEED_TEST_MIN_TIME 1500 // in milliseconds
+#define CONN_SPEED_TEST_MIN_TIME 500 // in milliseconds
     uint8_t *test_data = BigBuf_get_addr();
     uint32_t end_time;
 
@@ -383,16 +385,16 @@ void printUSBSpeed(void) {
 
     LED_B_ON();
 
-    while (end_time < start_time + USB_SPEED_TEST_MIN_TIME) {
-        reply_ng(CMD_DOWNLOADED_RAW_ADC_SAMPLES_125K, PM3_SUCCESS, test_data, USB_CMD_DATA_SIZE);
+    while (end_time < start_time + CONN_SPEED_TEST_MIN_TIME) {
+        reply_ng(CMD_DOWNLOADED_BIGBUF, PM3_SUCCESS, test_data, PM3_CMD_DATA_SIZE);
         end_time = GetTickCount();
-        bytes_transferred += USB_CMD_DATA_SIZE;
+        bytes_transferred += PM3_CMD_DATA_SIZE;
     }
     LED_B_OFF();
 
     Dbprintf("  Time elapsed............%dms", end_time - start_time);
     Dbprintf("  Bytes transferred.......%d", bytes_transferred);
-    DbprintfEx(FLAG_LOG | FLAG_ANSI, "  Transfer Speed PM3 -> Client = " _YELLOW_("%d") " bytes/s", 1000 * bytes_transferred / (end_time - start_time));
+    Dbprintf("  Transfer Speed PM3 -> Client = " _YELLOW_("%d") " bytes/s", 1000 * bytes_transferred / (end_time - start_time));
 }
 
 /**
@@ -411,13 +413,13 @@ void SendStatus(void) {
     printConfig();      // LF Sampling config
     printT55xxConfig(); // LF T55XX Config
 #endif
-    printUSBSpeed();
-    DbpStringEx(FLAG_LOG | FLAG_ANSI, _BLUE_("Various"));
+    printConnSpeed();
+    DbpString(_BLUE_("Various"));
     Dbprintf("  MF_DBGLEVEL.............%d", MF_DBGLEVEL);
     Dbprintf("  ToSendMax...............%d", ToSendMax);
     Dbprintf("  ToSendBit...............%d", ToSendBit);
     Dbprintf("  ToSend BUFFERSIZE.......%d", TOSEND_BUFFER_SIZE);
-    DbpStringEx(FLAG_LOG | FLAG_ANSI, _BLUE_("Installed StandAlone Mode"));
+    DbpString(_BLUE_("Installed StandAlone Mode"));
     ModInfo();
 
     //DbpString("Running ");
@@ -436,6 +438,90 @@ void SendCapabilities(void) {
         capabilities.baudrate = USART_BAUD_RATE;
     else
         capabilities.baudrate = 0; // no real baudrate for USB-CDC
+
+#ifdef WITH_FLASH
+    capabilities.compiled_with_flash = true;
+    capabilities.hw_available_flash = FlashInit();
+#else
+    capabilities.compiled_with_flash = false;
+    capabilities.hw_available_flash = false;
+#endif
+#ifdef WITH_SMARTCARD
+    capabilities.compiled_with_smartcard = true;
+    uint8_t maj, min;
+    capabilities.hw_available_smartcard = I2C_get_version(&maj, &min) == PM3_SUCCESS;
+#else
+    capabilities.compiled_with_smartcard = false;
+    capabilities.hw_available_smartcard = false;
+#endif
+#ifdef WITH_FPC_USART
+    capabilities.compiled_with_fpc_usart = true;
+#else
+    capabilities.compiled_with_fpc_usart = false;
+#endif
+#ifdef WITH_FPC_USART_DEV
+    capabilities.compiled_with_fpc_usart_dev = true;
+#else
+    capabilities.compiled_with_fpc_usart_dev = false;
+#endif
+#ifdef WITH_FPC_USART_HOST
+    capabilities.compiled_with_fpc_usart_host = true;
+    // TODO
+    capabilities.hw_available_fpc_usart_btaddon = true;
+#else
+    capabilities.compiled_with_fpc_usart_host = false;
+    capabilities.hw_available_fpc_usart_btaddon = false;
+#endif
+#ifdef WITH_LF
+    capabilities.compiled_with_lf = true;
+#else
+    capabilities.compiled_with_lf = false;
+#endif
+#ifdef WITH_HITAG
+    capabilities.compiled_with_hitag = true;
+#else
+    capabilities.compiled_with_hitag = false;
+#endif
+#ifdef WITH_HFSNIFF
+    capabilities.compiled_with_hfsniff = true;
+#else
+    capabilities.compiled_with_hfsniff = false;
+#endif
+#ifdef WITH_ISO14443a
+    capabilities.compiled_with_iso14443a = true;
+#else
+    capabilities.compiled_with_iso14443a = false;
+#endif
+#ifdef WITH_ISO14443b
+    capabilities.compiled_with_iso14443b = true;
+#else
+    capabilities.compiled_with_iso14443b = false;
+#endif
+#ifdef WITH_ISO15693
+    capabilities.compiled_with_iso15693 = true;
+#else
+    capabilities.compiled_with_iso15693 = false;
+#endif
+#ifdef WITH_FELICA
+    capabilities.compiled_with_felica = true;
+#else
+    capabilities.compiled_with_felica = false;
+#endif
+#ifdef WITH_LEGICRF
+    capabilities.compiled_with_legicrf = true;
+#else
+    capabilities.compiled_with_legicrf = false;
+#endif
+#ifdef WITH_ICLASS
+    capabilities.compiled_with_iclass = true;
+#else
+    capabilities.compiled_with_iclass = false;
+#endif
+#ifdef WITH_LCD
+    capabilities.compiled_with_lcd = true;
+#else
+    capabilities.compiled_with_lcd = false;
+#endif
     reply_ng(CMD_CAPABILITIES, PM3_SUCCESS, (uint8_t *)&capabilities, sizeof(capabilities));
 }
 
@@ -1089,7 +1175,7 @@ static void PacketReceived(PacketCommandNG *packet) {
         case CMD_SMART_UPLOAD: {
             // upload file from client
             uint8_t *mem = BigBuf_get_addr();
-            memcpy(mem + packet->oldarg[0], packet->data.asBytes, USB_CMD_DATA_SIZE);
+            memcpy(mem + packet->oldarg[0], packet->data.asBytes, PM3_CMD_DATA_SIZE);
             reply_old(CMD_ACK, 1, 0, 0, 0, 0);
             break;
         }
@@ -1099,79 +1185,45 @@ static void PacketReceived(PacketCommandNG *packet) {
         }
 #endif
 
-#ifdef WITH_FPC
-        case CMD_FPC_SEND: {
-
-
-            StartTicks();
-            DbpString("Mutual USB/FPC sending from device to client");
-
-            /*
-            char at[11] = {'\0'};
-            static const char* s_at = "AT+BAUD8\0D\0A";
-            strncat(at, s_at, sizeof(at) - strlen(at) - 1);
-            DbpString("Try AT baud rate setting");
-            usart_init();
-            int16_t res = usart_writebuffer_sync((uint8_t*)&at, sizeof(at));
-            WaitMS(1);
-            Dbprintf("SEND %d | %c%c%c%c%c%c%c%c%c%c%c", res,  at[0], at[1], at[2], at[3], at[4], at[5], at[6], at[7], at[8], at[9], at[10]);
-
-            uint8_t my_rx[20];
-            memset(my_rx, 0, sizeof(my_rx));
-            res = usart_readbuffer(my_rx);
-            WaitMS(1);
-            Dbprintf("GOT  %d | %c%c%c%c%c%c%c%c", res,  my_rx[0], my_rx[1], my_rx[2], my_rx[3], my_rx[4], my_rx[5], my_rx[6], my_rx[7]);
-            */
-
-
-            char dest[USART_FIFOLEN] = {'\0'};
+#ifdef WITH_FPC_USART_DEV
+        case CMD_USART_TX: {
+            usart_writebuffer_sync(packet->data.asBytes, packet->length);
+            reply_ng(CMD_USART_TX, PM3_SUCCESS, NULL, 0);
+            break;
+        }
+        case CMD_USART_RX: {
+            uint8_t dest[USART_FIFOLEN] = {'\0'};
             uint16_t available = usart_rxdata_available();
             if (available > 0) {
-                Dbprintf("RX DATA!");
-                uint16_t len = usart_read_ng((uint8_t *)dest, available);
-                dest[len] = '\0';
-                Dbprintf("RX: %d | %02X %02X %02X %02X %02X %02X %02X %02X ", len,  dest[0], dest[1], dest[2], dest[3], dest[4], dest[5], dest[6], dest[7]);
+                uint16_t len = usart_read_ng(dest, available);
+                reply_ng(CMD_USART_RX, PM3_SUCCESS, dest, len);
+            } else {
+                reply_ng(CMD_USART_RX, PM3_ENODATA, NULL, 0);
             }
-
-            static const char *welcome = "Proxmark3 Serial interface via FPC ready\r\n";
-            usart_writebuffer_sync((uint8_t *)welcome, strlen(welcome));
-
-            sprintf(dest, "| bytes 0x%02x 0x%02x 0x%02x 0x%02x\r\n"
-                    , packet->data.asBytes[0]
-                    , packet->data.asBytes[1]
-                    , packet->data.asBytes[2]
-                    , packet->data.asBytes[3]
-                   );
-            usart_writebuffer_sync((uint8_t *)dest, strlen(dest));
-
-
-            LED_A_ON();
-
-
-            //usb
-            reply_old(CMD_DEBUG_PRINT_STRING, strlen(dest), 0, 0, dest, strlen(dest));
-            LED_A_OFF();
-            /*
-            uint8_t my_rx[sizeof(PacketCommandOLD)];
-            while (!BUTTON_PRESS() && !usb_poll_validate_length()) {
-                LED_B_INV();
-                if (usart_read_ng(my_rx) ) {
-                    //PacketReceived(my_rx, sizeof(my_rx));
-
-                    PacketCommandOLD *my = (PacketCommandOLD *)my_rx;
-                    if (my->cmd > 0 ) {
-                        Dbprintf("received command: 0x%04x and args: %d %d %d", my->cmd, my->arg[0], my->arg[1], my->arg[2]);
-                    }
-                }
+            break;
+        }
+        case CMD_USART_TXRX: {
+            struct p {
+                uint32_t waittime;
+                uint8_t data[PM3_CMD_DATA_SIZE - sizeof(uint32_t)];
+            } PACKED;
+            struct p *payload = (struct p *) &packet->data.asBytes;
+            usart_writebuffer_sync(payload->data, packet->length - sizeof(payload->waittime));
+            uint16_t available;
+            WaitMS(payload->waittime);
+            uint8_t dest[USART_FIFOLEN] = {'\0'};
+            available = usart_rxdata_available();
+            // Dbprintf("avail (%u)",  available);
+            if (available > 0) {
+                uint16_t len = usart_read_ng(dest, available);
+                reply_ng(CMD_USART_TXRX, PM3_SUCCESS, dest, len);
+            } else {
+                reply_ng(CMD_USART_TXRX, PM3_ENODATA, NULL, 0);
             }
-            */
-            //reply_old(CMD_DEBUG_PRINT_STRING, strlen(dest), 0, 0, dest, strlen(dest));
-
-            reply_old(CMD_ACK, 0, 0, 0, 0, 0);
-            StopTicks();
             break;
         }
 #endif
+
         case CMD_BUFF_CLEAR:
             BigBuf_Clear();
             BigBuf_free();
@@ -1194,8 +1246,7 @@ static void PacketReceived(PacketCommandNG *packet) {
             SpinDelay(200);
             LED_D_OFF(); // LED D indicates field ON or OFF
             break;
-#ifdef WITH_LF
-        case CMD_DOWNLOAD_RAW_ADC_SAMPLES_125K: {
+        case CMD_DOWNLOAD_BIGBUF: {
             LED_B_ON();
             uint8_t *mem = BigBuf_get_addr();
             uint32_t startidx = packet->oldarg[0];
@@ -1205,9 +1256,9 @@ static void PacketReceived(PacketCommandNG *packet) {
             // arg2 = BigBuf tracelen
             //Dbprintf("transfer to client parameters: %" PRIu32 " | %" PRIu32 " | %" PRIu32, startidx, numofbytes, packet->oldarg[2]);
 
-            for (size_t i = 0; i < numofbytes; i += USB_CMD_DATA_SIZE) {
-                size_t len = MIN((numofbytes - i), USB_CMD_DATA_SIZE);
-                int result = reply_old(CMD_DOWNLOADED_RAW_ADC_SAMPLES_125K, i, len, BigBuf_get_traceLen(), mem + startidx + i, len);
+            for (size_t i = 0; i < numofbytes; i += PM3_CMD_DATA_SIZE) {
+                size_t len = MIN((numofbytes - i), PM3_CMD_DATA_SIZE);
+                int result = reply_old(CMD_DOWNLOADED_BIGBUF, i, len, BigBuf_get_traceLen(), mem + startidx + i, len);
                 if (result != PM3_SUCCESS)
                     Dbprintf("transfer to client failed ::  | bytes between %d - %d (%d) | result: %d", i, i + len, len, result);
             }
@@ -1221,7 +1272,7 @@ static void PacketReceived(PacketCommandNG *packet) {
             LED_B_OFF();
             break;
         }
-#endif
+#ifdef WITH_LF
         case CMD_UPLOAD_SIM_SAMPLES_125K: {
             // iceman; since changing fpga_bitstreams clears bigbuff, Its better to call it before.
             // to be able to use this one for uploading data to device
@@ -1234,10 +1285,11 @@ static void PacketReceived(PacketCommandNG *packet) {
                 FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
 
             uint8_t *mem = BigBuf_get_addr();
-            memcpy(mem + packet->oldarg[0], packet->data.asBytes, USB_CMD_DATA_SIZE);
+            memcpy(mem + packet->oldarg[0], packet->data.asBytes, PM3_CMD_DATA_SIZE);
             reply_old(CMD_ACK, 1, 0, 0, 0, 0);
             break;
         }
+#endif
         case CMD_DOWNLOAD_EML_BIGBUF: {
             LED_B_ON();
             uint8_t *mem = BigBuf_get_EM_addr();
@@ -1249,8 +1301,8 @@ static void PacketReceived(PacketCommandNG *packet) {
             // arg1 = length bytes to transfer
             // arg2 = RFU
 
-            for (size_t i = 0; i < numofbytes; i += USB_CMD_DATA_SIZE) {
-                len = MIN((numofbytes - i), USB_CMD_DATA_SIZE);
+            for (size_t i = 0; i < numofbytes; i += PM3_CMD_DATA_SIZE) {
+                len = MIN((numofbytes - i), PM3_CMD_DATA_SIZE);
                 int result = reply_old(CMD_DOWNLOADED_EML_BIGBUF, i, len, 0, mem + startidx + i, len);
                 if (result != PM3_SUCCESS)
                     Dbprintf("transfer to client failed ::  | bytes between %d - %d (%d) | result: %d", i, i + len, len, result);
@@ -1274,7 +1326,7 @@ static void PacketReceived(PacketCommandNG *packet) {
 
             Dbprintf("FlashMem read | %d - %d | ", startidx, len);
 
-            size_t size = MIN(USB_CMD_DATA_SIZE, len);
+            size_t size = MIN(PM3_CMD_DATA_SIZE, len);
 
             if (!FlashInit()) {
                 break;
@@ -1383,7 +1435,7 @@ static void PacketReceived(PacketCommandNG *packet) {
         case CMD_FLASHMEM_DOWNLOAD: {
 
             LED_B_ON();
-            uint8_t *mem = BigBuf_malloc(USB_CMD_DATA_SIZE);
+            uint8_t *mem = BigBuf_malloc(PM3_CMD_DATA_SIZE);
             uint32_t startidx = packet->oldarg[0];
             uint32_t numofbytes = packet->oldarg[1];
             // arg0 = startindex
@@ -1394,8 +1446,8 @@ static void PacketReceived(PacketCommandNG *packet) {
                 break;
             }
 
-            for (size_t i = 0; i < numofbytes; i += USB_CMD_DATA_SIZE) {
-                size_t len = MIN((numofbytes - i), USB_CMD_DATA_SIZE);
+            for (size_t i = 0; i < numofbytes; i += PM3_CMD_DATA_SIZE) {
+                size_t len = MIN((numofbytes - i), PM3_CMD_DATA_SIZE);
 
                 bool isok = Flash_ReadDataCont(startidx + i, mem, len);
                 if (!isok)
@@ -1443,7 +1495,7 @@ static void PacketReceived(PacketCommandNG *packet) {
                 case 2:
                     SetAdcMuxFor(GPIO_MUXSEL_HIPKD);
                     break;
-#ifndef WITH_FPC
+#ifndef WITH_FPC_USART
                 case 1:
                     SetAdcMuxFor(GPIO_MUXSEL_LORAW);
                     break;
@@ -1560,18 +1612,19 @@ void  __attribute__((noreturn)) AppMain(void) {
     I2C_init();
 #endif
 
-#ifdef WITH_FPC
+#ifdef WITH_FPC_USART
     usart_init();
-#endif
-
-#ifdef WITH_FLASH
-    loadT55xxConfig();
 #endif
 
     // This is made as late as possible to ensure enumeration without timeout
     // against device such as http://www.hobbytronics.co.uk/usb-host-board-v2
     usb_disable();
     usb_enable();
+
+#ifdef WITH_FLASH
+    // If flash is not present, BUSY_TIMEOUT kicks in, let's do it after USB
+    loadT55xxConfig();
+#endif
 
     for (;;) {
         WDT_HIT();

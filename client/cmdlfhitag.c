@@ -128,7 +128,7 @@ static int CmdLFHitagList(const char *Cmd) {
     return 0;
 
     /*
-    uint8_t *got = calloc(USB_CMD_DATA_SIZE, sizeof(uint8_t));
+    uint8_t *got = calloc(PM3_CMD_DATA_SIZE, sizeof(uint8_t));
     if (!got) {
         PrintAndLogEx(WARNING, "Cannot allocate memory for trace");
         return 2;
@@ -136,14 +136,14 @@ static int CmdLFHitagList(const char *Cmd) {
 
     // Query for the actual size of the trace
     PacketResponseNG response;
-    if (!GetFromDevice(BIG_BUF, got, USB_CMD_DATA_SIZE, 0, &response, 2500, false)) {
+    if (!GetFromDevice(BIG_BUF, got, PM3_CMD_DATA_SIZE, 0, &response, 2500, false)) {
         PrintAndLogEx(WARNING, "command execution time out");
         free(got);
         return 2;
     }
 
     uint16_t traceLen = response.arg[2];
-    if (traceLen > USB_CMD_DATA_SIZE) {
+    if (traceLen > PM3_CMD_DATA_SIZE) {
         uint8_t *p = realloc(got, traceLen);
         if (p == NULL) {
             PrintAndLogEx(WARNING, "Cannot allocate memory for trace");
@@ -694,14 +694,14 @@ static int CmdLFHitagDump(const char *Cmd) {
 */
 
 static command_t CommandTable[] = {
-    {"help",     CmdHelp,                   1, "This help" },
-    {"list",     CmdLFHitagList,            0, "List Hitag trace history" },
-    {"info",     CmdLFHitagInfo,            1, "Tag information" },
-    {"reader",   CmdLFHitagReader,          1, "Act like a Hitag Reader" },
-    {"sim",      CmdLFHitagSim,             1, "Simulate Hitag transponder" },
-    {"sniff",    CmdLFHitagSniff,           1, "Eavesdrop Hitag communication" },
-    {"writer",   CmdLFHitagWriter,          1, "Act like a Hitag Writer" },
-    {"cc",       CmdLFHitagCheckChallenges, 1, "Test all challenges" },
+    {"help",     CmdHelp,                   AlwaysAvailable, "This help" },
+    {"list",     CmdLFHitagList,            IfPm3Hitag,      "List Hitag trace history" },
+    {"info",     CmdLFHitagInfo,            IfPm3Hitag,      "Tag information" },
+    {"reader",   CmdLFHitagReader,          IfPm3Hitag,      "Act like a Hitag Reader" },
+    {"sim",      CmdLFHitagSim,             IfPm3Hitag,      "Simulate Hitag transponder" },
+    {"sniff",    CmdLFHitagSniff,           IfPm3Hitag,      "Eavesdrop Hitag communication" },
+    {"writer",   CmdLFHitagWriter,          IfPm3Hitag,      "Act like a Hitag Writer" },
+    {"cc",       CmdLFHitagCheckChallenges, IfPm3Hitag,      "Test all challenges" },
     { NULL, NULL, 0, NULL }
 };
 

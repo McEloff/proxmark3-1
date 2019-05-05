@@ -505,7 +505,7 @@ static bool DecodeT5555TraceBlock(void) {
 
 // sanity check. Don't use proxmark if it is offline and you didn't specify useGraphbuf
 static int SanityOfflineCheck(bool useGraphBuffer) {
-    if (!useGraphBuffer && IsOffline()) {
+    if (!useGraphBuffer && !session.pm3_present) {
         PrintAndLogEx(WARNING, "Your proxmark3 device is offline. Specify [1] to use graphbuffer data instead");
         return 0;
     }
@@ -1914,7 +1914,7 @@ static int CmdT55xxChkPwds(const char *Cmd) {
         uint64_t curr_password = 0x00;
         for (uint16_t c = 0; c < keycount; ++c) {
 
-            if (IsOffline()) {
+            if (!session.pm3_present) {
                 PrintAndLogEx(WARNING, "Device offline\n");
                 free(keyBlock);
                 return 2;
@@ -2302,24 +2302,24 @@ static int CmdT55xxSetDeviceConfig(const char *Cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",        CmdHelp,                 1, "This help"},
-    {"bruteforce",  CmdT55xxBruteForce,      0, "<start password> <end password> [i <*.dic>] Simple bruteforce attack to find password"},
-    {"config",      CmdT55xxSetConfig,       1, "Set/Get T55XX configuration (modulation, inverted, offset, rate)"},
-    {"chk",         CmdT55xxChkPwds,         1, "Check passwords"},
-    {"detect",      CmdT55xxDetect,          1, "[1] Try detecting the tag modulation from reading the configuration block."},
-    {"deviceconfig", CmdT55xxSetDeviceConfig, 1, "Set/Get T55XX device configuration (startgap, writegap, write0, write1, readgap"},
-    {"p1detect",    CmdT55xxDetectPage1,     1, "[1] Try detecting if this is a t55xx tag by reading page 1"},
-    {"dump",        CmdT55xxDump,            0, "[password] [o] Dump T55xx card block 0-7. Optional [password], [override]"},
-    {"info",        CmdT55xxInfo,            1, "[1] Show T55x7 configuration data (page 0/ blk 0)"},
-    {"read",        CmdT55xxReadBlock,       0, "b <block> p [password] [o] [1] -- Read T55xx block data. Optional [p password], [override], [page1]"},
-    {"resetread",   CmdResetRead,            0, "Send Reset Cmd then lf read the stream to attempt to identify the start of it (needs a demod and/or plot after)"},
-    {"recoverpw",   CmdT55xxRecoverPW,       0, "[password] Try to recover from bad password write from a cloner. Only use on PW protected chips!"},
-    {"special",     special,                 0, "Show block changes with 64 different offsets"},
-    {"trace",       CmdT55xxReadTrace,       1, "[1] Show T55x7 traceability data (page 1/ blk 0-1)"},
-    {"wakeup",      CmdT55xxWakeUp,          0, "Send AOR wakeup command"},
-    {"wipe",        CmdT55xxWipe,            0, "[q] Wipe a T55xx tag and set defaults (will destroy any data on tag)"},
-    {"write",       CmdT55xxWriteBlock,      0, "b <block> d <data> p [password] [1] -- Write T55xx block data. Optional [p password], [page1]"},
-    {NULL, NULL, 0, NULL}
+    {"help",         CmdHelp,                 AlwaysAvailable, "This help"},
+    {"bruteforce",   CmdT55xxBruteForce,      IfPm3Lf,         "<start password> <end password> [i <*.dic>] Simple bruteforce attack to find password"},
+    {"config",       CmdT55xxSetConfig,       AlwaysAvailable, "Set/Get T55XX configuration (modulation, inverted, offset, rate)"},
+    {"chk",          CmdT55xxChkPwds,         IfPm3Lf,         "Check passwords"},
+    {"detect",       CmdT55xxDetect,          AlwaysAvailable, "[1] Try detecting the tag modulation from reading the configuration block."},
+    {"deviceconfig", CmdT55xxSetDeviceConfig, IfPm3Lf,         "Set/Get T55XX device configuration (startgap, writegap, write0, write1, readgap"},
+    {"p1detect",     CmdT55xxDetectPage1,     IfPm3Lf,         "[1] Try detecting if this is a t55xx tag by reading page 1"},
+    {"dump",         CmdT55xxDump,            IfPm3Lf,         "[password] [o] Dump T55xx card block 0-7. Optional [password], [override]"},
+    {"info",         CmdT55xxInfo,            AlwaysAvailable, "[1] Show T55x7 configuration data (page 0/ blk 0)"},
+    {"read",         CmdT55xxReadBlock,       IfPm3Lf,         "b <block> p [password] [o] [1] -- Read T55xx block data. Optional [p password], [override], [page1]"},
+    {"resetread",    CmdResetRead,            IfPm3Lf,         "Send Reset Cmd then lf read the stream to attempt to identify the start of it (needs a demod and/or plot after)"},
+    {"recoverpw",    CmdT55xxRecoverPW,       IfPm3Lf,         "[password] Try to recover from bad password write from a cloner. Only use on PW protected chips!"},
+    {"special",      special,                 IfPm3Lf,         "Show block changes with 64 different offsets"},
+    {"trace",        CmdT55xxReadTrace,       AlwaysAvailable, "[1] Show T55x7 traceability data (page 1/ blk 0-1)"},
+    {"wakeup",       CmdT55xxWakeUp,          IfPm3Lf,         "Send AOR wakeup command"},
+    {"wipe",         CmdT55xxWipe,            IfPm3Lf,         "[q] Wipe a T55xx tag and set defaults (will destroy any data on tag)"},
+    {"write",        CmdT55xxWriteBlock,      IfPm3Lf,         "b <block> d <data> p [password] [1] -- Write T55xx block data. Optional [p password], [page1]"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

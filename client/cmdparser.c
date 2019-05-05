@@ -17,11 +17,125 @@
 #include "proxmark3.h"
 #include "comms.h"
 
+bool AlwaysAvailable(void) {
+    return true;
+}
+
+bool IfPm3Present(void) {
+    if (session.help_dump_mode)
+        return false;
+    return session.pm3_present;
+}
+
+bool IfPm3Flash(void) {
+    if (!IfPm3Present())
+        return false;
+    if (!pm3_capabilities.compiled_with_flash)
+        return false;
+    return pm3_capabilities.hw_available_flash;
+}
+
+bool IfPm3Smartcard(void) {
+    if (!IfPm3Present())
+        return false;
+    if (!pm3_capabilities.compiled_with_smartcard)
+        return false;
+    return pm3_capabilities.hw_available_smartcard;
+}
+
+bool IfPm3FpcUsart(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_fpc_usart;
+}
+
+bool IfPm3FpcUsartHost(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_fpc_usart_host;
+}
+
+bool IfPm3FpcUsartDevFromUsb(void) {
+    // true if FPC USART developer support and if talking from USB-CDC interface
+    if (!IfPm3Present())
+        return false;
+    if (!pm3_capabilities.compiled_with_fpc_usart_dev)
+        return false;
+    return !conn.send_via_fpc_usart;
+}
+
+bool IfPm3Lf(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_lf;
+}
+
+bool IfPm3Hitag(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_hitag;
+}
+
+bool IfPm3Hfsniff(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_hfsniff;
+}
+
+bool IfPm3Iso14443a(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_iso14443a;
+}
+
+bool IfPm3Iso14443b(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_iso14443b;
+}
+
+bool IfPm3Iso14443(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_iso14443a || pm3_capabilities.compiled_with_iso14443b;
+}
+
+bool IfPm3Iso15693(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_iso15693;
+}
+
+bool IfPm3Felica(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_felica;
+}
+
+bool IfPm3Legicrf(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_legicrf;
+}
+
+bool IfPm3Iclass(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_iclass;
+}
+
+bool IfPm3Lcd(void) {
+    if (!IfPm3Present())
+        return false;
+    return pm3_capabilities.compiled_with_lcd;
+}
+
+
 void CmdsHelp(const command_t Commands[]) {
     if (Commands[0].Name == NULL) return;
     int i = 0;
     while (Commands[i].Name) {
-        if (!IsOffline() || Commands[i].Offline)
+        if (Commands[i].IsAvailable())
             PrintAndLogEx(NORMAL, "%-16s %s", Commands[i].Name, Commands[i].Help);
         ++i;
     }
@@ -44,8 +158,17 @@ int CmdsParse(const command_t Commands[], const char *Cmd) {
     sscanf(Cmd, "%127s%n", cmd_name, &len);
     str_lower(cmd_name);
     int i = 0;
-    while (Commands[i].Name && strcmp(Commands[i].Name, cmd_name))
+    while (Commands[i].Name) {
+        if (0 == strcmp(Commands[i].Name, cmd_name)) {
+            if (Commands[i].IsAvailable()) {
+                break;
+            } else {
+                PrintAndLogEx(WARNING, "This command is " _YELLOW_("not available") "in this mode");
+                return PM3_ENOTIMPL;
+            }
+        }
         ++i;
+    }
 
     /* try to find exactly one prefix-match */
     if (!Commands[i].Name) {
@@ -53,7 +176,7 @@ int CmdsParse(const command_t Commands[], const char *Cmd) {
         int matches = 0;
 
         for (i = 0; Commands[i].Name; i++) {
-            if (!strncmp(Commands[i].Name, cmd_name, strlen(cmd_name))) {
+            if (!strncmp(Commands[i].Name, cmd_name, strlen(cmd_name)) && Commands[i].IsAvailable()) {
                 last_match = i;
                 matches++;
             }
@@ -85,33 +208,33 @@ void dumpCommandsRecursive(const command_t cmds[], int markdown) {
     // First, dump all single commands, which are not a container for
     // other commands
     if (markdown) {
-        PrintAndLogEx(NORMAL, "|%-*s|%-*s|%s\n", w_cmd, "command", w_off, "offline", "description");
-        PrintAndLogEx(NORMAL, "|%-*s|%-*s|%s\n", w_cmd, "-------", w_off, "-------", "-----------");
+        PrintAndLogEx(NORMAL, "|%-*s|%-*s|%s", w_cmd, "command", w_off, "offline", "description");
+        PrintAndLogEx(NORMAL, "|%-*s|%-*s|%s", w_cmd, "-------", w_off, "-------", "-----------");
     } else {
-        PrintAndLogEx(NORMAL, "%-*s|%-*s|%s\n", w_cmd, "command", w_off, "offline", "description");
-        PrintAndLogEx(NORMAL, "%-*s|%-*s|%s\n", w_cmd, "-------", w_off, "-------", "-----------");
+        PrintAndLogEx(NORMAL, "%-*s|%-*s|%s", w_cmd, "command", w_off, "offline", "description");
+        PrintAndLogEx(NORMAL, "%-*s|%-*s|%s", w_cmd, "-------", w_off, "-------", "-----------");
     }
 
     while (cmds[i].Name) {
         const char *cmd_offline = "N";
         if (cmds[i].Help[0] == '{' && ++i) continue;
 
-        if (cmds[i].Offline)
+        if (cmds[i].IsAvailable())
             cmd_offline = "Y";
         if (markdown)
-            PrintAndLogEx(NORMAL, "|`%s%-*s`|%-*s|`%s`\n", parent, w_cmd - (int)strlen(parent) - 2, cmds[i].Name, w_off, cmd_offline, cmds[i].Help);
+            PrintAndLogEx(NORMAL, "|`%s%-*s`|%-*s|`%s`", parent, w_cmd - (int)strlen(parent) - 2, cmds[i].Name, w_off, cmd_offline, cmds[i].Help);
         else
-            PrintAndLogEx(NORMAL, "%s%-*s|%-*s|%s\n", parent, w_cmd - (int)strlen(parent), cmds[i].Name, w_off, cmd_offline, cmds[i].Help);
+            PrintAndLogEx(NORMAL, "%s%-*s|%-*s|%s", parent, w_cmd - (int)strlen(parent), cmds[i].Name, w_off, cmd_offline, cmds[i].Help);
         ++i;
     }
-    PrintAndLogEx(NORMAL, "\n\n");
+    PrintAndLogEx(NORMAL, "\n");
     i = 0;
 
     // Then, print the categories. These will go into subsections with their own tables
     while (cmds[i].Name) {
         if (cmds[i].Help[0] != '{' && ++i)  continue;
 
-        PrintAndLogEx(NORMAL, "### %s%s\n\n %s\n\n", parent, cmds[i].Name, cmds[i].Help);
+        PrintAndLogEx(NORMAL, "### %s%s\n\n %s\n", parent, cmds[i].Name, cmds[i].Help);
 
         char currentparent[512] = {0};
         snprintf(currentparent, sizeof currentparent, "%s%s ", parent, cmds[i].Name);

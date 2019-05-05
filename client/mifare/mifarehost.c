@@ -89,8 +89,8 @@ int mfDarkside(uint8_t blockno, uint8_t key_type, uint64_t *key) {
         PrintAndLogEx(SUCCESS, "found %u candidate key%s\n", keycount, (keycount > 1) ? "s." : ".");
 
         *key = UINT64_C(-1);
-        uint8_t keyBlock[USB_CMD_DATA_SIZE];
-        uint32_t max_keys = USB_CMD_DATA_SIZE / 6;
+        uint8_t keyBlock[PM3_CMD_DATA_SIZE];
+        uint32_t max_keys = KEYS_IN_BLOCK;
         for (uint32_t i = 0; i < keycount; i += max_keys) {
 
             uint32_t size = keycount - i > max_keys ? max_keys : keycount - i;
@@ -102,7 +102,7 @@ int mfDarkside(uint8_t blockno, uint8_t key_type, uint64_t *key) {
                 }
             }
 
-            if (!mfCheckKeys(blockno, key_type - 0x60, false, size, keyBlock, key)) {
+            if (mfCheckKeys(blockno, key_type - 0x60, false, size, keyBlock, key) == PM3_SUCCESS) {
                 break;
             }
         }
@@ -123,11 +123,25 @@ int mfDarkside(uint8_t blockno, uint8_t key_type, uint64_t *key) {
 int mfCheckKeys(uint8_t blockNo, uint8_t keyType, bool clear_trace, uint8_t keycnt, uint8_t *keyBlock, uint64_t *key) {
     *key = -1;
     clearCommandBuffer();
-    SendCommandOLD(CMD_MIFARE_CHKKEYS, (blockNo | (keyType << 8)), clear_trace, keycnt, keyBlock, 6 * keycnt);
+    uint8_t data[PM3_CMD_DATA_SIZE] = {0};
+    data[0] = keyType;
+    data[1] = blockNo;
+    data[2] = clear_trace;
+    data[3] = keycnt;
+    memcpy(data + 4, keyBlock, 6 * keycnt);
+    SendCommandNG(CMD_MIFARE_CHKKEYS, data, (4 + 6 * keycnt));
+
     PacketResponseNG resp;
-    if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) return PM3_ETIMEOUT;
-    if ((resp.oldarg[0] & 0xff) != 0x01) return PM3_EUNDEF;
-    *key = bytes_to_num(resp.data.asBytes, 6);
+    if (!WaitForResponseTimeout(CMD_MIFARE_CHKKEYS, &resp, 2500)) return PM3_ETIMEOUT;
+    if (resp.status != PM3_SUCCESS) return resp.status;
+
+    struct kr {
+        uint8_t key[6];
+        bool found;
+    } PACKED;
+    struct kr *keyresult = (struct kr *)&resp.data.asBytes;
+    if (!keyresult->found) return PM3_ESOFT;
+    *key = bytes_to_num(keyresult->key, sizeof(keyresult->key));
     return PM3_SUCCESS;
 }
 
@@ -213,10 +227,6 @@ int mfCheckKeys_fast(uint8_t sectorsCnt, uint8_t firstChunk, uint8_t lastChunk, 
 // ref: https://github.com/J-Run/mf_key_brute
 int mfKeyBrute(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint64_t *resultkey) {
 
-#define KEYS_IN_BLOCK 85
-#define KEYBLOCK_SIZE 510
-#define CANDIDATE_SIZE 0xFFFF * 6
-
     uint64_t key64;
     uint8_t found = false;
     uint8_t candidates[CANDIDATE_SIZE] = {0x00};
@@ -244,7 +254,7 @@ int mfKeyBrute(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint64_t *resultk
         memcpy(keyBlock, candidates + i, KEYBLOCK_SIZE);
 
         // check a block of generated candidate keys.
-        if (!mfCheckKeys(blockNo, keyType, true, KEYS_IN_BLOCK, keyBlock, &key64)) {
+        if (mfCheckKeys(blockNo, keyType, true, KEYS_IN_BLOCK, keyBlock, &key64) == PM3_SUCCESS) {
             *resultkey = key64;
             found = true;
             break;
@@ -372,8 +382,8 @@ int mfnested(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t trgBlockNo,
     uint64_t key64 = -1;
 
     // The list may still contain several key candidates. Test each of them with mfCheckKeys
-    uint32_t max_keys = keycnt > (USB_CMD_DATA_SIZE / 6) ? (USB_CMD_DATA_SIZE / 6) : keycnt;
-    uint8_t keyBlock[USB_CMD_DATA_SIZE] = {0x00};
+    uint32_t max_keys = keycnt > KEYS_IN_BLOCK ? KEYS_IN_BLOCK : keycnt;
+    uint8_t keyBlock[PM3_CMD_DATA_SIZE] = {0x00};
 
     for (i = 0; i < keycnt; i += max_keys) {
 
@@ -384,7 +394,7 @@ int mfnested(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t trgBlockNo,
             num_to_bytes(key64, 6, keyBlock + i * 6);
         }
 
-        if (!mfCheckKeys(statelists[0].blockNo, statelists[0].keyType, false, size, keyBlock, &key64)) {
+        if (mfCheckKeys(statelists[0].blockNo, statelists[0].keyType, false, size, keyBlock, &key64) == PM3_SUCCESS) {
             free(statelists[0].head.slhead);
             free(statelists[1].head.slhead);
             num_to_bytes(key64, 6, resultKey);

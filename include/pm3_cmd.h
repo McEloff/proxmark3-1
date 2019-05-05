@@ -10,8 +10,8 @@
 // own protocol.
 //-----------------------------------------------------------------------------
 
-#ifndef __USB_CMD_H
-#define __USB_CMD_H
+#ifndef __PM3_CMD_H
+#define __PM3_CMD_H
 
 // Use it e.g. when using slow links such as BT
 #define USART_SLOW_LINK
@@ -27,15 +27,15 @@ typedef BYTE uint8_t;
 #define PACKED __attribute__((packed))
 #endif
 
-#define USB_CMD_DATA_SIZE 512
-#define USB_CMD_DATA_SIZE_MIX ( USB_CMD_DATA_SIZE - 3 * sizeof(uint64_t) )
+#define PM3_CMD_DATA_SIZE 512
+#define PM3_CMD_DATA_SIZE_MIX ( PM3_CMD_DATA_SIZE - 3 * sizeof(uint64_t) )
 
 typedef struct {
     uint64_t cmd;
     uint64_t arg[3];
     union {
-        uint8_t  asBytes[USB_CMD_DATA_SIZE];
-        uint32_t asDwords[USB_CMD_DATA_SIZE / 4];
+        uint8_t  asBytes[PM3_CMD_DATA_SIZE];
+        uint32_t asDwords[PM3_CMD_DATA_SIZE / 4];
     } d;
 } PACKED PacketCommandOLD;
 
@@ -61,8 +61,8 @@ typedef struct {
     uint16_t crc;        //  NG
     uint64_t oldarg[3];  //  OLD
     union {
-        uint8_t  asBytes[USB_CMD_DATA_SIZE];
-        uint32_t asDwords[USB_CMD_DATA_SIZE / 4];
+        uint8_t  asBytes[PM3_CMD_DATA_SIZE];
+        uint32_t asDwords[PM3_CMD_DATA_SIZE / 4];
     } data;
     bool ng;             // does it store NG data or OLD data?
 } PACKED PacketCommandNG;
@@ -70,7 +70,7 @@ typedef struct {
 // For reception and CRC check
 typedef struct {
     PacketCommandNGPreamble pre;
-    uint8_t data[USB_CMD_DATA_SIZE];
+    uint8_t data[PM3_CMD_DATA_SIZE];
     PacketCommandNGPostamble foopost; // Probably not at that offset!
 } PACKED PacketCommandNGRaw;
 
@@ -78,8 +78,8 @@ typedef struct {
     uint64_t cmd;
     uint64_t arg[3];
     union {
-        uint8_t  asBytes[USB_CMD_DATA_SIZE];
-        uint32_t asDwords[USB_CMD_DATA_SIZE / 4];
+        uint8_t  asBytes[PM3_CMD_DATA_SIZE];
+        uint32_t asDwords[PM3_CMD_DATA_SIZE / 4];
     } d;
 } PACKED PacketResponseOLD;
 
@@ -107,8 +107,8 @@ typedef struct {
     uint16_t crc;        //  NG
     uint64_t oldarg[3];  //  OLD
     union {
-        uint8_t  asBytes[USB_CMD_DATA_SIZE];
-        uint32_t asDwords[USB_CMD_DATA_SIZE / 4];
+        uint8_t  asBytes[PM3_CMD_DATA_SIZE];
+        uint32_t asDwords[PM3_CMD_DATA_SIZE / 4];
     } data;
     bool ng;             // does it store NG data or OLD data?
 } PACKED PacketResponseNG;
@@ -116,7 +116,7 @@ typedef struct {
 // For reception and CRC check
 typedef struct {
     PacketResponseNGPreamble pre;
-    uint8_t data[USB_CMD_DATA_SIZE];
+    uint8_t data[PM3_CMD_DATA_SIZE];
     PacketResponseNGPostamble foopost; // Probably not at that offset!
 } PACKED PacketResponseNGRaw;
 
@@ -141,6 +141,32 @@ typedef struct {
 typedef struct {
     uint32_t baudrate;
     bool via_fpc;
+    // rdv4
+    bool compiled_with_flash;
+    bool compiled_with_smartcard;
+    bool compiled_with_fpc_usart;
+    bool compiled_with_fpc_usart_dev;
+    bool compiled_with_fpc_usart_host;
+    // lf
+    bool compiled_with_lf;
+    bool compiled_with_hitag;
+    // hf
+    bool compiled_with_hfsniff;
+    bool compiled_with_iso14443a;
+    bool compiled_with_iso14443b;
+    bool compiled_with_iso15693;
+    bool compiled_with_felica;
+    bool compiled_with_legicrf;
+    bool compiled_with_iclass;
+    // misc
+    bool compiled_with_lcd;
+
+    // Following are not yet implemented:
+    // rdv4
+    bool hw_available_flash;
+    bool hw_available_smartcard;
+    // rdv4 bt addon
+    bool hw_available_fpc_usart_btaddon;
 } PACKED capabilities_t;
 
 extern capabilities_t pm3_capabilities;
@@ -186,9 +212,10 @@ extern capabilities_t pm3_capabilities;
 #define CMD_SMART_SETBAUD                                                 0x0144
 #define CMD_SMART_SETCLOCK                                                0x0145
 
-// RDV40,  FPC serial
-#define CMD_FPC_SEND                                                      0x0160
-#define CMD_FPC_READ                                                      0x0161
+// RDV40,  FPC USART
+#define CMD_USART_RX                                                      0x0160
+#define CMD_USART_TX                                                      0x0161
+#define CMD_USART_TXRX                                                    0x0162
 
 // For low-frequency tags
 #define CMD_READ_TI_TYPE                                                  0x0202
@@ -196,8 +223,8 @@ extern capabilities_t pm3_capabilities;
 #define CMD_DOWNLOADED_RAW_BITS_TI_TYPE                                   0x0204
 #define CMD_ACQUIRE_RAW_ADC_SAMPLES_125K                                  0x0205
 #define CMD_MOD_THEN_ACQUIRE_RAW_ADC_SAMPLES_125K                         0x0206
-#define CMD_DOWNLOAD_RAW_ADC_SAMPLES_125K                                 0x0207
-#define CMD_DOWNLOADED_RAW_ADC_SAMPLES_125K                               0x0208
+#define CMD_DOWNLOAD_BIGBUF                                               0x0207
+#define CMD_DOWNLOADED_BIGBUF                                             0x0208
 #define CMD_UPLOAD_SIM_SAMPLES_125K                                       0x0209
 #define CMD_SIMULATE_TAG_125K                                             0x020A
 #define CMD_HID_DEMOD_FSK                                                 0x020B
@@ -435,10 +462,25 @@ extern capabilities_t pm3_capabilities;
 // File error                           client:     error related to file access on host
 #define PM3_EFILE             -13
 
-// No data                              pm3:        reserved, no host frame available (not really an error)
+// No data                              pm3:        no data available, no host frame available (not really an error)
 #define PM3_ENODATA           -98
 // Quit program                         client:     reserved, order to quit the program
 #define PM3_EFATAL            -99
+
+
+// Receiving from USART need more than 30ms as we used on USB
+// else we get errors about partial packet reception
+// FTDI   9600 hw status        -> we need 20ms
+// FTDI 115200 hw status        -> we need 50ms
+// FTDI 460800 hw status        -> we need 30ms
+// BT   115200 hf mf fchk 1 dic -> we need 140ms
+// all zero's configure: no timeout for read/write used.
+// took settings from libnfc/buses/uart.c
+
+// uart_windows.c
+# define UART_FPC_CLIENT_RX_TIMEOUT_MS  170
+# define UART_USB_CLIENT_RX_TIMEOUT_MS  20
+# define UART_TCP_CLIENT_RX_TIMEOUT_MS  300
 
 
 // CMD_DEVICE_INFO response packet has flags in arg[0], flag definitions:

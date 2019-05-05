@@ -12,7 +12,7 @@
 #ifndef PROXMARK3_H__
 #define PROXMARK3_H__
 
-#include "usb_cmd.h"
+#include "pm3_cmd.h"
 #include "cmdscript.h"  // CmdScriptRun
 
 #define PROXPROMPT "pm3 --> "
@@ -23,7 +23,7 @@ extern "C" {
 
 const char *get_my_executable_path(void);
 const char *get_my_executable_directory(void);
-void main_loop(char *script_cmds_file, char *script_cmd, bool pm3_present);
+void main_loop(char *script_cmds_file, char *script_cmd);
 
 #ifdef __cplusplus
 }

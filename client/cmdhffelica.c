@@ -429,7 +429,7 @@ static int CmdHFFelicaCmdRaw(const char *Cmd) {
     uint16_t numbits = 0;
     char buf[5] = "";
     int i = 0;
-    uint8_t data[USB_CMD_DATA_SIZE];
+    uint8_t data[PM3_CMD_DATA_SIZE];
     uint16_t datalen = 0;
     uint32_t temp;
 
@@ -518,8 +518,8 @@ static int CmdHFFelicaCmdRaw(const char *Cmd) {
         flags |= FELICA_RAW;
     }
 
-    // Max buffer is USB_CMD_DATA_SIZE
-    datalen = (datalen > USB_CMD_DATA_SIZE) ? USB_CMD_DATA_SIZE : datalen;
+    // Max buffer is PM3_CMD_DATA_SIZE
+    datalen = (datalen > PM3_CMD_DATA_SIZE) ? PM3_CMD_DATA_SIZE : datalen;
 
     clearCommandBuffer();
     SendCommandOLD(CMD_FELICA_COMMAND, flags, (datalen & 0xFFFF) | (uint32_t)(numbits << 16), 0, data, datalen);
@@ -534,16 +534,16 @@ static int CmdHFFelicaCmdRaw(const char *Cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",      CmdHelp,              1, "This help"},
-    {"list",      CmdHFFelicaList,      0, "List ISO 18092/FeliCa history"},
-    {"reader",    CmdHFFelicaReader,    0, "Act like an ISO18092/FeliCa reader"},
-    {"sim",       CmdHFFelicaSim,       0, "<UID> -- Simulate ISO 18092/FeliCa tag"},
-    {"sniff",     CmdHFFelicaSniff,     0, "sniff ISO 18092/Felica traffic"},
-    {"raw",       CmdHFFelicaCmdRaw,    0, "Send raw hex data to tag"},
+    {"help",      CmdHelp,              AlwaysAvailable, "This help"},
+    {"list",      CmdHFFelicaList,      AlwaysAvailable,     "List ISO 18092/FeliCa history"},
+    {"reader",    CmdHFFelicaReader,    IfPm3Felica,     "Act like an ISO18092/FeliCa reader"},
+    {"sim",       CmdHFFelicaSim,       IfPm3Felica,     "<UID> -- Simulate ISO 18092/FeliCa tag"},
+    {"sniff",     CmdHFFelicaSniff,     IfPm3Felica,     "sniff ISO 18092/Felica traffic"},
+    {"raw",       CmdHFFelicaCmdRaw,    IfPm3Felica,     "Send raw hex data to tag"},
 
-    {"litesim",   CmdHFFelicaSimLite,   0, "<NDEF2> - only reply to poll request"},
-    {"litedump",  CmdHFFelicaDumpLite,  0, "Wait for and try dumping FelicaLite"},
-    {NULL, NULL, 0, NULL}
+    {"litesim",   CmdHFFelicaSimLite,   IfPm3Felica,     "<NDEF2> - only reply to poll request"},
+    {"litedump",  CmdHFFelicaDumpLite,  IfPm3Felica,     "Wait for and try dumping FelicaLite"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

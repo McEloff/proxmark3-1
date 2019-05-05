@@ -28,6 +28,33 @@ static int l_clearCommandBuffer(lua_State *L) {
 }
 
 /**
+ * Enable / Disable fast push mode for lua scripts like mfkeys
+ * The following params expected:
+ *
+ *@brief l_fast_push_mode
+ * @param L
+ * @return
+ */
+static int l_fast_push_mode(lua_State *L) {
+
+    luaL_checktype(L, 1, LUA_TBOOLEAN);
+
+    bool enable = lua_toboolean(L, 1);
+
+    conn.block_after_ACK = enable;
+
+    // Disable fast mode and send a dummy command to make it effective
+    if (enable == false) {
+        SendCommandMIX(CMD_PING, 0, 0, 0, NULL, 0);
+        WaitForResponseTimeout(CMD_ACK, NULL, 1000);
+    }
+
+    //Push the retval on the stack
+    lua_pushboolean(L, enable);
+    return 1;
+}
+
+/**
  * The following params expected:
  *  UsbCommand c
  *@brief l_SendCommand
@@ -63,7 +90,7 @@ static int l_SendCommandOLD(lua_State *L) {
 // (uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len)
 
     uint64_t cmd, arg0, arg1, arg2;
-    uint8_t data[USB_CMD_DATA_SIZE] = {0};
+    uint8_t data[PM3_CMD_DATA_SIZE] = {0};
     size_t len = 0, size;
 
     //Check number of arguments
@@ -111,7 +138,7 @@ static int l_SendCommandOLD(lua_State *L) {
 static int l_SendCommandMIX(lua_State *L) {
 
     uint64_t cmd, arg0, arg1, arg2;
-    uint8_t data[USB_CMD_DATA_SIZE] = {0};
+    uint8_t data[PM3_CMD_DATA_SIZE] = {0};
     size_t len = 0, size;
 
     // check number of arguments
@@ -153,7 +180,7 @@ static int l_SendCommandMIX(lua_State *L) {
  */
 static int l_SendCommandNG(lua_State *L) {
 
-    uint8_t data[USB_CMD_DATA_SIZE] = {0};
+    uint8_t data[PM3_CMD_DATA_SIZE] = {0};
     size_t len = 0, size;
 
     // check number of arguments
@@ -237,36 +264,36 @@ static int l_GetFromBigBuf(lua_State *L) {
  */
 static int l_GetFromFlashMem(lua_State *L) {
 
-#ifndef WITH_FLASH
-    return returnToLuaWithError(L, "Not compiled with FLASH MEM support");
-#else
-    int len = 0, startindex = 0;
+    if (IfPm3Flash()) {
+        int len = 0, startindex = 0;
 
-    int n = lua_gettop(L);
-    if (n == 0)
-        return returnToLuaWithError(L, "You need to supply number of bytes and startindex");
+        int n = lua_gettop(L);
+        if (n == 0)
+            return returnToLuaWithError(L, "You need to supply number of bytes and startindex");
 
-    if (n >= 2) {
-        startindex = luaL_checknumber(L, 1);
-        len = luaL_checknumber(L, 2);
-    }
+        if (n >= 2) {
+            startindex = luaL_checknumber(L, 1);
+            len = luaL_checknumber(L, 2);
+        }
 
-    if (len == 0)
-        return returnToLuaWithError(L, "You need to supply number of bytes larger than zero");
+        if (len == 0)
+            return returnToLuaWithError(L, "You need to supply number of bytes larger than zero");
 
-    uint8_t *data = calloc(len, sizeof(uint8_t));
-    if (!data)
-        return returnToLuaWithError(L, "Allocating memory failed");
+        uint8_t *data = calloc(len, sizeof(uint8_t));
+        if (!data)
+            return returnToLuaWithError(L, "Allocating memory failed");
 
-    if (!GetFromDevice(FLASH_MEM, data, len, startindex, NULL, -1, false)) {
+        if (!GetFromDevice(FLASH_MEM, data, len, startindex, NULL, -1, false)) {
+            free(data);
+            return returnToLuaWithError(L, "command execution time out");
+        }
+
+        lua_pushlstring(L, (const char *)data, len);
         free(data);
-        return returnToLuaWithError(L, "command execution time out");
+        return 1;
+    } else {
+        return returnToLuaWithError(L, "No FLASH MEM support");
     }
-
-    lua_pushlstring(L, (const char *)data, len);
-    free(data);
-    return 1;
-#endif
 }
 
 
@@ -387,7 +414,7 @@ static int l_CmdConsole(lua_State *L) {
 
 static int l_iso15693_crc(lua_State *L) {
     uint32_t tmp;
-    unsigned char buf[USB_CMD_DATA_SIZE] = {0x00};
+    unsigned char buf[PM3_CMD_DATA_SIZE] = {0x00};
     size_t size = 0;
     const char *data = luaL_checklstring(L, 1, &size);
 
@@ -404,7 +431,7 @@ static int l_iso15693_crc(lua_State *L) {
 
 static int l_iso14443b_crc(lua_State *L) {
     uint32_t tmp;
-    unsigned char buf[USB_CMD_DATA_SIZE] = {0x00};
+    unsigned char buf[PM3_CMD_DATA_SIZE] = {0x00};
     size_t size = 0;
     const char *data = luaL_checklstring(L, 1, &size);
 
@@ -1048,7 +1075,8 @@ int set_pm3_libraries(lua_State *L) {
         {"keygen_algo_d",               l_keygen_algoD},
         {"t55xx_readblock",             l_T55xx_readblock},
         {"t55xx_detect",                l_T55xx_detect},
-        {"ndefparse",                l_ndefparse},
+        {"ndefparse",                   l_ndefparse},
+        {"fast_push_mode",              l_fast_push_mode},
         {NULL, NULL}
     };
 

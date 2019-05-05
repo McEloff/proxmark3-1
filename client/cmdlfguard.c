@@ -215,12 +215,12 @@ static int CmdGuardSim(const char *Cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",    CmdHelp,        1, "this help"},
-    {"demod",   CmdGuardDemod,  1, "demodulate a G Prox II tag from the GraphBuffer"},
-    {"read",    CmdGuardRead,   0, "attempt to read and extract tag data from the antenna"},
-    {"clone",   CmdGuardClone,  0, "clone Guardall tag"},
-    {"sim",     CmdGuardSim,    0, "simulate Guardall tag"},
-    {NULL, NULL, 0, NULL}
+    {"help",    CmdHelp,        AlwaysAvailable, "this help"},
+    {"demod",   CmdGuardDemod,  AlwaysAvailable, "demodulate a G Prox II tag from the GraphBuffer"},
+    {"read",    CmdGuardRead,   IfPm3Lf,         "attempt to read and extract tag data from the antenna"},
+    {"clone",   CmdGuardClone,  IfPm3Lf,         "clone Guardall tag"},
+    {"sim",     CmdGuardSim,    IfPm3Lf,         "simulate Guardall tag"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

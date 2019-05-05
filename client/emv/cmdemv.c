@@ -809,13 +809,12 @@ static int CmdEMVExec(const char *Cmd) {
     uint8_t psenum = (channel == ECC_CONTACT) ? 1 : 2;
     CLIParserFree();
 
-#ifndef WITH_SMARTCARD
-    // not compiled with smartcard functionality,  we need to exit
-    if (channel == ECC_CONTACT) {
-        PrintAndLogEx(WARNING, "PM3 Client is not compiled with support for SMARTCARD. Exiting.");
-        return PM3_EDEVNOTSUPP;
+    if (!IfPm3Smartcard()) {
+        if (channel == ECC_CONTACT) {
+            PrintAndLogEx(WARNING, "PM3 does not have SMARTCARD support. Exiting.");
+            return PM3_EDEVNOTSUPP;
+        }
     }
-#endif
 
     SetAPDULogging(showAPDU);
 
@@ -1400,13 +1399,12 @@ static int CmdEMVScan(const char *Cmd) {
     CLIGetStrWithReturn(12, relfname, &relfnamelen);
     CLIParserFree();
 
-#ifndef WITH_SMARTCARD
-    // not compiled with smartcard functionality,  we need to exit
-    if (channel == ECC_CONTACT) {
-        PrintAndLogEx(ERR, "PM3 Client is not compiled with support for SMARTCARD. Exiting.");
-        return PM3_EDEVNOTSUPP;
+    if (!IfPm3Smartcard()) {
+        if (channel == ECC_CONTACT) {
+            PrintAndLogEx(WARNING, "PM3 does not have SMARTCARD support. Exiting.");
+            return PM3_EDEVNOTSUPP;
+        }
     }
-#endif
 
     SetAPDULogging(showAPDU);
 
@@ -1736,13 +1734,12 @@ static int CmdEMVRoca(const char *Cmd) {
     PrintChannel(channel);
     CLIParserFree();
 
-#ifndef WITH_SMARTCARD
-    // not compiled with smartcard functionality,  we need to exit
-    if (channel == ECC_CONTACT) {
-        PrintAndLogEx(WARNING, "PM3 Client is not compiled with support for SMARTCARD. Exiting.");
-        return PM3_EDEVNOTSUPP;
+    if (!IfPm3Smartcard()) {
+        if (channel == ECC_CONTACT) {
+            PrintAndLogEx(WARNING, "PM3 does not have SMARTCARD support. Exiting.");
+            return PM3_EDEVNOTSUPP;
+        }
     }
-#endif
 
     // select card
     uint8_t psenum = (channel == ECC_CONTACT) ? 1 : 2;
@@ -1940,28 +1937,28 @@ out:
 }
 
 static command_t CommandTable[] =  {
-    {"help",        CmdHelp,                        1, "This help"},
-    {"exec",        CmdEMVExec,                     0, "Executes EMV contactless transaction."},
-    {"pse",         CmdEMVPPSE,                     0, "Execute PPSE. It selects 2PAY.SYS.DDF01 or 1PAY.SYS.DDF01 directory."},
-    {"search",      CmdEMVSearch,                   0, "Try to select all applets from applets list and print installed applets."},
-    {"select",      CmdEMVSelect,                   0, "Select applet."},
-    {"gpo",         CmdEMVGPO,                      0, "Execute GetProcessingOptions."},
-    {"readrec",     CmdEMVReadRecord,               0, "Read files from card."},
-    {"genac",       CmdEMVAC,                       0, "Generate ApplicationCryptogram."},
-    {"challenge",   CmdEMVGenerateChallenge,        0, "Generate challenge."},
-    {"intauth",     CmdEMVInternalAuthenticate,     0, "Internal authentication."},
-    {"scan",        CmdEMVScan,                     0, "Scan EMV card and save it contents to json file for emulator."},
-    {"test",        CmdEMVTest,                     0, "Crypto logic test."},
+    {"help",        CmdHelp,                        AlwaysAvailable, "This help"},
+    {"exec",        CmdEMVExec,                     IfPm3Iso14443,   "Executes EMV contactless transaction."},
+    {"pse",         CmdEMVPPSE,                     IfPm3Iso14443,   "Execute PPSE. It selects 2PAY.SYS.DDF01 or 1PAY.SYS.DDF01 directory."},
+    {"search",      CmdEMVSearch,                   IfPm3Iso14443,   "Try to select all applets from applets list and print installed applets."},
+    {"select",      CmdEMVSelect,                   IfPm3Iso14443,   "Select applet."},
+    {"gpo",         CmdEMVGPO,                      IfPm3Iso14443,   "Execute GetProcessingOptions."},
+    {"readrec",     CmdEMVReadRecord,               IfPm3Iso14443,   "Read files from card."},
+    {"genac",       CmdEMVAC,                       IfPm3Iso14443,   "Generate ApplicationCryptogram."},
+    {"challenge",   CmdEMVGenerateChallenge,        IfPm3Iso14443,   "Generate challenge."},
+    {"intauth",     CmdEMVInternalAuthenticate,     IfPm3Iso14443,   "Internal authentication."},
+    {"scan",        CmdEMVScan,                     IfPm3Iso14443,   "Scan EMV card and save it contents to json file for emulator."},
+    {"test",        CmdEMVTest,                     AlwaysAvailable, "Crypto logic test."},
     /*
-    {"getrng",      CmdEMVGetrng,                   0, "get random number from terminal"},
-    {"eload",       CmdEmvELoad,                    0, "load EMV tag into device"},
-    {"dump",        CmdEmvDump,                     0, "dump EMV tag values"},
-    {"sim",         CmdEmvSim,                      0, "simulate EMV tag"},
-    {"clone",       CmdEmvClone,                    0, "clone an EMV tag"},
+    {"getrng",      CmdEMVGetrng,                   IfPm3Iso14443,   "get random number from terminal"},
+    {"eload",       CmdEmvELoad,                    IfPm3Iso14443,   "load EMV tag into device"},
+    {"dump",        CmdEmvDump,                     IfPm3Iso14443,   "dump EMV tag values"},
+    {"sim",         CmdEmvSim,                      IfPm3Iso14443,   "simulate EMV tag"},
+    {"clone",       CmdEmvClone,                    IfPm3Iso14443,   "clone an EMV tag"},
     */
-    {"list",        CmdEMVList,                     0, "List ISO7816 history"},
-    {"roca",        CmdEMVRoca,                     0, "Extract public keys and run ROCA test"},
-    {NULL, NULL, 0, NULL}
+    {"list",        CmdEMVList,                     AlwaysAvailable,   "List ISO7816 history"},
+    {"roca",        CmdEMVRoca,                     IfPm3Iso14443,   "Extract public keys and run ROCA test"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

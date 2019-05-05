@@ -839,17 +839,17 @@ static int CmdHFMFPNDEF(const char *cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",             CmdHelp,                 1, "This help"},
-    {"info",             CmdHFMFPInfo,            0, "Info about Mifare Plus tag"},
-    {"wrp",              CmdHFMFPWritePerso,      0, "Write Perso command"},
-    {"initp",            CmdHFMFPInitPerso,       0, "Fills all the card's keys"},
-    {"commitp",          CmdHFMFPCommitPerso,     0, "Move card to SL1 or SL3 mode"},
-    {"auth",             CmdHFMFPAuth,            0, "Authentication"},
-    {"rdbl",             CmdHFMFPRdbl,            0, "Read blocks"},
-    {"rdsc",             CmdHFMFPRdsc,            0, "Read sectors"},
-    {"wrbl",             CmdHFMFPWrbl,            0, "Write blocks"},
-    {"mad",              CmdHFMFPMAD,             0, "Checks and prints MAD"},
-    {"ndef",             CmdHFMFPNDEF,            0, "Prints NDEF records from card"},
+    {"help",             CmdHelp,                 AlwaysAvailable, "This help"},
+    {"info",             CmdHFMFPInfo,            IfPm3Iso14443a,  "Info about Mifare Plus tag"},
+    {"wrp",              CmdHFMFPWritePerso,      IfPm3Iso14443a,  "Write Perso command"},
+    {"initp",            CmdHFMFPInitPerso,       IfPm3Iso14443a,  "Fills all the card's keys"},
+    {"commitp",          CmdHFMFPCommitPerso,     IfPm3Iso14443a,  "Move card to SL1 or SL3 mode"},
+    {"auth",             CmdHFMFPAuth,            IfPm3Iso14443a,  "Authentication"},
+    {"rdbl",             CmdHFMFPRdbl,            IfPm3Iso14443a,  "Read blocks"},
+    {"rdsc",             CmdHFMFPRdsc,            IfPm3Iso14443a,  "Read sectors"},
+    {"wrbl",             CmdHFMFPWrbl,            IfPm3Iso14443a,  "Write blocks"},
+    {"mad",              CmdHFMFPMAD,             IfPm3Iso14443a,  "Checks and prints MAD"},
+    {"ndef",             CmdHFMFPNDEF,            IfPm3Iso14443a,  "Prints NDEF records from card"},
     {NULL,               NULL,                    0, NULL}
 };
 

@@ -149,7 +149,7 @@ int CmdLFCommandRead(const char *Cmd) {
     uint32_t arg0 = 0;
     uint32_t arg1 = 0;
     uint32_t arg2 = 0;
-    uint8_t data[USB_CMD_DATA_SIZE];
+    uint8_t data[PM3_CMD_DATA_SIZE];
     uint16_t datalen = 0;
 
     uint8_t cmdp = 0;
@@ -333,7 +333,7 @@ int CmdLFSetConfig(const char *Cmd) {
 }
 
 bool lf_read(bool silent, uint32_t samples) {
-    if (IsOffline()) return false;
+    if (!session.pm3_present) return false;
     clearCommandBuffer();
     SendCommandOLD(CMD_ACQUIRE_RAW_ADC_SAMPLES_125K, silent, samples, 0, NULL, 0);
 
@@ -354,7 +354,7 @@ bool lf_read(bool silent, uint32_t samples) {
 
 int CmdLFRead(const char *Cmd) {
 
-    if (IsOffline()) return 0;
+    if (!session.pm3_present) return 0;
 
     bool errors = false;
     bool silent = false;
@@ -419,14 +419,21 @@ int CmdLFSim(const char *Cmd) {
 
     PrintAndLogEx(DEBUG, "DEBUG: Sending [%d bytes]\n", GraphTraceLen);
 
+    // fast push mode
+    conn.block_after_ACK = true;
+
     //can send only 512 bits at a time (1 byte sent per bit...)
-    for (uint16_t i = 0; i < GraphTraceLen; i += USB_CMD_DATA_SIZE) {
+    for (uint16_t i = 0; i < GraphTraceLen; i += PM3_CMD_DATA_SIZE) {
         clearCommandBuffer();
-        SendCommandOLD(CMD_UPLOAD_SIM_SAMPLES_125K, i, FPGA_LF, 0, &GraphBuffer[i], USB_CMD_DATA_SIZE);
+        SendCommandOLD(CMD_UPLOAD_SIM_SAMPLES_125K, i, FPGA_LF, 0, &GraphBuffer[i], PM3_CMD_DATA_SIZE);
         WaitForResponse(CMD_ACK, NULL);
         printf(".");
         fflush(stdout);
     }
+    printf("\n");
+
+    // Disable fast mode and send a dummy command to make it effective
+    conn.block_after_ACK = false;
 
     PrintAndLogEx(NORMAL, "Simulating");
 
@@ -511,9 +518,9 @@ int CmdLFfskSim(const char *Cmd) {
     if (fcLow == 0) fcLow = 8;
 
     size_t size = DemodBufferLen;
-    if (size > USB_CMD_DATA_SIZE) {
-        PrintAndLogEx(NORMAL, "DemodBuffer too long for current implementation - length: %d - max: %d", size, USB_CMD_DATA_SIZE);
-        size = USB_CMD_DATA_SIZE;
+    if (size > PM3_CMD_DATA_SIZE) {
+        PrintAndLogEx(NORMAL, "DemodBuffer too long for current implementation - length: %d - max: %d", size, PM3_CMD_DATA_SIZE);
+        size = PM3_CMD_DATA_SIZE;
     }
     clearCommandBuffer();
     SendCommandOLD(CMD_FSK_SIM_TAG, fcHigh << 8 | fcLow, (separator << 8) | clk, size, DemodBuffer, size);
@@ -596,9 +603,9 @@ int CmdLFaskSim(const char *Cmd) {
     if (encoding == 0) clk /= 2; //askraw needs to double the clock speed
 
     size_t size = DemodBufferLen;
-    if (size > USB_CMD_DATA_SIZE) {
-        PrintAndLogEx(NORMAL, "DemodBuffer too long for current implementation - length: %d - max: %d", size, USB_CMD_DATA_SIZE);
-        size = USB_CMD_DATA_SIZE;
+    if (size > PM3_CMD_DATA_SIZE) {
+        PrintAndLogEx(NORMAL, "DemodBuffer too long for current implementation - length: %d - max: %d", size, PM3_CMD_DATA_SIZE);
+        size = PM3_CMD_DATA_SIZE;
     }
 
     PrintAndLogEx(NORMAL, "preparing to sim ask data: %d bits", size);
@@ -700,9 +707,9 @@ int CmdLFpskSim(const char *Cmd) {
         }
     }
     size_t size = DemodBufferLen;
-    if (size > USB_CMD_DATA_SIZE) {
-        PrintAndLogEx(NORMAL, "DemodBuffer too long for current implementation - length: %d - max: %d", size, USB_CMD_DATA_SIZE);
-        size = USB_CMD_DATA_SIZE;
+    if (size > PM3_CMD_DATA_SIZE) {
+        PrintAndLogEx(NORMAL, "DemodBuffer too long for current implementation - length: %d - max: %d", size, PM3_CMD_DATA_SIZE);
+        size = PM3_CMD_DATA_SIZE;
     }
     PrintAndLogEx(DEBUG, "DEBUG: Sending DemodBuffer Length: %d", size);
     clearCommandBuffer();
@@ -836,7 +843,7 @@ int CmdLFfind(const char *Cmd) {
 
     if (cmdp == 'u') testRaw = 'u';
 
-    bool isOnline = (!IsOffline() && (cmdp != '1'));
+    bool isOnline = (session.pm3_present && (cmdp != '1'));
 
     if (isOnline)
         lf_read(true, 30000);
@@ -858,9 +865,9 @@ int CmdLFfind(const char *Cmd) {
         // The improved noise detection will find Cotag.
         if (getSignalProperties()->isnoise) {
 
-#ifdef WITH_HITAG
-            if (readHitagUid()) { PrintAndLogEx(SUCCESS, "\nValid " _GREEN_("Hitag") " found!"); return 1;}
-#endif
+            if (IfPm3Hitag()) {
+                if (readHitagUid()) { PrintAndLogEx(SUCCESS, "\nValid " _GREEN_("Hitag") " found!"); return 1;}
+            }
             if (readCOTAGUid()) { PrintAndLogEx(SUCCESS, "\nValid " _GREEN_("COTAG ID") " found!"); return 1;}
 
             PrintAndLogEx(FAILED, "\n" _YELLOW_("No data found!") " - Signal looks like noise. Maybe not an LF tag?");
@@ -942,46 +949,44 @@ out:
 }
 
 static command_t CommandTable[] = {
-    {"help",        CmdHelp,            1, "This help"},
-    {"awid",        CmdLFAWID,          1, "{ AWID RFIDs...              }"},
-    {"cotag",       CmdLFCOTAG,         1, "{ COTAG CHIPs...             }"},
-    {"em",          CmdLFEM4X,          1, "{ EM4X CHIPs & RFIDs...      }"},
-    {"fdx",         CmdLFFdx,           1, "{ FDX-B RFIDs...             }"},
-    {"gproxii",     CmdLFGuard,         1, "{ Guardall Prox II RFIDs...  }"},
-    {"hid",         CmdLFHID,           1, "{ HID RFIDs...               }"},
-#ifdef WITH_HITAG
-    {"hitag",       CmdLFHitag,         1, "{ Hitag CHIPs...             }"},
-#endif
-    {"indala",      CmdLFINDALA,        1, "{ Indala RFIDs...            }"},
-    {"io",          CmdLFIO,            1, "{ ioProx RFIDs...            }"},
-    {"jablotron",   CmdLFJablotron,     1, "{ Jablotron RFIDs...         }"},
-    {"keri",        CmdLFKeri,          1, "{ KERI RFIDs...              }"},
-    {"nedap",       CmdLFNedap,         1, "{ Nedap RFIDs...             }"},
-    {"nexwatch",    CmdLFNEXWATCH,      1, "{ NexWatch RFIDs...          }"},
-    {"noralsy",     CmdLFNoralsy,       1, "{ Noralsy RFIDs...           }"},
-    {"pac",         CmdLFPac,           1, "{ PAC/Stanley RFIDs...       }"},
-    {"paradox",     CmdLFParadox,       1, "{ Paradox RFIDs...           }"},
-    {"pcf7931",     CmdLFPCF7931,       1, "{ PCF7931 CHIPs...           }"},
-    {"presco",      CmdLFPresco,        1, "{ Presco RFIDs...            }"},
-    {"pyramid",     CmdLFPyramid,       1, "{ Farpointe/Pyramid RFIDs... }"},
-    {"securakey",   CmdLFSecurakey,     1, "{ Securakey RFIDs...         }"},
-    {"ti",          CmdLFTI,            1, "{ TI CHIPs...                }"},
-    {"t55xx",       CmdLFT55XX,         1, "{ T55xx CHIPs...             }"},
-    {"viking",      CmdLFViking,        1, "{ Viking RFIDs...            }"},
-    {"visa2000",    CmdLFVisa2k,        1, "{ Visa2000 RFIDs...          }"},
-    {"config",      CmdLFSetConfig,     0, "Set config for LF sampling, bit/sample, decimation, frequency"},
-    {"cmdread",     CmdLFCommandRead,   0, "<off period> <'0' period> <'1' period> <command> ['h' 134] \n\t\t-- Modulate LF reader field to send command before read (all periods in microseconds)"},
-    {"flexdemod",   CmdFlexdemod,       1, "Demodulate samples for FlexPass"},
-    {"read",        CmdLFRead,          0, "['s' silent] Read 125/134 kHz LF ID-only tag. Do 'lf read h' for help"},
-    {"search",      CmdLFfind,          1, "[offline] ['u'] Read and Search for valid known tag (in offline mode it you can load first then search) \n\t\t-- 'u' to search for unknown tags"},
-    {"sim",         CmdLFSim,           0, "[GAP] -- Simulate LF tag from buffer with optional GAP (in microseconds)"},
-    {"simask",      CmdLFaskSim,        0, "[clock] [invert <1|0>] [biphase/manchester/raw <'b'|'m'|'r'>] [msg separator 's'] [d <hexdata>] \n\t\t-- Simulate LF ASK tag from demodbuffer or input"},
-    {"simfsk",      CmdLFfskSim,        0, "[c <clock>] [i] [H <fcHigh>] [L <fcLow>] [d <hexdata>] \n\t\t-- Simulate LF FSK tag from demodbuffer or input"},
-    {"simpsk",      CmdLFpskSim,        0, "[1|2|3] [c <clock>] [i] [r <carrier>] [d <raw hex to sim>] \n\t\t-- Simulate LF PSK tag from demodbuffer or input"},
-    {"simbidir",    CmdLFSimBidir,      0, "Simulate LF tag (with bidirectional data transmission between reader and tag)"},
-    {"sniff",       CmdLFSniff,         0, "Sniff LF traffic between reader and tag"},
-    {"vchdemod",    CmdVchDemod,        1, "['clone'] -- Demodulate samples for VeriChip"},
-    {NULL, NULL, 0, NULL}
+    {"help",        CmdHelp,            AlwaysAvailable, "This help"},
+    {"awid",        CmdLFAWID,          AlwaysAvailable, "{ AWID RFIDs...              }"},
+    {"cotag",       CmdLFCOTAG,         AlwaysAvailable, "{ COTAG CHIPs...             }"},
+    {"em",          CmdLFEM4X,          AlwaysAvailable, "{ EM4X CHIPs & RFIDs...      }"},
+    {"fdx",         CmdLFFdx,           AlwaysAvailable, "{ FDX-B RFIDs...             }"},
+    {"gproxii",     CmdLFGuard,         AlwaysAvailable, "{ Guardall Prox II RFIDs...  }"},
+    {"hid",         CmdLFHID,           AlwaysAvailable, "{ HID RFIDs...               }"},
+    {"hitag",       CmdLFHitag,         AlwaysAvailable, "{ Hitag CHIPs...             }"},
+    {"indala",      CmdLFINDALA,        AlwaysAvailable, "{ Indala RFIDs...            }"},
+    {"io",          CmdLFIO,            AlwaysAvailable, "{ ioProx RFIDs...            }"},
+    {"jablotron",   CmdLFJablotron,     AlwaysAvailable, "{ Jablotron RFIDs...         }"},
+    {"keri",        CmdLFKeri,          AlwaysAvailable, "{ KERI RFIDs...              }"},
+    {"nedap",       CmdLFNedap,         AlwaysAvailable, "{ Nedap RFIDs...             }"},
+    {"nexwatch",    CmdLFNEXWATCH,      AlwaysAvailable, "{ NexWatch RFIDs...          }"},
+    {"noralsy",     CmdLFNoralsy,       AlwaysAvailable, "{ Noralsy RFIDs...           }"},
+    {"pac",         CmdLFPac,           AlwaysAvailable, "{ PAC/Stanley RFIDs...       }"},
+    {"paradox",     CmdLFParadox,       AlwaysAvailable, "{ Paradox RFIDs...           }"},
+    {"pcf7931",     CmdLFPCF7931,       AlwaysAvailable, "{ PCF7931 CHIPs...           }"},
+    {"presco",      CmdLFPresco,        AlwaysAvailable, "{ Presco RFIDs...            }"},
+    {"pyramid",     CmdLFPyramid,       AlwaysAvailable, "{ Farpointe/Pyramid RFIDs... }"},
+    {"securakey",   CmdLFSecurakey,     AlwaysAvailable, "{ Securakey RFIDs...         }"},
+    {"ti",          CmdLFTI,            AlwaysAvailable, "{ TI CHIPs...                }"},
+    {"t55xx",       CmdLFT55XX,         AlwaysAvailable, "{ T55xx CHIPs...             }"},
+    {"viking",      CmdLFViking,        AlwaysAvailable, "{ Viking RFIDs...            }"},
+    {"visa2000",    CmdLFVisa2k,        AlwaysAvailable, "{ Visa2000 RFIDs...          }"},
+    {"config",      CmdLFSetConfig,     IfPm3Lf,         "Set config for LF sampling, bit/sample, decimation, frequency"},
+    {"cmdread",     CmdLFCommandRead,   IfPm3Lf,         "<off period> <'0' period> <'1' period> <command> ['h' 134] \n\t\t-- Modulate LF reader field to send command before read (all periods in microseconds)"},
+    {"flexdemod",   CmdFlexdemod,       AlwaysAvailable, "Demodulate samples for FlexPass"},
+    {"read",        CmdLFRead,          IfPm3Lf,         "['s' silent] Read 125/134 kHz LF ID-only tag. Do 'lf read h' for help"},
+    {"search",      CmdLFfind,          AlwaysAvailable, "[offline] ['u'] Read and Search for valid known tag (in offline mode it you can load first then search) \n\t\t-- 'u' to search for unknown tags"},
+    {"sim",         CmdLFSim,           IfPm3Lf,         "[GAP] -- Simulate LF tag from buffer with optional GAP (in microseconds)"},
+    {"simask",      CmdLFaskSim,        IfPm3Lf,         "[clock] [invert <1|0>] [biphase/manchester/raw <'b'|'m'|'r'>] [msg separator 's'] [d <hexdata>] \n\t\t-- Simulate LF ASK tag from demodbuffer or input"},
+    {"simfsk",      CmdLFfskSim,        IfPm3Lf,         "[c <clock>] [i] [H <fcHigh>] [L <fcLow>] [d <hexdata>] \n\t\t-- Simulate LF FSK tag from demodbuffer or input"},
+    {"simpsk",      CmdLFpskSim,        IfPm3Lf,         "[1|2|3] [c <clock>] [i] [r <carrier>] [d <raw hex to sim>] \n\t\t-- Simulate LF PSK tag from demodbuffer or input"},
+    {"simbidir",    CmdLFSimBidir,      IfPm3Lf,         "Simulate LF tag (with bidirectional data transmission between reader and tag)"},
+    {"sniff",       CmdLFSniff,         IfPm3Lf,         "Sniff LF traffic between reader and tag"},
+    {"vchdemod",    CmdVchDemod,        AlwaysAvailable, "['clone'] -- Demodulate samples for VeriChip"},
+    {NULL, NULL, NULL, NULL}
 };
 
 int CmdLF(const char *Cmd) {

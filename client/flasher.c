@@ -11,40 +11,27 @@
 #include <string.h>
 #include <inttypes.h>
 #include <pthread.h>
+#include <unistd.h>
 #include "util_posix.h"
 #include "proxmark3.h"
 #include "util.h"
 #include "flash.h"
 #include "comms.h"
-#include "usb_cmd.h"
+#include "pm3_cmd.h"
+#include "ui.h"
 
 #define MAX_FILES 4
 
-void cmd_debug(PacketCommandOLD *c) {
-    //  Debug
-    printf("PacketCommandOLD length[len=%zu]\n", sizeof(PacketCommandOLD));
-    printf("  cmd[len=%zu]: %016" PRIx64"\n", sizeof(c->cmd), c->cmd);
-    printf(" arg0[len=%zu]: %016" PRIx64"\n", sizeof(c->arg[0]), c->arg[0]);
-    printf(" arg1[len=%zu]: %016" PRIx64"\n", sizeof(c->arg[1]), c->arg[1]);
-    printf(" arg2[len=%zu]: %016" PRIx64"\n", sizeof(c->arg[2]), c->arg[2]);
-    printf(" data[len=%zu]: ", sizeof(c->d.asBytes));
-
-    for (size_t i = 0; i < 16; i++)
-        printf("%02x", c->d.asBytes[i]);
-
-    printf("...\n");
-}
-
 static void usage(char *argv0) {
-    fprintf(stdout, "Usage:   %s <port> [-b] image.elf [image.elf...]\n\n", argv0);
-    fprintf(stdout, "\t-b\tEnable flashing of bootloader area (DANGEROUS)\n\n");
-    fprintf(stdout, "\nExample:\n\n\t %s "SERIAL_PORT_H" armsrc/obj/fullimage.elf\n", argv0);
+    PrintAndLogEx(NORMAL, "Usage:   %s <port> [-b] image.elf [image.elf...]\n", argv0);
+    PrintAndLogEx(NORMAL, "\t-b\tEnable flashing of bootloader area (DANGEROUS)\n");
+    PrintAndLogEx(NORMAL, "\nExample:\n\n\t %s "SERIAL_PORT_H" armsrc/obj/fullimage.elf", argv0);
 #ifdef __linux__
-    fprintf(stdout, "\nNote (Linux): if the flasher gets stuck in 'Waiting for Proxmark3 to reappear on <DEVICE>',\n");
-    fprintf(stdout, "              you need to blacklist Proxmark3 for modem-manager - see wiki for more details:\n\n");
-    fprintf(stdout, "              https://github.com/Proxmark/proxmark3/wiki/Gentoo Linux\n\n");
-    fprintf(stdout, "              https://github.com/Proxmark/proxmark3/wiki/Ubuntu Linux\n\n");
-    fprintf(stdout, "              https://github.com/Proxmark/proxmark3/wiki/OSX\n\n");
+    PrintAndLogEx(NORMAL, "\nNote (Linux): if the flasher gets stuck in 'Waiting for Proxmark3 to reappear on <DEVICE>',");
+    PrintAndLogEx(NORMAL, "              you need to blacklist Proxmark3 for modem-manager - see wiki for more details:\n");
+    PrintAndLogEx(NORMAL, "              https://github.com/Proxmark/proxmark3/wiki/Gentoo Linux\n");
+    PrintAndLogEx(NORMAL, "              https://github.com/Proxmark/proxmark3/wiki/Ubuntu Linux\n");
+    PrintAndLogEx(NORMAL, "              https://github.com/Proxmark/proxmark3/wiki/OSX\n");
 #endif
 }
 
@@ -55,6 +42,15 @@ int main(int argc, char **argv) {
     flash_file_t files[MAX_FILES];
 
     memset(files, 0, sizeof(files));
+
+    session.supports_colors = false;
+    session.stdinOnTTY = isatty(STDIN_FILENO);
+    session.stdoutOnTTY = isatty(STDOUT_FILENO);
+#if defined(__linux__) || (__APPLE__)
+    if (session.stdinOnTTY && session.stdoutOnTTY)
+        session.supports_colors = true;
+#endif
+    session.help_dump_mode = false;
 
     if (argc < 3) {
         usage(argv[0]);
@@ -74,35 +70,34 @@ int main(int argc, char **argv) {
             if (res < 0)
                 return -1;
 
-            fprintf(stderr, "\n");
+            PrintAndLogEx(NORMAL, "");
             num_files++;
         }
     }
 
     char *serial_port_name = argv[1];
 
-    if (!OpenProxmark(serial_port_name, true, 60, true, FLASHMODE_SPEED)) {
-        fprintf(stderr, "Could not find Proxmark3 on " _RED_("%s") ".\n\n", serial_port_name);
-        return -1;
+    session.pm3_present = OpenProxmark(serial_port_name, true, 60, true, FLASHMODE_SPEED);
+    if (session.pm3_present) {
+        PrintAndLogEx(NORMAL, _GREEN_("Found"));
     } else {
-        fprintf(stderr, _GREEN_("Found") "\n");
+        PrintAndLogEx(ERR, "Could not find Proxmark3 on " _RED_("%s") ".\n", serial_port_name);
+        return -1;
     }
 
     res = flash_start_flashing(can_write_bl, serial_port_name);
     if (res < 0)
         return -1;
 
-    fprintf(stdout, "\n" _BLUE_("Flashing...")"\n");
+    PrintAndLogEx(SUCCESS, "\n" _BLUE_("Flashing..."));
 
     for (int i = 0; i < num_files; i++) {
         res = flash_write(&files[i]);
         if (res < 0)
             return -1;
         flash_free(&files[i]);
-        fprintf(stdout, "\n");
+        PrintAndLogEx(NORMAL, "\n");
     }
-
-    fprintf(stdout, _BLUE_("Resetting hardware...") "\n");
 
     res = flash_stop_flashing();
     if (res < 0)
@@ -110,6 +105,7 @@ int main(int argc, char **argv) {
 
     CloseProxmark();
 
-    fprintf(stdout, _BLUE_("All done.") "\n\nHave a nice day!\n");
+    PrintAndLogEx(SUCCESS, _BLUE_("All done."));
+    PrintAndLogEx(SUCCESS, "\nHave a nice day!");
     return 0;
 }

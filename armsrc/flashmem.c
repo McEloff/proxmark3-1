@@ -517,14 +517,14 @@ void Flash_EraseChip(void) {
 */
 
 void Flashmem_print_status(void) {
-    DbpStringEx(FLAG_LOG | FLAG_ANSI, _BLUE_("Flash memory"));
+    DbpString(_BLUE_("Flash memory"));
     Dbprintf("  Baudrate................%dMHz", FLASHMEM_SPIBAUDRATE / 1000000);
 
     if (!FlashInit()) {
-        DbpString("  Init....................FAIL");
+        DbpString("  Init...................." _RED_("FAILED"));
         return;
     }
-    DbpString("  Init....................OK");
+    DbpString("  Init...................." _GREEN_("OK"));
 
     uint8_t dev_id = Flash_ReadID();
     switch (dev_id) {
@@ -538,7 +538,7 @@ void Flashmem_print_status(void) {
             DbpString("  Memory size.............512 kbits / 64kb");
             break;
         default :
-            DbpString("  Device ID............... -->  Unknown  <--");
+            DbpString("  Device ID..............." _YELLOW_(" -->  Unknown  <--"));
             break;
     }
 

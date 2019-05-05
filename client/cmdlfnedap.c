@@ -294,13 +294,13 @@ static int CmdLFNedapChk(const char *Cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",    CmdHelp,        1, "this help"},
-    {"demod",   CmdLFNedapDemod, 0, "demodulate an Nedap tag from the GraphBuffer"},
-    {"read",    CmdLFNedapRead, 0, "attempt to read and extract tag data"},
-//  {"clone",   CmdLFNedapClone,0, "<Card Number>  clone nedap tag"},
-    {"sim",     CmdLFNedapSim,  0, "simulate nedap tag"},
-    {"chk",     CmdLFNedapChk,  1, "calculate Nedap Checksum <uid bytes>"},
-    {NULL, NULL, 0, NULL}
+    {"help",    CmdHelp,         AlwaysAvailable, "this help"},
+    {"demod",   CmdLFNedapDemod, AlwaysAvailable, "demodulate an Nedap tag from the GraphBuffer"},
+    {"read",    CmdLFNedapRead,  IfPm3Lf,         "attempt to read and extract tag data"},
+//  {"clone",   CmdLFNedapClone, IfPm3Lf,         "<Card Number>  clone nedap tag"},
+    {"sim",     CmdLFNedapSim,   IfPm3Lf,         "simulate nedap tag"},
+    {"chk",     CmdLFNedapChk,   AlwaysAvailable, "calculate Nedap Checksum <uid bytes>"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

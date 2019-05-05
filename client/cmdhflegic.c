@@ -833,9 +833,9 @@ void legic_chk_iv(uint32_t *iv) {
 }
 void legic_seteml(uint8_t *src, uint32_t offset, uint32_t numofbytes) {
 
-    for (size_t i = offset; i < numofbytes; i += USB_CMD_DATA_SIZE) {
+    for (size_t i = offset; i < numofbytes; i += PM3_CMD_DATA_SIZE) {
 
-        size_t len = MIN((numofbytes - i), USB_CMD_DATA_SIZE);
+        size_t len = MIN((numofbytes - i), PM3_CMD_DATA_SIZE);
         clearCommandBuffer();
         SendCommandOLD(CMD_LEGIC_ESET, i, len, 0, src + i, len);
     }
@@ -1041,9 +1041,9 @@ static int CmdLegicRestore(const char *Cmd) {
 
     // transfer to device
     PacketResponseNG resp;
-    for (size_t i = 7; i < numofbytes; i += USB_CMD_DATA_SIZE) {
+    for (size_t i = 7; i < numofbytes; i += PM3_CMD_DATA_SIZE) {
 
-        size_t len = MIN((numofbytes - i), USB_CMD_DATA_SIZE);
+        size_t len = MIN((numofbytes - i), PM3_CMD_DATA_SIZE);
         clearCommandBuffer();
         SendCommandOLD(CMD_WRITER_LEGIC_RF, i, len, 0x55, data + i, len);
 
@@ -1230,11 +1230,11 @@ static int CmdLegicWipe(const char *Cmd) {
 
     // transfer to device
     PacketResponseNG resp;
-    for (size_t i = 7; i < card.cardsize; i += USB_CMD_DATA_SIZE) {
+    for (size_t i = 7; i < card.cardsize; i += PM3_CMD_DATA_SIZE) {
 
         printf(".");
         fflush(stdout);
-        size_t len = MIN((card.cardsize - i), USB_CMD_DATA_SIZE);
+        size_t len = MIN((card.cardsize - i), PM3_CMD_DATA_SIZE);
         clearCommandBuffer();
         SendCommandOLD(CMD_WRITER_LEGIC_RF, i, len, 0x55, data + i, len);
 
@@ -1270,20 +1270,20 @@ static int CmdLegicList(const char *Cmd) {
 }
 
 static command_t CommandTable[] =  {
-    {"help",    CmdHelp,          1, "This help"},
-    {"reader",  CmdLegicReader,   1, "LEGIC Prime Reader UID and tag info"},
-    {"info",    CmdLegicInfo,     0, "Display deobfuscated and decoded LEGIC Prime tag data"},
-    {"dump",    CmdLegicDump,     0, "Dump LEGIC Prime tag to binary file"},
-    {"restore", CmdLegicRestore,  0, "Restore a dump file onto a LEGIC Prime tag"},
-    {"rdmem",   CmdLegicRdmem,    0, "Read bytes from a LEGIC Prime tag"},
-    {"sim",     CmdLegicRfSim,    0, "Start tag simulator"},
-    {"write",   CmdLegicRfWrite,  0, "Write data to a LEGIC Prime tag"},
-    {"crc",     CmdLegicCalcCrc,  1, "Calculate Legic CRC over given bytes"},
-    {"eload",   CmdLegicELoad,    1, "Load binary dump to emulator memory"},
-    {"esave",   CmdLegicESave,    1, "Save emulator memory to binary file"},
-    {"list",    CmdLegicList,     1, "List LEGIC history"},
-    {"wipe",    CmdLegicWipe,     1, "Wipe a LEGIC Prime tag"},
-    {NULL, NULL, 0, NULL}
+    {"help",    CmdHelp,          AlwaysAvailable, "This help"},
+    {"reader",  CmdLegicReader,   IfPm3Legicrf,    "LEGIC Prime Reader UID and tag info"},
+    {"info",    CmdLegicInfo,     IfPm3Legicrf,    "Display deobfuscated and decoded LEGIC Prime tag data"},
+    {"dump",    CmdLegicDump,     IfPm3Legicrf,    "Dump LEGIC Prime tag to binary file"},
+    {"restore", CmdLegicRestore,  IfPm3Legicrf,    "Restore a dump file onto a LEGIC Prime tag"},
+    {"rdmem",   CmdLegicRdmem,    IfPm3Legicrf,    "Read bytes from a LEGIC Prime tag"},
+    {"sim",     CmdLegicRfSim,    IfPm3Legicrf,    "Start tag simulator"},
+    {"write",   CmdLegicRfWrite,  IfPm3Legicrf,    "Write data to a LEGIC Prime tag"},
+    {"crc",     CmdLegicCalcCrc,  AlwaysAvailable, "Calculate Legic CRC over given bytes"},
+    {"eload",   CmdLegicELoad,    IfPm3Legicrf,    "Load binary dump to emulator memory"},
+    {"esave",   CmdLegicESave,    IfPm3Legicrf,    "Save emulator memory to binary file"},
+    {"list",    CmdLegicList,     AlwaysAvailable,    "List LEGIC history"},
+    {"wipe",    CmdLegicWipe,     IfPm3Legicrf,    "Wipe a LEGIC Prime tag"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

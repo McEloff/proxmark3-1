@@ -338,7 +338,6 @@ static int CmdFPGAOff(const char *Cmd) {
     return PM3_SUCCESS;
 }
 
-#ifdef WITH_LCD
 static int CmdLCD(const char *Cmd) {
     int i, j;
     sscanf(Cmd, "%x %d", &i, &j);
@@ -354,7 +353,6 @@ static int CmdLCDReset(const char *Cmd) {
     SendCommandOLD(CMD_LCD_RESET, strtol(Cmd, NULL, 0), 0, 0, NULL, 0);
     return PM3_SUCCESS;
 }
-#endif
 
 static int CmdReadmem(const char *Cmd) {
     clearCommandBuffer();
@@ -442,12 +440,12 @@ static int CmdPing(const char *Cmd) {
 
 static int CmdPingNG(const char *Cmd) {
     uint32_t len = strtol(Cmd, NULL, 0);
-    if (len > USB_CMD_DATA_SIZE)
-        len = USB_CMD_DATA_SIZE;
+    if (len > PM3_CMD_DATA_SIZE)
+        len = PM3_CMD_DATA_SIZE;
     PrintAndLogEx(NORMAL, "PingNG sent with payload len=%d", len);
     clearCommandBuffer();
     PacketResponseNG resp;
-    uint8_t data[USB_CMD_DATA_SIZE] = {0};
+    uint8_t data[PM3_CMD_DATA_SIZE] = {0};
     for (uint16_t i = 0; i < len; i++)
         data[i] = i & 0xFF;
     SendCommandNG(CMD_PING, data, len);
@@ -462,23 +460,21 @@ static int CmdPingNG(const char *Cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",          CmdHelp,        1, "This help"},
-    {"detectreader",  CmdDetectReader, 0, "['l'|'h'] -- Detect external reader field (option 'l' or 'h' to limit to LF or HF)"},
-    {"fpgaoff",       CmdFPGAOff,     0, "Set FPGA off"},
-#ifdef WITH_LCD
-    {"lcd",           CmdLCD,         0, "<HEX command> <count> -- Send command/data to LCD"},
-    {"lcdreset",      CmdLCDReset,    0, "Hardware reset LCD"},
-#endif
-    {"readmem",       CmdReadmem,     0, "[address] -- Read memory at decimal address from flash"},
-    {"reset",         CmdReset,       0, "Reset the Proxmark3"},
-    {"setlfdivisor",  CmdSetDivisor,  0, "<19 - 255> -- Drive LF antenna at 12Mhz/(divisor+1)"},
-    {"setmux",        CmdSetMux,      0, "<loraw|hiraw|lopkd|hipkd> -- Set the ADC mux to a specific value"},
-    {"tune",          CmdTune,        0, "Measure antenna tuning"},
-    {"version",       CmdVersion,     0, "Show version information about the connected Proxmark3"},
-    {"status",        CmdStatus,      0, "Show runtime status information about the connected Proxmark3"},
-    {"ping",          CmdPing,        0, "Test if the Proxmark3 is responding"},
-    {"pingng",        CmdPingNG,      0, "Test if the Proxmark3 is responsive, using new frame format (experimental)"},
-    {NULL, NULL, 0, NULL}
+    {"help",          CmdHelp,        AlwaysAvailable, "This help"},
+    {"detectreader",  CmdDetectReader, IfPm3Present,    "['l'|'h'] -- Detect external reader field (option 'l' or 'h' to limit to LF or HF)"},
+    {"fpgaoff",       CmdFPGAOff,     IfPm3Present,    "Set FPGA off"},
+    {"lcd",           CmdLCD,         IfPm3Lcd,        "<HEX command> <count> -- Send command/data to LCD"},
+    {"lcdreset",      CmdLCDReset,    IfPm3Lcd,        "Hardware reset LCD"},
+    {"readmem",       CmdReadmem,     IfPm3Present,    "[address] -- Read memory at decimal address from flash"},
+    {"reset",         CmdReset,       IfPm3Present,    "Reset the Proxmark3"},
+    {"setlfdivisor",  CmdSetDivisor,  IfPm3Present,    "<19 - 255> -- Drive LF antenna at 12Mhz/(divisor+1)"},
+    {"setmux",        CmdSetMux,      IfPm3Present,    "<loraw|hiraw|lopkd|hipkd> -- Set the ADC mux to a specific value"},
+    {"tune",          CmdTune,        IfPm3Present,    "Measure antenna tuning"},
+    {"version",       CmdVersion,     IfPm3Present,    "Show version information about the connected Proxmark3"},
+    {"status",        CmdStatus,      IfPm3Present,    "Show runtime status information about the connected Proxmark3"},
+    {"ping",          CmdPing,        IfPm3Present,    "Test if the Proxmark3 is responding"},
+    {"pingng",        CmdPingNG,      IfPm3Present,    "Test if the Proxmark3 is responsive, using new frame format (experimental)"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {
@@ -500,26 +496,16 @@ void pm3_version(bool verbose) {
     SendCommandOLD(CMD_VERSION, 0, 0, 0, NULL, 0);
     if (WaitForResponseTimeout(CMD_ACK, &resp, 1000)) {
         PrintAndLogEx(NORMAL, "\n" _BLUE_(" [ Proxmark3 RFID instrument ]") "\n");
-        char s[60] = {0};
-#if defined(WITH_FLASH) || defined(WITH_SMARTCARD) || defined(WITH_FPC)
-        strncat(s, "build for RDV40 with ", sizeof(s) - strlen(s) - 1);
-#endif
-#ifdef WITH_FLASH
-        strncat(s, "flashmem; ", sizeof(s) - strlen(s) - 1);
-#endif
-#ifdef WITH_SMARTCARD
-        strncat(s, "smartcard; ", sizeof(s) - strlen(s) - 1);
-#endif
-#ifdef WITH_FPC
-#ifdef WITH_FPC_HOST
-        strncat(s, "fpc-host; ", sizeof(s) - strlen(s) - 1);
-#else
-        strncat(s, "fpc; ", sizeof(s) - strlen(s) - 1);
-#endif
-#endif
         PrintAndLogEx(NORMAL, "\n [ CLIENT ]");
-        PrintAndLogEx(NORMAL, "  client: iceman %s \n", s);
-
+        PrintAndLogEx(NORMAL, "  client: RRG/Iceman"); // TODO version info?
+        PrintAndLogEx(NORMAL, "\n [ PROXMARK RDV4 ]");
+        PrintAndLogEx(NORMAL, "  external flash:                  %s", IfPm3Flash() ? _GREEN_("present") : _YELLOW_("absent"));
+        PrintAndLogEx(NORMAL, "  smartcard reader:                %s", IfPm3Smartcard() ? _GREEN_("present") : _YELLOW_("absent"));
+        PrintAndLogEx(NORMAL, "\n [ PROXMARK RDV4 Extras ]");
+        PrintAndLogEx(NORMAL, "  FPC USART for BT add-on support: %s", IfPm3FpcUsartHost() ? _GREEN_("present") : _YELLOW_("absent"));
+        if (IfPm3FpcUsartDevFromUsb())
+            PrintAndLogEx(NORMAL, "  FPC USART for developer support: %s", _GREEN_("present"));
+        PrintAndLogEx(NORMAL, "");
         PrintAndLogEx(NORMAL, (char *)resp.data.asBytes);
         lookupChipID(resp.oldarg[0], resp.oldarg[1]);
     }

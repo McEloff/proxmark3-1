@@ -621,7 +621,7 @@ void MifareAcquireNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, uint8_t *
     uint8_t uid[10] = {0x00};
     uint8_t answer[MAX_MIFARE_FRAME_SIZE] = {0x00};
     uint8_t par[1] = {0x00};
-    uint8_t buf[USB_CMD_DATA_SIZE] = {0x00};
+    uint8_t buf[PM3_CMD_DATA_SIZE] = {0x00};
     uint32_t cuid = 0;
     int16_t isOK = 0;
     uint16_t num_nonces = 0;
@@ -645,7 +645,7 @@ void MifareAcquireNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, uint8_t *
 
     LED_C_ON();
 
-    for (uint16_t i = 0; i <= USB_CMD_DATA_SIZE - 4; i += 4) {
+    for (uint16_t i = 0; i <= PM3_CMD_DATA_SIZE - 4; i += 4) {
 
         // Test if the action was cancelled
         if (BUTTON_PRESS()) {
@@ -733,7 +733,7 @@ void MifareAcquireEncryptedNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, 
     uint8_t uid[10] = {0x00};
     uint8_t receivedAnswer[MAX_MIFARE_FRAME_SIZE] = {0x00};
     uint8_t par_enc[1] = {0x00};
-    uint8_t buf[USB_CMD_DATA_SIZE] = {0x00};
+    uint8_t buf[PM3_CMD_DATA_SIZE] = {0x00};
 
     uint64_t ui64Key = bytes_to_num(datain, 6);
     uint32_t cuid = 0;
@@ -763,7 +763,7 @@ void MifareAcquireEncryptedNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, 
 
     LED_C_ON();
 
-    for (uint16_t i = 0; i <= USB_CMD_DATA_SIZE - 9;) {
+    for (uint16_t i = 0; i <= PM3_CMD_DATA_SIZE - 9;) {
 
         // Test if the action was cancelled
         if (BUTTON_PRESS()) {
@@ -1529,7 +1529,12 @@ void MifareChkKeys(uint16_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain, b
     uint64_t key = 0;
     uint32_t cuid = 0;
     int i, res;
-    uint8_t cascade_levels = 0, isOK = 0;
+    uint8_t cascade_levels = 0;
+    struct {
+        uint8_t key[6];
+        bool found;
+    } PACKED keyresult;
+    keyresult.found = false;
     uint8_t blockNo, keyType, keyCount;
     bool clearTrace, have_uid = false;
 
@@ -1595,19 +1600,19 @@ void MifareChkKeys(uint16_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain, b
 
         if (res)
             continue;
-
-        isOK = 1;
+        memcpy(keyresult.key, datain + i * 6, 6);
+        keyresult.found = true;
         break;
     }
 
     LED_B_ON();
 
     if (ng) {
-        reply_ng(CMD_MIFARE_CHKKEYS, PM3_SUCCESS, datain + i * 6, 6);
+        reply_ng(CMD_MIFARE_CHKKEYS, PM3_SUCCESS, (uint8_t *)&keyresult, sizeof(keyresult));
     } else {
-        reply_mix(CMD_ACK, isOK, 0, 0, datain + i * 6, 6);
+        reply_mix(CMD_ACK, keyresult.found, 0, 0, (uint8_t *)&keyresult.key, sizeof(keyresult.key));
     }
-//    reply_old(CMD_ACK, isOK, 0, 0, datain + i * 6, 6);
+//    reply_old(CMD_ACK, keyresult.found, 0, 0, (uint8_t*)&keyresult.key, sizeof(keyresult.key));
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();
 
@@ -1645,11 +1650,11 @@ void MifareEMemSet(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain)
 
 void MifareEMemGet(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) {
     FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
-    uint8_t buf[USB_CMD_DATA_SIZE] = {0x00};
+    uint8_t buf[PM3_CMD_DATA_SIZE] = {0x00};
     emlGetMem(buf, arg0, arg1); // data, block num, blocks count (max 4)
 
     LED_B_ON();
-    reply_old(CMD_ACK, arg0, arg1, 0, buf, USB_CMD_DATA_SIZE);
+    reply_old(CMD_ACK, arg0, arg1, 0, buf, PM3_CMD_DATA_SIZE);
     LED_B_OFF();
 }
 
@@ -1949,7 +1954,7 @@ void MifareCIdent() {
     uint8_t recpar[1] = {0x00};
     uint8_t rats[4] = { ISO14443A_CMD_RATS, 0x80, 0x31, 0x73 };
     uint8_t *par = BigBuf_malloc(MAX_PARITY_SIZE);
-    uint8_t *buf = BigBuf_malloc(USB_CMD_DATA_SIZE);
+    uint8_t *buf = BigBuf_malloc(PM3_CMD_DATA_SIZE);
     uint8_t *uid = BigBuf_malloc(10);
     uint32_t cuid = 0;
 

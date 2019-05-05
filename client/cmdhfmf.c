@@ -182,7 +182,7 @@ static int usage_hf14_chk(void) {
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      hf mf chk 0 A 1234567890ab keys.dic     -- target block 0, Key A");
-    PrintAndLogEx(NORMAL, "      hf mf chk *1 ? t                        -- target all blocks, all keys, 1K, write to emul");
+    PrintAndLogEx(NORMAL, "      hf mf chk *1 ? t                        -- target all blocks, all keys, 1K, write to emulator memory");
     PrintAndLogEx(NORMAL, "      hf mf chk *1 ? d                        -- target all blocks, all keys, 1K, write to file");
     return 0;
 }
@@ -204,9 +204,8 @@ static int usage_hf14_chk_fast(void) {
     PrintAndLogEx(NORMAL, "      hf mf fchk 1 1234567890ab keys.dic    -- target 1K using key 1234567890ab, using dictionary file");
     PrintAndLogEx(NORMAL, "      hf mf fchk 1 t                        -- target 1K, write to emulator memory");
     PrintAndLogEx(NORMAL, "      hf mf fchk 1 d                        -- target 1K, write to file");
-#ifdef WITH_FLASH
-    PrintAndLogEx(NORMAL, "      hf mf fchk 1 m                        -- target 1K, use dictionary from flashmemory");
-#endif
+    if (IfPm3Flash())
+        PrintAndLogEx(NORMAL, "      hf mf fchk 1 m                        -- target 1K, use dictionary from flashmemory");
     return 0;
 }
 static int usage_hf14_keybrute(void) {
@@ -1119,8 +1118,7 @@ static int CmdHF14AMfNested(const char *Cmd) {
     }
 
     // check if we can authenticate to sector
-    res = mfCheckKeys(blockNo, keyType, true, 1, key, &key64);
-    if (res) {
+    if (mfCheckKeys(blockNo, keyType, true, 1, key, &key64) != PM3_SUCCESS) {
         PrintAndLogEx(WARNING, "Wrong key. Can't authenticate to block:%3d key type:%c", blockNo, keyType ? 'B' : 'A');
         return 3;
     }
@@ -1181,6 +1179,7 @@ static int CmdHF14AMfNested(const char *Cmd) {
 
         PrintAndLogEx(SUCCESS, "Testing known keys. Sector count=%d", SectorsCnt);
         res = mfCheckKeys_fast(SectorsCnt, true, true, 1, MIFARE_DEFAULTKEYS_SIZE + 1, keyBlock, e_sector, false);
+        // TODO check result!!
 
         uint64_t t2 = msclock() - t1;
         PrintAndLogEx(SUCCESS, "Time to check %d known keys: %.0f seconds\n", MIFARE_DEFAULTKEYS_SIZE, (float)t2 / 1000.0);
@@ -1466,8 +1465,7 @@ static int CmdHF14AMfNestedHard(const char *Cmd) {
     if (!know_target_key && nonce_file_read == false) {
         uint64_t key64 = 0;
         // check if we can authenticate to sector
-        int res = mfCheckKeys(blockNo, keyType, true, 1, key, &key64);
-        if (res) {
+        if (mfCheckKeys(blockNo, keyType, true, 1, key, &key64) != PM3_SUCCESS) {
             PrintAndLogEx(WARNING, "Key is wrong. Can't authenticate to block:%3d key type:%c", blockNo, keyType ? 'B' : 'A');
             return 3;
         }
@@ -1596,9 +1594,7 @@ static int CmdHF14AMfChk_fast(const char *Cmd) {
         } else if (clen == 1) {
             if (ctmp == 't') { transferToEml = 1; continue; }
             if (ctmp == 'd') { createDumpFile = 1; continue; }
-#ifdef WITH_FLASH
-            if (ctmp == 'm') { use_flashmemory = true; continue; }
-#endif
+            if ((ctmp == 'm') && (IfPm3Flash())) { use_flashmemory = true; continue; }
         } else {
             // May be a dic file
             if (param_getstr(Cmd, i, filename, FILE_PATH_SIZE) >= FILE_PATH_SIZE) {
@@ -1663,7 +1659,7 @@ static int CmdHF14AMfChk_fast(const char *Cmd) {
         return 1;
     }
 
-    uint32_t chunksize = keycnt > (USB_CMD_DATA_SIZE / 6) ? (USB_CMD_DATA_SIZE / 6) : keycnt;
+    uint32_t chunksize = keycnt > (PM3_CMD_DATA_SIZE / 6) ? (PM3_CMD_DATA_SIZE / 6) : keycnt;
     bool firstChunk = true, lastChunk = false;
 
     // time
@@ -1731,12 +1727,13 @@ out:
         if (transferToEml) {
             uint8_t block[16] = {0x00};
             for (i = 0; i < sectorsCnt; ++i) {
-                mfEmlGetMem(block, FirstBlockOfSector(i) + NumBlocksPerSector(i) - 1, 1);
+                uint8_t blockno = FirstBlockOfSector(i) + NumBlocksPerSector(i) - 1;
+                mfEmlGetMem(block, blockno, 1);
                 if (e_sector[i].foundKey[0])
                     num_to_bytes(e_sector[i].Key[0], 6, block);
                 if (e_sector[i].foundKey[1])
                     num_to_bytes(e_sector[i].Key[1], 6, block + 10);
-                mfEmlSetMem(block, FirstBlockOfSector(i) + NumBlocksPerSector(i) - 1, 1);
+                mfEmlSetMem(block, blockno, 1);
             }
             PrintAndLogEx(SUCCESS, "Found keys have been transferred to the emulator memory");
         }
@@ -1797,7 +1794,7 @@ static int CmdHF14AMfChk(const char *Cmd) {
     int clen = 0;
     int transferToEml = 0;
     int createDumpFile = 0;
-    int i, res, keycnt = 0;
+    int i, keycnt = 0;
 
     keyBlock = calloc(MIFARE_DEFAULTKEYS_SIZE, 6);
     if (keyBlock == NULL) return 1;
@@ -1935,7 +1932,7 @@ static int CmdHF14AMfChk(const char *Cmd) {
 
 
     uint8_t trgKeyType = 0;
-    uint32_t max_keys = keycnt > (USB_CMD_DATA_SIZE / 6) ? (USB_CMD_DATA_SIZE / 6) : keycnt;
+    uint16_t max_keys = keycnt > KEYS_IN_BLOCK ? KEYS_IN_BLOCK : keycnt;
 
     // time
     uint64_t t1 = msclock();
@@ -1952,7 +1949,7 @@ static int CmdHF14AMfChk(const char *Cmd) {
             // skip already found keys.
             if (e_sector[i].foundKey[trgKeyType]) continue;
 
-            for (uint32_t c = 0; c < keycnt; c += max_keys) {
+            for (uint16_t c = 0; c < keycnt; c += max_keys) {
 
                 printf(".");
                 fflush(stdout);
@@ -1963,16 +1960,13 @@ static int CmdHF14AMfChk(const char *Cmd) {
                     goto out;
                 }
 
-                uint32_t size = keycnt - c > max_keys ? max_keys : keycnt - c;
+                uint16_t size = keycnt - c > max_keys ? max_keys : keycnt - c;
 
-                res = mfCheckKeys(b, trgKeyType, true, size, &keyBlock[6 * c], &key64);
-                if (!res) {
+                if (mfCheckKeys(b, trgKeyType, true, size, &keyBlock[6 * c], &key64) == PM3_SUCCESS) {
                     e_sector[i].Key[trgKeyType] = key64;
                     e_sector[i].foundKey[trgKeyType] = true;
                     break;
                 }
-
-
             }
             b < 127 ? (b += 4) : (b += 16);
         }
@@ -2015,26 +2009,28 @@ static int CmdHF14AMfChk(const char *Cmd) {
     }
 
 out:
-    // Disable fast mode and send a dummy command to make it effective
-    conn.block_after_ACK = false;
-    SendCommandMIX(CMD_PING, 0, 0, 0, NULL, 0);
-    WaitForResponseTimeout(CMD_ACK, NULL, 1000);
-
     //print keys
     printKeyTable(SectorsCnt, e_sector);
 
     if (transferToEml) {
         uint8_t block[16] = {0x00};
         for (i = 0; i < SectorsCnt; ++i) {
-            mfEmlGetMem(block, FirstBlockOfSector(i) + NumBlocksPerSector(i) - 1, 1);
+            uint8_t blockno = FirstBlockOfSector(i) + NumBlocksPerSector(i) - 1;
+            mfEmlGetMem(block, blockno, 1);
             if (e_sector[i].foundKey[0])
                 num_to_bytes(e_sector[i].Key[0], 6, block);
             if (e_sector[i].foundKey[1])
                 num_to_bytes(e_sector[i].Key[1], 6, block + 10);
-            mfEmlSetMem(block, FirstBlockOfSector(i) + NumBlocksPerSector(i) - 1, 1);
+            mfEmlSetMem(block, blockno, 1);
         }
         PrintAndLogEx(SUCCESS, "Found keys have been transferred to the emulator memory");
     }
+
+    // Disable fast mode and send a dummy command to make it effective
+    conn.block_after_ACK = false;
+    SendCommandMIX(CMD_PING, 0, 0, 0, NULL, 0);
+    WaitForResponseTimeout(CMD_ACK, NULL, 1000);
+
 
     if (createDumpFile) {
         fptr = GenerateFilename("hf-mf-", "-key.bin");
@@ -3566,48 +3562,48 @@ static int CmdHF14AMfList(const char *Cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",        CmdHelp,                1, "This help"},
-    {"list",        CmdHF14AMfList,         0, "List Mifare history"},
-    {"darkside",    CmdHF14AMfDarkside,     0, "Darkside attack. read parity error messages."},
-    {"nested",      CmdHF14AMfNested,       0, "Nested attack. Test nested authentication"},
-    {"hardnested",  CmdHF14AMfNestedHard,   0, "Nested attack for hardened Mifare cards"},
-    {"keybrute",    CmdHF14AMfKeyBrute,     0, "J_Run's 2nd phase of multiple sector nested authentication key recovery"},
-    {"nack",        CmdHf14AMfNack,         0, "Test for Mifare NACK bug"},
-    {"chk",         CmdHF14AMfChk,          0, "Check keys"},
-    {"fchk",        CmdHF14AMfChk_fast,     0, "Check keys fast, targets all keys on card"},
-    {"decrypt",     CmdHf14AMfDecryptBytes, 1, "[nt] [ar_enc] [at_enc] [data] - to decrypt sniff or trace"},
-    {"-----------", CmdHelp,                0, ""},
-    {"dbg",         CmdHF14AMfDbg,          0, "Set default debug mode"},
-    {"rdbl",        CmdHF14AMfRdBl,         0, "Read MIFARE classic block"},
-    {"rdsc",        CmdHF14AMfRdSc,         0, "Read MIFARE classic sector"},
-    {"dump",        CmdHF14AMfDump,         0, "Dump MIFARE classic tag to binary file"},
-    {"restore",     CmdHF14AMfRestore,      0, "Restore MIFARE classic binary file to BLANK tag"},
-    {"wrbl",        CmdHF14AMfWrBl,         0, "Write MIFARE classic block"},
-    {"setmod",      CmdHf14AMfSetMod,       0, "Set MIFARE Classic EV1 load modulation strength"},
-    {"auth4",       CmdHF14AMfAuth4,        0, "ISO14443-4 AES authentication"},
+    {"help",        CmdHelp,                AlwaysAvailable, "This help"},
+    {"list",        CmdHF14AMfList,         AlwaysAvailable,  "List Mifare history"},
+    {"darkside",    CmdHF14AMfDarkside,     IfPm3Iso14443a,  "Darkside attack. read parity error messages."},
+    {"nested",      CmdHF14AMfNested,       IfPm3Iso14443a,  "Nested attack. Test nested authentication"},
+    {"hardnested",  CmdHF14AMfNestedHard,   IfPm3Iso14443a,  "Nested attack for hardened Mifare cards"},
+    {"keybrute",    CmdHF14AMfKeyBrute,     IfPm3Iso14443a,  "J_Run's 2nd phase of multiple sector nested authentication key recovery"},
+    {"nack",        CmdHf14AMfNack,         IfPm3Iso14443a,  "Test for Mifare NACK bug"},
+    {"chk",         CmdHF14AMfChk,          IfPm3Iso14443a,  "Check keys"},
+    {"fchk",        CmdHF14AMfChk_fast,     IfPm3Iso14443a,  "Check keys fast, targets all keys on card"},
+    {"decrypt",     CmdHf14AMfDecryptBytes, AlwaysAvailable, "[nt] [ar_enc] [at_enc] [data] - to decrypt sniff or trace"},
+    {"-----------", CmdHelp,                IfPm3Iso14443a,  ""},
+    {"dbg",         CmdHF14AMfDbg,          IfPm3Iso14443a,  "Set default debug mode"},
+    {"rdbl",        CmdHF14AMfRdBl,         IfPm3Iso14443a,  "Read MIFARE classic block"},
+    {"rdsc",        CmdHF14AMfRdSc,         IfPm3Iso14443a,  "Read MIFARE classic sector"},
+    {"dump",        CmdHF14AMfDump,         IfPm3Iso14443a,  "Dump MIFARE classic tag to binary file"},
+    {"restore",     CmdHF14AMfRestore,      IfPm3Iso14443a,  "Restore MIFARE classic binary file to BLANK tag"},
+    {"wrbl",        CmdHF14AMfWrBl,         IfPm3Iso14443a,  "Write MIFARE classic block"},
+    {"setmod",      CmdHf14AMfSetMod,       IfPm3Iso14443a,  "Set MIFARE Classic EV1 load modulation strength"},
+    {"auth4",       CmdHF14AMfAuth4,        IfPm3Iso14443a,  "ISO14443-4 AES authentication"},
 //    {"sniff",       CmdHF14AMfSniff,        0, "Sniff card-reader communication"},
-    {"-----------", CmdHelp,                0, ""},
-    {"sim",         CmdHF14AMfSim,        0, "Simulate MIFARE card"},
-    {"eclr",        CmdHF14AMfEClear,       0, "Clear simulator memory"},
-    {"eget",        CmdHF14AMfEGet,         0, "Get simulator memory block"},
-    {"eset",        CmdHF14AMfESet,         0, "Set simulator memory block"},
-    {"eload",       CmdHF14AMfELoad,        0, "Load from file emul dump"},
-    {"esave",       CmdHF14AMfESave,        0, "Save to file emul dump"},
-    {"ecfill",      CmdHF14AMfECFill,       0, "Fill simulator memory with help of keys from simulator"},
-    {"ekeyprn",     CmdHF14AMfEKeyPrn,      0, "Print keys from simulator memory"},
-    {"-----------", CmdHelp,                0, ""},
-    {"csetuid",     CmdHF14AMfCSetUID,      0, "Set UID for magic Chinese card"},
-    {"csetblk",     CmdHF14AMfCSetBlk,      0, "Write block - Magic Chinese card"},
-    {"cgetblk",     CmdHF14AMfCGetBlk,      0, "Read block - Magic Chinese card"},
-    {"cgetsc",      CmdHF14AMfCGetSc,       0, "Read sector - Magic Chinese card"},
-    {"cload",       CmdHF14AMfCLoad,        0, "Load dump into magic Chinese card"},
-    {"csave",       CmdHF14AMfCSave,        0, "Save dump from magic Chinese card into file or emulator"},
-    {"-----------", CmdHelp,                0, ""},
-    {"mad",         CmdHF14AMfMAD,          0, "Checks and prints MAD"},
-    {"ndef",        CmdHFMFNDEF,            0, "Prints NDEF records from card"},
+    {"-----------", CmdHelp,                IfPm3Iso14443a,  ""},
+    {"sim",         CmdHF14AMfSim,        IfPm3Iso14443a,  "Simulate MIFARE card"},
+    {"eclr",        CmdHF14AMfEClear,       IfPm3Iso14443a,  "Clear simulator memory"},
+    {"eget",        CmdHF14AMfEGet,         IfPm3Iso14443a,  "Get simulator memory block"},
+    {"eset",        CmdHF14AMfESet,         IfPm3Iso14443a,  "Set simulator memory block"},
+    {"eload",       CmdHF14AMfELoad,        IfPm3Iso14443a,  "Load from file emul dump"},
+    {"esave",       CmdHF14AMfESave,        IfPm3Iso14443a,  "Save to file emul dump"},
+    {"ecfill",      CmdHF14AMfECFill,       IfPm3Iso14443a,  "Fill simulator memory with help of keys from simulator"},
+    {"ekeyprn",     CmdHF14AMfEKeyPrn,      IfPm3Iso14443a,  "Print keys from simulator memory"},
+    {"-----------", CmdHelp,                IfPm3Iso14443a,  ""},
+    {"csetuid",     CmdHF14AMfCSetUID,      IfPm3Iso14443a,  "Set UID for magic Chinese card"},
+    {"csetblk",     CmdHF14AMfCSetBlk,      IfPm3Iso14443a,  "Write block - Magic Chinese card"},
+    {"cgetblk",     CmdHF14AMfCGetBlk,      IfPm3Iso14443a,  "Read block - Magic Chinese card"},
+    {"cgetsc",      CmdHF14AMfCGetSc,       IfPm3Iso14443a,  "Read sector - Magic Chinese card"},
+    {"cload",       CmdHF14AMfCLoad,        IfPm3Iso14443a,  "Load dump into magic Chinese card"},
+    {"csave",       CmdHF14AMfCSave,        IfPm3Iso14443a,  "Save dump from magic Chinese card into file or emulator"},
+    {"-----------", CmdHelp,                IfPm3Iso14443a,  ""},
+    {"mad",         CmdHF14AMfMAD,          IfPm3Iso14443a,  "Checks and prints MAD"},
+    {"ndef",        CmdHFMFNDEF,            IfPm3Iso14443a,  "Prints NDEF records from card"},
 
-    {"ice",         CmdHF14AMfice,          0, "collect Mifare Classic nonces to file"},
-    {NULL, NULL, 0, NULL}
+    {"ice",         CmdHF14AMfice,          IfPm3Iso14443a,  "collect Mifare Classic nonces to file"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

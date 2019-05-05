@@ -121,7 +121,7 @@ static int switch_off_field_14b(void) {
 
 static bool waitCmd14b(bool verbose) {
 
-    uint8_t data[USB_CMD_DATA_SIZE] = {0x00};
+    uint8_t data[PM3_CMD_DATA_SIZE] = {0x00};
     PacketResponseNG resp;
 
     if (WaitForResponseTimeout(CMD_ACK, &resp, TIMEOUT)) {
@@ -188,7 +188,7 @@ static int CmdHF14BCmdRaw(const char *Cmd) {
     bool reply = true, power = false, select = false, hasTimeout = false;
     char buf[5] = "";
     int i = 0;
-    uint8_t data[USB_CMD_DATA_SIZE] = {0x00};
+    uint8_t data[PM3_CMD_DATA_SIZE] = {0x00};
     uint16_t datalen = 0;
     uint32_t flags = ISO14B_CONNECT;
     uint32_t temp = 0, user_timeout = 0, time_wait = 0;
@@ -270,8 +270,8 @@ static int CmdHF14BCmdRaw(const char *Cmd) {
     if (datalen > 0)
         flags |= ISO14B_RAW;
 
-    // Max buffer is USB_CMD_DATA_SIZE
-    datalen = (datalen > USB_CMD_DATA_SIZE) ? USB_CMD_DATA_SIZE : datalen;
+    // Max buffer is PM3_CMD_DATA_SIZE
+    datalen = (datalen > PM3_CMD_DATA_SIZE) ? PM3_CMD_DATA_SIZE : datalen;
 
     clearCommandBuffer();
     SendCommandOLD(CMD_ISO_14443B_COMMAND, flags, datalen, time_wait, data, datalen);
@@ -1074,18 +1074,18 @@ static int srix4kValid(const char *Cmd) {
 }
 */
 static command_t CommandTable[] = {
-    {"help",        CmdHelp,        1, "This help"},
-    {"dump",        CmdHF14BDump,   0, "Read all memory pages of an ISO14443-B tag, save to file"},
-    {"info",        CmdHF14Binfo,   0, "Tag information"},
-    {"list",        CmdHF14BList,   0, "List ISO 14443B history"},
-    {"raw",         CmdHF14BCmdRaw, 0, "Send raw hex data to tag"},
-    {"reader",      CmdHF14BReader, 0, "Act as a 14443B reader to identify a tag"},
-    {"sim",         CmdHF14BSim,    0, "Fake ISO 14443B tag"},
-    {"sniff",       CmdHF14BSniff,  0, "Eavesdrop ISO 14443B"},
-    {"sriread",     CmdHF14BReadSri,  0, "Read contents of a SRI512 | SRIX4K tag"},
-    {"sriwrite",    CmdHF14BWriteSri, 0, "Write data to a SRI512 | SRIX4K tag"},
-    //{"valid",     srix4kValid,    1, "srix4k checksum test"},
-    {NULL, NULL, 0, NULL}
+    {"help",        CmdHelp,          AlwaysAvailable, "This help"},
+    {"dump",        CmdHF14BDump,     IfPm3Iso14443b,  "Read all memory pages of an ISO14443-B tag, save to file"},
+    {"info",        CmdHF14Binfo,     IfPm3Iso14443b,  "Tag information"},
+    {"list",        CmdHF14BList,     AlwaysAvailable,  "List ISO 14443B history"},
+    {"raw",         CmdHF14BCmdRaw,   IfPm3Iso14443b,  "Send raw hex data to tag"},
+    {"reader",      CmdHF14BReader,   IfPm3Iso14443b,  "Act as a 14443B reader to identify a tag"},
+    {"sim",         CmdHF14BSim,      IfPm3Iso14443b,  "Fake ISO 14443B tag"},
+    {"sniff",       CmdHF14BSniff,    IfPm3Iso14443b,  "Eavesdrop ISO 14443B"},
+    {"sriread",     CmdHF14BReadSri,  IfPm3Iso14443b,  "Read contents of a SRI512 | SRIX4K tag"},
+    {"sriwrite",    CmdHF14BWriteSri, IfPm3Iso14443b,  "Write data to a SRI512 | SRIX4K tag"},
+    //{"valid",     srix4kValid,      AlwaysAvailable, "srix4k checksum test"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

@@ -108,7 +108,7 @@ static int CmdHFEPAPACEReplay(const char *Cmd) {
     }
 
     // transfer the APDUs to the Proxmark
-    uint8_t data[USB_CMD_DATA_SIZE];
+    uint8_t data[PM3_CMD_DATA_SIZE];
     for (int i = 0; i < sizeof(apdu_lengths); i++) {
         // transfer the APDU in several parts if necessary
         for (int j = 0; j * sizeof(data) < apdu_lengths[i]; j++) {
@@ -157,10 +157,10 @@ static int CmdHFEPAPACEReplay(const char *Cmd) {
 }
 
 static command_t CommandTable[] = {
-    {"help",    CmdHelp,                   1, "This help"},
-    {"cnonces", CmdHFEPACollectPACENonces, 0, "<m> <n> <d> Acquire n>0 encrypted PACE nonces of size m>0 with d sec pauses"},
-    {"preplay", CmdHFEPAPACEReplay,        0, "<mse> <get> <map> <pka> <ma> Perform PACE protocol by replaying given APDUs"},
-    {NULL, NULL, 0, NULL}
+    {"help",    CmdHelp,                   AlwaysAvailable, "This help"},
+    {"cnonces", CmdHFEPACollectPACENonces, IfPm3Iso14443,   "<m> <n> <d> Acquire n>0 encrypted PACE nonces of size m>0 with d sec pauses"},
+    {"preplay", CmdHFEPAPACEReplay,        IfPm3Iso14443,   "<mse> <get> <map> <pka> <ma> Perform PACE protocol by replaying given APDUs"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {

@@ -485,42 +485,7 @@ static char *pb(uint32_t b) {
 
 static int CmdAnalyseA(const char *Cmd) {
 
-    int hexlen = 0;
-    uint8_t cmdp = 0;
-    bool errors = false;
-    uint8_t data[USB_CMD_DATA_SIZE] = {0x00};
-
-    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
-        switch (tolower(param_getchar(Cmd, cmdp))) {
-            case 'd':
-                param_gethex_ex(Cmd, cmdp + 1, data, &hexlen);
-                hexlen >>= 1;
-                if (hexlen != sizeof(data)) {
-                    PrintAndLogEx(WARNING, "Read %d bytes of %u", hexlen, sizeof(data));
-                }
-                cmdp += 2;
-                break;
-            case 'h':
-                return usage_analyse_a();
-            default:
-                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
-                errors = true;
-                break;
-        }
-    }
-    //Validations
-    if (errors || cmdp == 0) return usage_analyse_a();
-
-
-    clearCommandBuffer();
-    SendCommandOLD(CMD_FPC_SEND, 0, 0, 0, data, USB_CMD_DATA_SIZE);
-
-    PacketResponseNG resp;
-    if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
-        return 1;
-    }
-    PrintAndLogEx(NORMAL, "got ack.  Status %d", resp.oldarg[0]);
-    return 0;
+    return usage_analyse_a();
     /*
         PrintAndLogEx(NORMAL, "-- " _BLUE_("its my message") "\n");
         PrintAndLogEx(NORMAL, "-- " _RED_("its my message") "\n");
@@ -903,16 +868,16 @@ static int CmdAnalyseNuid(const char *Cmd) {
     return 0;
 }
 static command_t CommandTable[] = {
-    {"help",    CmdHelp,            1, "This help"},
-    {"lcr",     CmdAnalyseLCR,      1, "Generate final byte for XOR LRC"},
-    {"crc",     CmdAnalyseCRC,      1, "Stub method for CRC evaluations"},
-    {"chksum",  CmdAnalyseCHKSUM,   1, "Checksum with adding, masking and one's complement"},
-    {"dates",   CmdAnalyseDates,    1, "Look for datestamps in a given array of bytes"},
-    {"tea",     CmdAnalyseTEASelfTest, 1, "Crypto TEA test"},
-    {"lfsr",    CmdAnalyseLfsr,     1, "LFSR tests"},
-    {"a",       CmdAnalyseA,        1, "num bits test"},
-    {"nuid",    CmdAnalyseNuid,     1, "create NUID from 7byte UID"},
-    {NULL, NULL, 0, NULL}
+    {"help",    CmdHelp,            AlwaysAvailable, "This help"},
+    {"lcr",     CmdAnalyseLCR,      AlwaysAvailable, "Generate final byte for XOR LRC"},
+    {"crc",     CmdAnalyseCRC,      AlwaysAvailable, "Stub method for CRC evaluations"},
+    {"chksum",  CmdAnalyseCHKSUM,   AlwaysAvailable, "Checksum with adding, masking and one's complement"},
+    {"dates",   CmdAnalyseDates,    AlwaysAvailable, "Look for datestamps in a given array of bytes"},
+    {"tea",     CmdAnalyseTEASelfTest, AlwaysAvailable, "Crypto TEA test"},
+    {"lfsr",    CmdAnalyseLfsr,     AlwaysAvailable, "LFSR tests"},
+    {"a",       CmdAnalyseA,        AlwaysAvailable, "num bits test"},
+    {"nuid",    CmdAnalyseNuid,     AlwaysAvailable, "create NUID from 7byte UID"},
+    {NULL, NULL, NULL, NULL}
 };
 
 static int CmdHelp(const char *Cmd) {
