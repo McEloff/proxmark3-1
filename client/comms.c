@@ -606,6 +606,7 @@ int TestProxmark(void) {
 
             // reconfigure.
             if (conn.send_via_fpc_usart == false) {
+/*                
 #if defined(_WIN32)
                 pthread_mutex_lock(&spMutex);
 #endif
@@ -617,7 +618,7 @@ int TestProxmark(void) {
                     PrintAndLogEx(ERR, "UART reconfigure failed");
                     return res;
                 }
-
+*/
             }
             return PM3_SUCCESS;
         } else {
