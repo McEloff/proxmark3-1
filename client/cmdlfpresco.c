@@ -122,9 +122,15 @@ static int CmdPrescoClone(const char *Cmd) {
 
     PacketResponseNG resp;
 
+    // fast push mode
+    conn.block_after_ACK = true;
     for (uint8_t i = 0; i < 5; i++) {
+        if (i == 4) {
+            // Disable fast mode on last packet
+            conn.block_after_ACK = false;
+        }
         clearCommandBuffer();
-        SendCommandOLD(CMD_T55XX_WRITE_BLOCK, blocks[i], i, 0, NULL, 0);
+        SendCommandMIX(CMD_T55XX_WRITE_BLOCK, blocks[i], i, 0, NULL, 0);
         if (!WaitForResponseTimeout(CMD_ACK, &resp, T55XX_WRITE_TIMEOUT)) {
             PrintAndLogEx(WARNING, "Error occurred, device did not respond during write operation.");
             return -1;
@@ -148,7 +154,11 @@ static int CmdPrescoSim(const char *Cmd) {
     uint8_t data[128];
     getPrescoBits(fullcode, data);
     SendCommandOLD(CMD_ASK_SIM_TAG, clk << 8 | encoding, invert << 8 | separator, sizeof(data), data, sizeof(data));
-    return 0;
+    PacketResponseNG resp;
+    WaitForResponse(CMD_ASK_SIM_TAG, &resp);
+    if (resp.status != PM3_EOPABORTED)
+        return resp.status;
+    return PM3_SUCCESS;
 }
 
 static command_t CommandTable[] = {

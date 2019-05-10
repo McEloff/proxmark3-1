@@ -52,6 +52,17 @@ static void showBanner(void) {
     fflush(stdout);
 }
 
+int check_comm(void) {
+    // If communications thread goes down. Device disconnected then this should hook up PM3 again.
+    if (IsCommunicationThreadDead() && session.pm3_present) {
+        rl_set_prompt("[offline] "PROXPROMPT);
+        rl_forced_update_display();
+        CloseProxmark();
+        PrintAndLogEx(INFO, "Running in " _YELLOW_("OFFLINE") "mode. Use \"hw connect\" to reconnect\n");
+    }
+    return 0;
+}
+
 // Main thread of PM3 Client
 void
 #ifdef __has_attribute
@@ -96,16 +107,6 @@ main_loop(char *script_cmds_file, char *script_cmd) {
     // loops every time enter is pressed...
     while (1) {
         bool printprompt = false;
-        
-        // If communications thread goes down. Device disconnected then this should hook up PM3 again.
-        if ( IsCommunicationThreadDead() ) {
-            PrintAndLogEx(ERR, _RED_("ERROR:") "cannot communicate with the Proxmark, waiting for device to reconnect...");
-            session.pm3_present = ReConnectProxmark();
-            if (session.pm3_present && (TestProxmark() != PM3_SUCCESS)) {
-                session.pm3_present = false;
-                continue;
-            }
-        }
 
         // If there is a script file
         if (sf) {
@@ -157,7 +158,12 @@ main_loop(char *script_cmds_file, char *script_cmd) {
                         printprompt = true;
 
                 } else {
-                    cmd = readline(PROXPROMPT);
+                    rl_event_hook = check_comm;
+                    if (session.pm3_present)
+                        cmd = readline(PROXPROMPT);
+                    else
+                        cmd = readline("[offline] "PROXPROMPT);
+
                     fflush(NULL);
                 }
             }
@@ -182,9 +188,9 @@ main_loop(char *script_cmds_file, char *script_cmd) {
             if (cmd[0] != '\0') {
                 if (printprompt)
                     PrintAndLogEx(NORMAL, PROXPROMPT"%s", cmd);
-                
+
                 int ret = CommandReceived(cmd);
-                
+
                 HIST_ENTRY *entry = history_get(history_length);
                 if ((!entry) || (strcmp(entry->line, cmd) != 0))
                     add_history(cmd);
@@ -270,15 +276,15 @@ static void show_help(bool showFullHelp, char *exec_name) {
         PrintAndLogEx(NORMAL, "\nsamples:");
         PrintAndLogEx(NORMAL, "      %s -h\n", exec_name);
         PrintAndLogEx(NORMAL, "      %s -m\n", exec_name);
-        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H" -f             -- flush output everytime\n", exec_name);
-        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H" -w             -- wait for serial port\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_EXAMPLE_H" -f             -- flush output everytime\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_EXAMPLE_H" -w             -- wait for serial port\n", exec_name);
         PrintAndLogEx(NORMAL, "\n  how to run Proxmark3 client\n");
-        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H"                -- runs the pm3 client\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_EXAMPLE_H"                -- runs the pm3 client\n", exec_name);
         PrintAndLogEx(NORMAL, "      %s                             -- runs the pm3 client in OFFLINE mode\n", exec_name);
         PrintAndLogEx(NORMAL, "\n  how to execute different commands from terminal\n");
-        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H" -c \"hf mf chk 1* ?\"   -- execute cmd and quit client\n", exec_name);
-        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H" -l hf_read            -- execute lua script " _YELLOW_("`hf_read`")"and quit client\n", exec_name);
-        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_H" -s mycmds.txt         -- execute each pm3 cmd in file and quit client\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_EXAMPLE_H" -c \"hf mf chk 1* ?\"   -- execute cmd and quit client\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_EXAMPLE_H" -l hf_read            -- execute lua script " _YELLOW_("`hf_read`")"and quit client\n", exec_name);
+        PrintAndLogEx(NORMAL, "      %s "SERIAL_PORT_EXAMPLE_H" -s mycmds.txt         -- execute each pm3 cmd in file and quit client\n", exec_name);
     }
 }
 
@@ -481,13 +487,13 @@ int main(int argc, char *argv[]) {
     set_my_executable_path();
 
     // try to open USB connection to Proxmark
-    if (port != NULL)
-        session.pm3_present = OpenProxmark(port, waitCOMPort, 20, false, speed);
+    if (port != NULL) {
+        OpenProxmark(port, waitCOMPort, 20, false, speed);
+    }
 
     if (session.pm3_present && (TestProxmark() != PM3_SUCCESS)) {
         PrintAndLogEx(ERR, _RED_("ERROR:") "cannot communicate with the Proxmark\n");
         CloseProxmark();
-        session.pm3_present = false;
     }
 
     if (!session.pm3_present)

@@ -230,7 +230,7 @@ static int CmdHF14AList(const char *Cmd) {
 }
 
 int Hf14443_4aGetCardData(iso14a_card_select_t *card) {
-    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_READER_ISO_14443a, ISO14A_CONNECT, 0, 0, NULL, 0);
 
     PacketResponseNG resp;
     WaitForResponse(CMD_ACK, &resp);
@@ -300,7 +300,7 @@ static int CmdHF14AReader(const char *Cmd) {
         cm |= ISO14A_NO_DISCONNECT;
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_READER_ISO_14443a, cm, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_READER_ISO_14443a, cm, 0, 0, NULL, 0);
 
     if (ISO14A_CONNECT & cm) {
         PacketResponseNG resp;
@@ -385,7 +385,7 @@ static int CmdHF14ACUIDs(const char *Cmd) {
         }
 
         // execute anticollision procedure
-        SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_RATS, 0, 0, NULL, 0);
+        SendCommandMIX(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_RATS, 0, 0, NULL, 0);
 
         PacketResponseNG resp;
         WaitForResponse(CMD_ACK, &resp);
@@ -523,7 +523,7 @@ int CmdHF14ASniff(const char *Cmd) {
         if (ctmp == 'r') param |= 0x02;
     }
     clearCommandBuffer();
-    SendCommandOLD(CMD_SNIFF_ISO_14443a, param, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_SNIFF_ISO_14443a, param, 0, 0, NULL, 0);
     return 0;
 }
 
@@ -537,7 +537,7 @@ int ExchangeRAW14a(uint8_t *datain, int datainlen, bool activateField, bool leav
         PacketResponseNG resp;
 
         // Anticollision + SELECT card
-        SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
+        SendCommandMIX(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
         if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
             PrintAndLogEx(ERR, "Proxmark3 connection timeout.");
             return 1;
@@ -631,7 +631,7 @@ static int SelectCard14443_4(bool disconnect, iso14a_card_select_t *card) {
     DropField();
 
     // Anticollision + SELECT card
-    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
         PrintAndLogEx(ERR, "Proxmark3 connection timeout.");
         return 1;
@@ -708,7 +708,7 @@ static int CmdExchangeAPDU(bool chainingin, uint8_t *datain, int datainlen, bool
     if (datain)
         SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_APDU | ISO14A_NO_DISCONNECT | cmdc, (datainlen & 0xFFFF), 0, datain, datainlen & 0xFFFF);
     else
-        SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_APDU | ISO14A_NO_DISCONNECT | cmdc, 0, 0, NULL, 0);
+        SendCommandMIX(CMD_READER_ISO_14443a, ISO14A_APDU | ISO14A_NO_DISCONNECT | cmdc, 0, 0, NULL, 0);
 
     uint8_t *recv;
     PacketResponseNG resp;
@@ -1094,7 +1094,7 @@ static int CmdHF14AAntiFuzz(const char *Cmd) {
 
     CLIParserFree();
     clearCommandBuffer();
-    SendCommandOLD(CMD_ANTIFUZZ_ISO_14443a, arg0, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_ANTIFUZZ_ISO_14443a, arg0, 0, 0, NULL, 0);
     return 0;
 }
 
@@ -1157,7 +1157,7 @@ int CmdHF14A(const char *Cmd) {
 
 int infoHF14A(bool verbose, bool do_nack_test) {
     clearCommandBuffer();
-    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
         if (verbose) PrintAndLogEx(WARNING, "iso14443a card select failed");
@@ -1209,7 +1209,7 @@ int infoHF14A(bool verbose, bool do_nack_test) {
 
             // reconnect for further tests
             clearCommandBuffer();
-            SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
+            SendCommandMIX(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
             WaitForResponse(CMD_ACK, &resp);
 
             memcpy(&card, (iso14a_card_select_t *)resp.data.asBytes, sizeof(iso14a_card_select_t));

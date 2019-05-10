@@ -89,7 +89,7 @@ static int CmdVikingClone(const char *Cmd) {
     PrintAndLogEx(INFO, "Preparing to clone Viking tag - ID: %08X, Raw: %08X%08X", id, (uint32_t)(rawID >> 32), (uint32_t)(rawID & 0xFFFFFFFF));
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_VIKING_CLONE_TAG, rawID >> 32, rawID & 0xFFFFFFFF, Q5, NULL, 0);
+    SendCommandMIX(CMD_VIKING_CLONE_TAG, rawID >> 32, rawID & 0xFFFFFFFF, Q5, NULL, 0);
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, T55XX_WRITE_TIMEOUT)) {
         PrintAndLogEx(WARNING, "Error occurred, device did not respond during write operation.");
@@ -117,7 +117,11 @@ static int CmdVikingSim(const char *Cmd) {
     num_to_bytebits(rawID, sizeof(data), data);
     clearCommandBuffer();
     SendCommandOLD(CMD_ASK_SIM_TAG, clk << 8 | encoding, invert << 8 | separator, sizeof(data), data, sizeof(data));
-    return 0;
+    PacketResponseNG resp;
+    WaitForResponse(CMD_ASK_SIM_TAG, &resp);
+    if (resp.status != PM3_EOPABORTED)
+        return resp.status;
+    return PM3_SUCCESS;
 }
 
 static command_t CommandTable[] = {

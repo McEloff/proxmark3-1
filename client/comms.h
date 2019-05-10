@@ -50,12 +50,13 @@ typedef struct {
     // To memorise baudrate
     uint32_t uart_speed;
     uint16_t last_command;
+    uint8_t serial_port_name[FILE_PATH_SIZE];
 } communication_arg_t;
 
 extern communication_arg_t conn;
 
 void *uart_receiver(void *targ);
-void SendCommand(PacketCommandOLD *c);
+void SendCommandBL(uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len);
 void SendCommandOLD(uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len);
 void SendCommandNG(uint16_t cmd, uint8_t *data, size_t len);
 void SendCommandMIX(uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len);
@@ -63,7 +64,6 @@ void clearCommandBuffer(void);
 
 #define FLASHMODE_SPEED 460800
 bool IsCommunicationThreadDead(void);
-bool ReConnectProxmark(void);
 bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, uint32_t speed);
 int TestProxmark(void);
 void CloseProxmark(void);

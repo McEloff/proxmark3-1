@@ -21,8 +21,6 @@
 
 // Serial port that we are communicating with the PM3 on.
 static serial_port sp = NULL;
-static char *serial_port_name = NULL;
-static uint32_t _speed = 0;
 
 communication_arg_t conn;
 capabilities_t pm3_capabilities;
@@ -59,15 +57,29 @@ static uint64_t timeout_start_time;
 
 static bool dl_it(uint8_t *dest, uint32_t bytes, uint32_t start_index, PacketResponseNG *response, size_t ms_timeout, bool show_warning, uint32_t rec_cmd);
 
-void SendCommand(PacketCommandOLD *c) {
+// Simple alias to track usages linked to the Bootloader, these commands must not be migrated.
+// - commands sent to enter bootloader mode as we might have to talk to old firmwares
+// - commands sent to the bootloader as it only supports OLD frames (which will always be the case for old BL)
+void SendCommandBL(uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len) {
+    SendCommandOLD(cmd, arg0, arg1, arg2, data, len);
+}
+
+void SendCommandOLD(uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len) {
+    PacketCommandOLD c = {CMD_UNKNOWN, {0, 0, 0}, {{0}}};
+    c.cmd = cmd;
+    c.arg[0] = arg0;
+    c.arg[1] = arg1;
+    c.arg[2] = arg2;
+    if (len && data)
+        memcpy(&c.d, data, len);
 
 #ifdef COMMS_DEBUG
     PrintAndLogEx(NORMAL, "Sending %s", "OLD");
 #endif
 #ifdef COMMS_DEBUG_RAW
-    print_hex_break((uint8_t *)&c->cmd, sizeof(c->cmd), 32);
-    print_hex_break((uint8_t *)&c->arg, sizeof(c->arg), 32);
-    print_hex_break((uint8_t *)&c->d, sizeof(c->d), 32);
+    print_hex_break((uint8_t *)&c.cmd, sizeof(c.cmd), 32);
+    print_hex_break((uint8_t *)&c.arg, sizeof(c.arg), 32);
+    print_hex_break((uint8_t *)&c.d, sizeof(c.d), 32);
 #endif
 
     if (!session.pm3_present) {
@@ -85,7 +97,7 @@ void SendCommand(PacketCommandOLD *c) {
         pthread_cond_wait(&txBufferSig, &txBufferMutex);
     }
 
-    txBuffer = *c;
+    txBuffer = c;
     txBuffer_pending = true;
 
     // tell communication thread that a new command can be send
@@ -94,18 +106,6 @@ void SendCommand(PacketCommandOLD *c) {
     pthread_mutex_unlock(&txBufferMutex);
 
 //__atomic_test_and_set(&txcmd_pending, __ATOMIC_SEQ_CST);
-}
-
-// Let's move slowly to an API closer to SendCommandNG
-void SendCommandOLD(uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len) {
-    PacketCommandOLD c = {CMD_UNKNOWN, {0, 0, 0}, {{0}}};
-    c.cmd = cmd;
-    c.arg[0] = arg0;
-    c.arg[1] = arg1;
-    c.arg[2] = arg2;
-    if (len && data)
-        memcpy(&c.d, data, len);
-    SendCommand(&c);
 }
 
 static void SendCommandNG_internal(uint16_t cmd, uint8_t *data, size_t len, bool ng) {
@@ -309,7 +309,7 @@ static void PacketResponseReceived(PacketResponseNG *packet) {
 
 // The communications thread.
 // signals to main thread when a response is ready to process.
-// 
+//
 static void
 #ifdef __has_attribute
 #if __has_attribute(force_align_arg_pointer)
@@ -319,7 +319,7 @@ __attribute__((force_align_arg_pointer))
 *uart_communication(void *targ) {
     communication_arg_t *connection = (communication_arg_t *)targ;
     uint32_t rxlen;
-    uint8_t counter_to_offline = 0;
+    bool commfailed = false;
     PacketResponseNG rx;
     PacketResponseNGRaw rx_raw;
 
@@ -327,22 +327,27 @@ __attribute__((force_align_arg_pointer))
     disableAppNap("Proxmark3 polling UART");
 #endif
 
-// is this connection->run a cross thread call?
-
+    // is this connection->run a cross thread call?
     while (connection->run) {
         rxlen = 0;
         bool ACK_received = false;
         bool error = false;
+        int res;
 
-        // three failed attempts
-        if ( counter_to_offline >= 3 ) {
+        // Signal to main thread that communications seems off.
+        // main thread will kill and restart this thread.
+        if (commfailed) {
+            if (conn.last_command != CMD_HARDWARE_RESET) {
+                PrintAndLogEx(WARNING, "Communicating with Proxmark3 device " _RED_("failed"));
+            }
             __atomic_test_and_set(&comm_thread_dead, __ATOMIC_SEQ_CST);
             break;
         }
 
         pthread_mutex_lock(&spMutex);
 
-        if (uart_receive(sp, (uint8_t *)&rx_raw.pre, sizeof(PacketResponseNGPreamble), &rxlen) && (rxlen == sizeof(PacketResponseNGPreamble))) {
+        res = uart_receive(sp, (uint8_t *)&rx_raw.pre, sizeof(PacketResponseNGPreamble), &rxlen);
+        if ((res == PM3_SUCCESS) && (rxlen == sizeof(PacketResponseNGPreamble))) {
             rx.magic = rx_raw.pre.magic;
             uint16_t length = rx_raw.pre.length;
             rx.ng = rx_raw.pre.ng;
@@ -354,11 +359,12 @@ __attribute__((force_align_arg_pointer))
                     error = true;
                 }
                 if ((!error) && (length > 0)) { // Get the variable length payload
-                    if ((!uart_receive(sp, (uint8_t *)&rx_raw.data, length, &rxlen)) || (rxlen != length)) {
+
+                    res = uart_receive(sp, (uint8_t *)&rx_raw.data, length, &rxlen);
+                    if ((res != PM3_SUCCESS) || (rxlen != length)) {
                         PrintAndLogEx(WARNING, "Received packet frame error variable part too short? %d/%d", rxlen, length);
                         error = true;
                     } else {
-
 
                         if (rx.ng) {      // Received a valid NG frame
                             memcpy(&rx.data, &rx_raw.data, length);
@@ -387,7 +393,8 @@ __attribute__((force_align_arg_pointer))
                     }
                 }
                 if (!error) {                        // Get the postamble
-                    if ((!uart_receive(sp, (uint8_t *)&rx_raw.foopost, sizeof(PacketResponseNGPostamble), &rxlen)) || (rxlen != sizeof(PacketResponseNGPostamble))) {
+                    res = uart_receive(sp, (uint8_t *)&rx_raw.foopost, sizeof(PacketResponseNGPostamble), &rxlen);
+                    if ((res != PM3_SUCCESS) || (rxlen != sizeof(PacketResponseNGPostamble))) {
                         PrintAndLogEx(WARNING, "Received packet frame error fetching postamble");
                         error = true;
                     }
@@ -417,7 +424,9 @@ __attribute__((force_align_arg_pointer))
             } else {                               // Old style reply
                 PacketResponseOLD rx_old;
                 memcpy(&rx_old, &rx_raw.pre, sizeof(PacketResponseNGPreamble));
-                if ((!uart_receive(sp, ((uint8_t *)&rx_old) + sizeof(PacketResponseNGPreamble), sizeof(PacketResponseOLD) - sizeof(PacketResponseNGPreamble), &rxlen)) || (rxlen != sizeof(PacketResponseOLD) - sizeof(PacketResponseNGPreamble))) {
+
+                res = uart_receive(sp, ((uint8_t *)&rx_old) + sizeof(PacketResponseNGPreamble), sizeof(PacketResponseOLD) - sizeof(PacketResponseNGPreamble), &rxlen);
+                if ((res != PM3_SUCCESS) || (rxlen != sizeof(PacketResponseOLD) - sizeof(PacketResponseNGPreamble))) {
                     PrintAndLogEx(WARNING, "Received packet OLD frame payload error too short? %d/%d", rxlen, sizeof(PacketResponseOLD) - sizeof(PacketResponseNGPreamble));
                     error = true;
                 }
@@ -451,6 +460,9 @@ __attribute__((force_align_arg_pointer))
                 PrintAndLogEx(WARNING, "Received packet frame preamble too short: %d/%d", rxlen, sizeof(PacketResponseNGPreamble));
                 error = true;
             }
+            if (res == PM3_ENOTTY) {
+                commfailed = true;
+            }
         }
 
         pthread_mutex_unlock(&spMutex);
@@ -476,22 +488,24 @@ __attribute__((force_align_arg_pointer))
 
             pthread_mutex_lock(&spMutex);
             if (txBufferNGLen) { // NG packet
-                if (!uart_send(sp, (uint8_t *) &txBufferNG, txBufferNGLen)) {
-                    counter_to_offline++;
-                    PrintAndLogEx(WARNING, "sending bytes to Proxmark3 device " _RED_("failed"));
+                res = uart_send(sp, (uint8_t *) &txBufferNG, txBufferNGLen);
+                if (res == PM3_EIO) {
+                    commfailed = true;
                 }
                 conn.last_command = txBufferNG.pre.cmd;
                 txBufferNGLen = 0;
             } else {
-                if (!uart_send(sp, (uint8_t *) &txBuffer, sizeof(PacketCommandOLD))) {
-                    counter_to_offline++;
-                    PrintAndLogEx(WARNING, "sending bytes to Proxmark3 device " _RED_("failed"));
+                res = uart_send(sp, (uint8_t *) &txBuffer, sizeof(PacketCommandOLD));
+                if (res == PM3_EIO) {
+                    commfailed = true;
                 }
                 conn.last_command = txBuffer.cmd;
             }
             pthread_mutex_unlock(&spMutex);
 
             txBuffer_pending = false;
+
+            // main thread doesn't know send failed...
 
             // tell main thread that txBuffer is empty
             pthread_cond_signal(&txBufferSig);
@@ -507,21 +521,14 @@ __attribute__((force_align_arg_pointer))
 #if defined(__MACH__) && defined(__APPLE__)
     enableAppNap();
 #endif
-   
+
     pthread_exit(NULL);
     return NULL;
 }
 
 bool IsCommunicationThreadDead(void) {
-    return comm_thread_dead;
-}
-
-bool ReConnectProxmark(void) {   
-   char *port = serial_port_name;
-   bool res = OpenProxmark(port, true, 20, false, _speed);
-   if ( res )
-        __atomic_clear(&comm_thread_dead, __ATOMIC_SEQ_CST);
-   return res;
+    bool ret = __atomic_load_n(&comm_thread_dead, __ATOMIC_SEQ_CST);
+    return ret;
 }
 
 bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, uint32_t speed) {
@@ -546,17 +553,18 @@ bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, 
     if (sp == INVALID_SERIAL_PORT) {
         PrintAndLogEx(WARNING, "\n" _RED_("ERROR:") "invalid serial port " _YELLOW_("%s"), portname);
         sp = NULL;
-        //serial_port_name = NULL;
         return false;
     } else if (sp == CLAIMED_SERIAL_PORT) {
         PrintAndLogEx(WARNING, "\n" _RED_("ERROR:") "serial port " _YELLOW_("%s") " is claimed by another process", portname);
         sp = NULL;
-        //serial_port_name = NULL;
         return false;
     } else {
         // start the communication thread
-        serial_port_name = portname;
-        _speed = speed;
+        if (portname != (char *)conn.serial_port_name) {
+            uint16_t len = MIN(strlen(portname), FILE_PATH_SIZE - 1);
+            memset(conn.serial_port_name, 0, FILE_PATH_SIZE);
+            memcpy(conn.serial_port_name, portname, len);
+        }
         conn.run = true;
         conn.block_after_ACK = flash_mode;
         // Flags to tell where to add CRC on sent replies
@@ -566,10 +574,11 @@ bool OpenProxmark(void *port, bool wait_for_port, int timeout, bool flash_mode, 
         conn.send_via_fpc_usart = false;
 
         pthread_create(&communication_thread, NULL, &uart_communication, &conn);
+        __atomic_clear(&comm_thread_dead, __ATOMIC_SEQ_CST);
+        session.pm3_present = true;
 
         fflush(stdout);
-        // create a mutex to avoid interlacing print commands from our different threads
-        //pthread_mutex_init(&print_lock, NULL);
+
         return true;
     }
 }
@@ -582,20 +591,20 @@ int TestProxmark(void) {
     uint8_t data[len];
     for (uint16_t i = 0; i < len; i++)
         data[i] = i & 0xFF;
-    
+
     SendCommandNG(CMD_PING, data, len);
 
     uint32_t timeout = 1000;
-    
+
 #ifdef USART_SLOW_LINK
     timeout = 10000;
     // 10s timeout for slow FPC, e.g. over BT
     // as this is the very first command sent to the pm3
-    // that initiates the BT connection    
+    // that initiates the BT connection
 #endif
 
     if (WaitForResponseTimeoutW(CMD_PING, &resp, timeout, false)) {
-        
+
         bool error = false;
         if (len)
             error = memcmp(data, resp.data.asBytes, len) != 0;
@@ -603,8 +612,7 @@ int TestProxmark(void) {
             return PM3_EIO;
 
         SendCommandNG(CMD_CAPABILITIES, NULL, 0);
-        
-        if (WaitForResponseTimeoutW(CMD_PING, &resp, 1000, false)) {
+        if (WaitForResponseTimeoutW(CMD_CAPABILITIES, &resp, 1000, false)) {
             memcpy(&pm3_capabilities, resp.data.asBytes, resp.length);
             conn.send_via_fpc_usart = pm3_capabilities.via_fpc;
             conn.uart_speed = pm3_capabilities.baudrate;
@@ -652,19 +660,11 @@ void CloseProxmark(void) {
         uart_close(sp);
     }
 
-#if defined(__linux__) && !defined(NO_UNLINK)
-    // Fix for linux, it seems that it is extremely slow to release the serial port file descriptor /dev/*
-    //
-    // This may be disabled at compile-time with -DNO_UNLINK (used for a JNI-based serial port on Android).
-    if (serial_port_name) {
-        unlink(serial_port_name);
-    }
-#endif
-
     // Clean up our state
     sp = NULL;
-    serial_port_name = NULL;
     memset(&communication_thread, 0, sizeof(pthread_t));
+
+    session.pm3_present = false;
 }
 
 // Gives a rough estimate of the communication delay based on channel & baudrate
@@ -716,12 +716,12 @@ bool WaitForResponseTimeoutW(uint32_t cmd, PacketResponseNG *response, size_t ms
         }
 
         tmp_clk = __atomic_load_n(&timeout_start_time, __ATOMIC_SEQ_CST);
-        if (msclock() - tmp_clk > ms_timeout)
+        if ((ms_timeout != (size_t) -1) && (msclock() - tmp_clk > ms_timeout))
             break;
 
         if (msclock() - tmp_clk > 3000 && show_warning) {
             // 3 seconds elapsed (but this doesn't mean the timeout was exceeded)
-            PrintAndLogEx(INFO, "Waiting for a response from the proxmark3...");
+//            PrintAndLogEx(INFO, "Waiting for a response from the proxmark3...");
             PrintAndLogEx(INFO, "You can cancel this operation by pressing the pm3 button");
             show_warning = false;
         }
@@ -764,19 +764,19 @@ bool GetFromDevice(DeviceMemType_t memtype, uint8_t *dest, uint32_t bytes, uint3
 
     switch (memtype) {
         case BIG_BUF: {
-            SendCommandOLD(CMD_DOWNLOAD_BIGBUF, start_index, bytes, 0, NULL, 0);
+            SendCommandMIX(CMD_DOWNLOAD_BIGBUF, start_index, bytes, 0, NULL, 0);
             return dl_it(dest, bytes, start_index, response, ms_timeout, show_warning, CMD_DOWNLOADED_BIGBUF);
         }
         case BIG_BUF_EML: {
-            SendCommandOLD(CMD_DOWNLOAD_EML_BIGBUF, start_index, bytes, 0, NULL, 0);
+            SendCommandMIX(CMD_DOWNLOAD_EML_BIGBUF, start_index, bytes, 0, NULL, 0);
             return dl_it(dest, bytes, start_index, response, ms_timeout, show_warning, CMD_DOWNLOADED_EML_BIGBUF);
         }
         case FLASH_MEM: {
-            SendCommandOLD(CMD_FLASHMEM_DOWNLOAD, start_index, bytes, 0, NULL, 0);
+            SendCommandMIX(CMD_FLASHMEM_DOWNLOAD, start_index, bytes, 0, NULL, 0);
             return dl_it(dest, bytes, start_index, response, ms_timeout, show_warning, CMD_FLASHMEM_DOWNLOADED);
         }
         case SIM_MEM: {
-            //SendCommandOLD(CMD_DOWNLOAD_SIM_MEM, start_index, bytes, 0, NULL, 0);
+            //SendCommandMIX(CMD_DOWNLOAD_SIM_MEM, start_index, bytes, 0, NULL, 0);
             //return dl_it(dest, bytes, start_index, response, ms_timeout, show_warning, CMD_DOWNLOADED_SIMMEM);
             return false;
         }

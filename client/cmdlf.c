@@ -55,18 +55,18 @@ static int usage_lf_config(void) {
     PrintAndLogEx(NORMAL, "Usage: lf config [h] [H|<divisor>] [b <bps>] [d <decim>] [a 0|1]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "       h             This help");
-    PrintAndLogEx(NORMAL, "       L             Low frequency (125 KHz)");
-    PrintAndLogEx(NORMAL, "       H             High frequency (134 KHz)");
-    PrintAndLogEx(NORMAL, "       q <divisor>   Manually set divisor. 88-> 134KHz, 95-> 125 Hz");
+    PrintAndLogEx(NORMAL, "       L             Low frequency (125 kHz)");
+    PrintAndLogEx(NORMAL, "       H             High frequency (134 kHz)");
+    PrintAndLogEx(NORMAL, "       q <divisor>   Manually set divisor. 88-> 134 kHz, 95-> 125 kHz");
     PrintAndLogEx(NORMAL, "       b <bps>       Sets resolution of bits per sample. Default (max): 8");
     PrintAndLogEx(NORMAL, "       d <decim>     Sets decimation. A value of N saves only 1 in N samples. Default: 1");
     PrintAndLogEx(NORMAL, "       a [0|1]       Averaging - if set, will average the stored sample value when decimating. Default: 1");
     PrintAndLogEx(NORMAL, "       t <threshold> Sets trigger threshold. 0 means no threshold (range: 0-128)");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf config b 8 L");
-    PrintAndLogEx(NORMAL, "                    Samples at 125KHz, 8bps.");
+    PrintAndLogEx(NORMAL, "                    Samples at 125 kHz, 8bps.");
     PrintAndLogEx(NORMAL, "      lf config H b 4 d 3");
-    PrintAndLogEx(NORMAL, "                    Samples at 134KHz, averages three samples into one, stored with ");
+    PrintAndLogEx(NORMAL, "                    Samples at 134 kHz, averages three samples into one, stored with ");
     PrintAndLogEx(NORMAL, "                    a resolution of 4 bits per sample.");
     PrintAndLogEx(NORMAL, "      lf read");
     PrintAndLogEx(NORMAL, "                    Performs a read (active field)");
@@ -335,7 +335,7 @@ int CmdLFSetConfig(const char *Cmd) {
 bool lf_read(bool silent, uint32_t samples) {
     if (!session.pm3_present) return false;
     clearCommandBuffer();
-    SendCommandOLD(CMD_ACQUIRE_RAW_ADC_SAMPLES_125K, silent, samples, 0, NULL, 0);
+    SendCommandMIX(CMD_ACQUIRE_RAW_ADC_SAMPLES_125K, silent, samples, 0, NULL, 0);
 
     PacketResponseNG resp;
     if (g_lf_threshold_set) {
@@ -390,7 +390,7 @@ int CmdLFSniff(const char *Cmd) {
     if (cmdp == 'h') return usage_lf_sniff();
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_LF_SNIFF_RAW_ADC_SAMPLES, 0, 0, 0, NULL, 0);
+    SendCommandNG(CMD_LF_SNIFF_RAW_ADC_SAMPLES, NULL, 0);
     WaitForResponse(CMD_ACK, NULL);
     getSamples(0, false);
     return 0;
@@ -432,14 +432,18 @@ int CmdLFSim(const char *Cmd) {
     }
     printf("\n");
 
-    // Disable fast mode and send a dummy command to make it effective
+    // Disable fast mode before last command
     conn.block_after_ACK = false;
 
     PrintAndLogEx(NORMAL, "Simulating");
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_SIMULATE_TAG_125K, GraphTraceLen, gap, 0, NULL, 0);
-    return 0;
+    SendCommandMIX(CMD_SIMULATE_TAG_125K, GraphTraceLen, gap, 0, NULL, 0);
+    PacketResponseNG resp;
+    WaitForResponse(CMD_SIMULATE_TAG_125K, &resp);
+    if (resp.status != PM3_EOPABORTED)
+        return resp.status;
+    return PM3_SUCCESS;
 }
 
 // by marshmellow - sim fsk data given clock, fcHigh, fcLow, invert
@@ -526,7 +530,11 @@ int CmdLFfskSim(const char *Cmd) {
     SendCommandOLD(CMD_FSK_SIM_TAG, fcHigh << 8 | fcLow, (separator << 8) | clk, size, DemodBuffer, size);
 
     setClockGrid(clk, 0);
-    return 0;
+    PacketResponseNG resp;
+    WaitForResponse(CMD_FSK_SIM_TAG, &resp);
+    if (resp.status != PM3_EOPABORTED)
+        return resp.status;
+    return PM3_SUCCESS;
 }
 
 // by marshmellow - sim ask data given clock, invert, manchester or raw, separator
@@ -611,7 +619,11 @@ int CmdLFaskSim(const char *Cmd) {
     PrintAndLogEx(NORMAL, "preparing to sim ask data: %d bits", size);
     clearCommandBuffer();
     SendCommandOLD(CMD_ASK_SIM_TAG, clk << 8 | encoding, invert << 8 | separator, size, DemodBuffer, size);
-    return 0;
+    PacketResponseNG resp;
+    WaitForResponse(CMD_ASK_SIM_TAG, &resp);
+    if (resp.status != PM3_EOPABORTED)
+        return resp.status;
+    return PM3_SUCCESS;
 }
 
 // by marshmellow - sim psk data given carrier, clock, invert
@@ -714,7 +726,11 @@ int CmdLFpskSim(const char *Cmd) {
     PrintAndLogEx(DEBUG, "DEBUG: Sending DemodBuffer Length: %d", size);
     clearCommandBuffer();
     SendCommandOLD(CMD_PSK_SIM_TAG, clk << 8 | carrier, invert, size, DemodBuffer, size);
-    return 0;
+    PacketResponseNG resp;
+    WaitForResponse(CMD_PSK_SIM_TAG, &resp);
+    if (resp.status != PM3_EOPABORTED)
+        return resp.status;
+    return PM3_SUCCESS;
 }
 
 int CmdLFSimBidir(const char *Cmd) {
@@ -722,7 +738,7 @@ int CmdLFSimBidir(const char *Cmd) {
     // Set ADC to twice the carrier for a slight supersampling
     // HACK: not implemented in ARMSRC.
     PrintAndLogEx(INFO, "Not implemented yet.");
-    SendCommandOLD(CMD_LF_SIMULATE_BIDIR, 47, 384, 0, NULL, 0);
+    SendCommandMIX(CMD_LF_SIMULATE_BIDIR, 47, 384, 0, NULL, 0);
     return 0;
 }
 
@@ -903,7 +919,7 @@ int CmdLFfind(const char *Cmd) {
     //if (demodFermax())          { PrintAndLogEx(SUCCESS, "\nValid " _GREEN_("Fermax ID") " found!"); goto out;}
     //if (demodFlex())            { PrintAndLogEx(SUCCESS, "\nValid " _GREEN_("Flex ID") " found!"); goto out;}
 
-    PrintAndLogEx(FAILED, _RED_("No known 125/134 KHz tags found!"));
+    PrintAndLogEx(FAILED, _RED_("No known 125/134 kHz tags found!"));
 
     if (testRaw == 'u') {
         //test unknown tag formats (raw mode)

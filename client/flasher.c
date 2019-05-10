@@ -25,7 +25,7 @@
 static void usage(char *argv0) {
     PrintAndLogEx(NORMAL, "Usage:   %s <port> [-b] image.elf [image.elf...]\n", argv0);
     PrintAndLogEx(NORMAL, "\t-b\tEnable flashing of bootloader area (DANGEROUS)\n");
-    PrintAndLogEx(NORMAL, "\nExample:\n\n\t %s "SERIAL_PORT_H" armsrc/obj/fullimage.elf", argv0);
+    PrintAndLogEx(NORMAL, "\nExample:\n\n\t %s "SERIAL_PORT_EXAMPLE_H" armsrc/obj/fullimage.elf", argv0);
 #ifdef __linux__
     PrintAndLogEx(NORMAL, "\nNote (Linux): if the flasher gets stuck in 'Waiting for Proxmark3 to reappear on <DEVICE>',");
     PrintAndLogEx(NORMAL, "              you need to blacklist Proxmark3 for modem-manager - see wiki for more details:\n");
@@ -77,8 +77,7 @@ int main(int argc, char **argv) {
 
     char *serial_port_name = argv[1];
 
-    session.pm3_present = OpenProxmark(serial_port_name, true, 60, true, FLASHMODE_SPEED);
-    if (session.pm3_present) {
+    if (OpenProxmark(serial_port_name, true, 60, true, FLASHMODE_SPEED)) {
         PrintAndLogEx(NORMAL, _GREEN_("Found"));
     } else {
         PrintAndLogEx(ERR, "Could not find Proxmark3 on " _RED_("%s") ".\n", serial_port_name);

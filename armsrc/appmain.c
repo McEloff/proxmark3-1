@@ -422,11 +422,6 @@ void SendStatus(void) {
     DbpString(_BLUE_("Installed StandAlone Mode"));
     ModInfo();
 
-    //DbpString("Running ");
-    //Dbprintf("  Is Device attached to USB| %s", USB_ATTACHED() ? "Yes" : "No");
-    //Dbprintf("  Is Device attached to FPC| %s", send_using_0 ? "Yes" : "No");
-    //Dbprintf("  Is USB_reconnect value   | %d", GetUSBreconnect() );
-    //Dbprintf("  Is USB_configured value  | %d", GetUSBconfigured() );
 
     reply_old(CMD_ACK, 1, 0, 0, 0, 0);
 }
@@ -466,11 +461,8 @@ void SendCapabilities(void) {
 #endif
 #ifdef WITH_FPC_USART_HOST
     capabilities.compiled_with_fpc_usart_host = true;
-    // TODO
-    capabilities.hw_available_fpc_usart_btaddon = true;
 #else
     capabilities.compiled_with_fpc_usart_host = false;
-    capabilities.hw_available_fpc_usart_btaddon = false;
 #endif
 #ifdef WITH_LF
     capabilities.compiled_with_lf = true;
@@ -807,6 +799,7 @@ static void PacketReceived(PacketCommandNG *packet) {
         case CMD_SIMULATE_TAG_125K:
             LED_A_ON();
             SimulateTagLowFrequency(packet->oldarg[0], packet->oldarg[1], 1);
+            reply_ng(CMD_SIMULATE_TAG_125K, PM3_EOPABORTED, NULL, 0);
             LED_A_OFF();
             break;
         case CMD_LF_SIMULATE_BIDIR:
@@ -1187,22 +1180,29 @@ static void PacketReceived(PacketCommandNG *packet) {
 
 #ifdef WITH_FPC_USART_DEV
         case CMD_USART_TX: {
+            LED_B_ON();
             usart_writebuffer_sync(packet->data.asBytes, packet->length);
             reply_ng(CMD_USART_TX, PM3_SUCCESS, NULL, 0);
+            LED_B_OFF();
             break;
         }
         case CMD_USART_RX: {
-            uint8_t dest[USART_FIFOLEN] = {'\0'};
+            LED_B_ON();
+            uint8_t *dest = BigBuf_malloc(USART_FIFOLEN);
             uint16_t available = usart_rxdata_available();
+
             if (available > 0) {
                 uint16_t len = usart_read_ng(dest, available);
                 reply_ng(CMD_USART_RX, PM3_SUCCESS, dest, len);
             } else {
                 reply_ng(CMD_USART_RX, PM3_ENODATA, NULL, 0);
             }
+            BigBuf_free();
+            LED_B_OFF();
             break;
         }
         case CMD_USART_TXRX: {
+            LED_B_ON();
             struct p {
                 uint32_t waittime;
                 uint8_t data[PM3_CMD_DATA_SIZE - sizeof(uint32_t)];
@@ -1211,7 +1211,9 @@ static void PacketReceived(PacketCommandNG *packet) {
             usart_writebuffer_sync(payload->data, packet->length - sizeof(payload->waittime));
             uint16_t available;
             WaitMS(payload->waittime);
-            uint8_t dest[USART_FIFOLEN] = {'\0'};
+
+            uint8_t *dest = BigBuf_malloc(USART_FIFOLEN);
+
             available = usart_rxdata_available();
             // Dbprintf("avail (%u)",  available);
             if (available > 0) {
@@ -1220,6 +1222,8 @@ static void PacketReceived(PacketCommandNG *packet) {
             } else {
                 reply_ng(CMD_USART_TXRX, PM3_ENODATA, NULL, 0);
             }
+            BigBuf_free();
+            LED_B_OFF();
             break;
         }
 #endif
@@ -1514,12 +1518,9 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         case CMD_CAPABILITIES:
             SendCapabilities();
+            break;
         case CMD_PING:
-            if (packet->ng) {
-                reply_ng(CMD_PING, PM3_SUCCESS, packet->data.asBytes, packet->length);
-            } else {
-                reply_mix(CMD_ACK, reply_via_fpc, 0, 0, 0, 0);
-            }
+            reply_ng(CMD_PING, PM3_SUCCESS, packet->data.asBytes, packet->length);
             break;
 #ifdef WITH_LCD
         case CMD_LCD_RESET:
@@ -1635,7 +1636,8 @@ void  __attribute__((noreturn)) AppMain(void) {
         if (ret == PM3_SUCCESS) {
             PacketReceived(&rx);
         } else if (ret != PM3_ENODATA) {
-            Dbprintf("Error in frame reception: %d", ret);
+
+            Dbprintf("Error in frame reception: %d %s", ret, (ret == PM3_EIO) ? "PM3_EIO" : "");
             // TODO if error, shall we resync ?
         }
 

@@ -643,8 +643,15 @@ static int CmdSmartUpgrade(const char *Cmd) {
     uint32_t bytes_sent = 0;
     uint32_t bytes_remaining = firmware_size;
 
+    // fast push mode
+    conn.block_after_ACK = true;
+
     while (bytes_remaining > 0) {
         uint32_t bytes_in_packet = MIN(PM3_CMD_DATA_SIZE, bytes_remaining);
+        if (bytes_in_packet == bytes_remaining) {
+            // Disable fast mode on last packet
+            conn.block_after_ACK = false;
+        }
         clearCommandBuffer();
         SendCommandOLD(CMD_SMART_UPLOAD, index + bytes_sent, bytes_in_packet, 0, dump + bytes_sent, bytes_in_packet);
         if (!WaitForResponseTimeout(CMD_ACK, NULL, 2000)) {
@@ -664,7 +671,7 @@ static int CmdSmartUpgrade(const char *Cmd) {
 
     // trigger the firmware upgrade
     clearCommandBuffer();
-    SendCommandOLD(CMD_SMART_UPGRADE, firmware_size, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_SMART_UPGRADE, firmware_size, 0, 0, NULL, 0);
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
         PrintAndLogEx(WARNING, "timeout while waiting for reply.");
@@ -702,7 +709,7 @@ static int CmdSmartInfo(const char *Cmd) {
     if (errors) return usage_sm_info();
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_SMART_ATR, 0, 0, 0, NULL, 0);
+    SendCommandNG(CMD_SMART_ATR, NULL, 0);
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
         if (!silent) PrintAndLogEx(WARNING, "smart card select failed");
@@ -744,7 +751,7 @@ static int CmdSmartInfo(const char *Cmd) {
 
     if (Di && Fi) {
         PrintAndLogEx(NORMAL, "\t- Cycles/ETU %d", Fi / Di);
-        PrintAndLogEx(NORMAL, "\t- %.1f bits/sec at 4MHz", (float)4000000 / (Fi / Di));
+        PrintAndLogEx(NORMAL, "\t- %.1f bits/sec at 4 MHz", (float)4000000 / (Fi / Di));
         PrintAndLogEx(NORMAL, "\t- %.1f bits/sec at Fmax (%.1fMHz)", (F * 1000000) / (Fi / Di), F);
     } else {
         PrintAndLogEx(WARNING, "\t- Di or Fi is RFU.");
@@ -776,7 +783,7 @@ static int CmdSmartReader(const char *Cmd) {
     if (errors) return usage_sm_reader();
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_SMART_ATR, 0, 0, 0, NULL, 0);
+    SendCommandNG(CMD_SMART_ATR, NULL, 0);
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
         if (!silent) PrintAndLogEx(WARNING, "smart card select failed");
@@ -821,7 +828,7 @@ static int CmdSmartSetClock(const char *Cmd) {
     if (errors || cmdp == 0) return usage_sm_setclock();
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_SMART_SETCLOCK, clock1, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_SMART_SETCLOCK, clock1, 0, 0, NULL, 0);
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
         PrintAndLogEx(WARNING, "smart card select failed");
@@ -1185,7 +1192,7 @@ bool smart_select(bool silent, smart_card_atr_t *atr) {
         memset(atr, 0, sizeof(smart_card_atr_t));
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_SMART_ATR, 0, 0, 0, NULL, 0);
+    SendCommandNG(CMD_SMART_ATR, NULL, 0);
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
         if (!silent) PrintAndLogEx(WARNING, "smart card select failed");

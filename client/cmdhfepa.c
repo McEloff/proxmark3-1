@@ -32,7 +32,7 @@ static int CmdHFEPACollectPACENonces(const char *Cmd) {
     for (uint32_t i = 0; i < n; i++) {
         // execute PACE
         clearCommandBuffer();
-        SendCommandOLD(CMD_EPA_PACE_COLLECT_NONCE, (int)m, 0, 0, NULL, 0);
+        SendCommandMIX(CMD_EPA_PACE_COLLECT_NONCE, (int)m, 0, 0, NULL, 0);
         PacketResponseNG resp;
         WaitForResponse(CMD_ACK, &resp);
 
@@ -109,6 +109,8 @@ static int CmdHFEPAPACEReplay(const char *Cmd) {
 
     // transfer the APDUs to the Proxmark
     uint8_t data[PM3_CMD_DATA_SIZE];
+    // fast push mode
+    conn.block_after_ACK = true;
     for (int i = 0; i < sizeof(apdu_lengths); i++) {
         // transfer the APDU in several parts if necessary
         for (int j = 0; j * sizeof(data) < apdu_lengths[i]; j++) {
@@ -116,6 +118,10 @@ static int CmdHFEPAPACEReplay(const char *Cmd) {
             int packet_length = apdu_lengths[i] - (j * sizeof(data));
             if (packet_length > sizeof(data)) {
                 packet_length = sizeof(data);
+            }
+            if ((i == sizeof(apdu_lengths) - 1) && (j * sizeof(data) >= apdu_lengths[i] - 1)) {
+                // Disable fast mode on last packet
+                conn.block_after_ACK = false;
             }
             memcpy(data, // + (j * sizeof(data)),
                    apdus[i] + (j * sizeof(data)),
@@ -135,7 +141,7 @@ static int CmdHFEPAPACEReplay(const char *Cmd) {
 
     // now perform the replay
     clearCommandBuffer();
-    SendCommandOLD(CMD_EPA_PACE_REPLAY, 0, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_EPA_PACE_REPLAY, 0, 0, 0, NULL, 0);
     WaitForResponse(CMD_ACK, &resp);
     if (resp.oldarg[0] != 0) {
         PrintAndLogEx(NORMAL, "\nPACE replay failed in step %u!", (uint32_t)resp.oldarg[0]);

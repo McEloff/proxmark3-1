@@ -413,7 +413,7 @@ static int usage_hf14_nack(void) {
 
 static int GetHFMF14AUID(uint8_t *uid, int *uidlen) {
     clearCommandBuffer();
-    SendCommandOLD(CMD_READER_ISO_14443a, ISO14A_CONNECT, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_READER_ISO_14443a, ISO14A_CONNECT, 0, 0, NULL, 0);
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
         PrintAndLogEx(WARNING, "iso14443a card select failed");
@@ -1055,7 +1055,7 @@ static int CmdHF14AMfRestore(const char *Cmd) {
 }
 
 static int CmdHF14AMfNested(const char *Cmd) {
-    int i, res, iterations;
+    int i, iterations;
     sector_t *e_sector = NULL;
     uint8_t blockNo = 0;
     uint8_t keyType = 0;
@@ -1178,8 +1178,7 @@ static int CmdHF14AMfNested(const char *Cmd) {
         }
 
         PrintAndLogEx(SUCCESS, "Testing known keys. Sector count=%d", SectorsCnt);
-        res = mfCheckKeys_fast(SectorsCnt, true, true, 1, MIFARE_DEFAULTKEYS_SIZE + 1, keyBlock, e_sector, false);
-        // TODO check result!!
+        mfCheckKeys_fast(SectorsCnt, true, true, 1, MIFARE_DEFAULTKEYS_SIZE + 1, keyBlock, e_sector, false);
 
         uint64_t t2 = msclock() - t1;
         PrintAndLogEx(SUCCESS, "Time to check %d known keys: %.0f seconds\n", MIFARE_DEFAULTKEYS_SIZE, (float)t2 / 1000.0);
@@ -1216,7 +1215,7 @@ static int CmdHF14AMfNested(const char *Cmd) {
                             e_sector[sectorNo].foundKey[trgKeyType] = 1;
                             e_sector[sectorNo].Key[trgKeyType] = bytes_to_num(keyBlock, 6);
 
-                            res = mfCheckKeys_fast(SectorsCnt, true, true, 2, 1, keyBlock, e_sector, false);
+                            mfCheckKeys_fast(SectorsCnt, true, true, 2, 1, keyBlock, e_sector, false);
                             continue;
 
                         default :
@@ -1269,12 +1268,18 @@ static int CmdHF14AMfNested(const char *Cmd) {
 
         // transfer them to the emulator
         if (transferToEml) {
+            // fast push mode
+            conn.block_after_ACK = true;
             for (i = 0; i < SectorsCnt; i++) {
                 mfEmlGetMem(keyBlock, FirstBlockOfSector(i) + NumBlocksPerSector(i) - 1, 1);
                 if (e_sector[i].foundKey[0])
                     num_to_bytes(e_sector[i].Key[0], 6, keyBlock);
                 if (e_sector[i].foundKey[1])
                     num_to_bytes(e_sector[i].Key[1], 6, &keyBlock[10]);
+                if (i == SectorsCnt - 1) {
+                    // Disable fast mode on last packet
+                    conn.block_after_ACK = false;
+                }
                 mfEmlSetMem(keyBlock, FirstBlockOfSector(i) + NumBlocksPerSector(i) - 1, 1);
             }
             PrintAndLogEx(SUCCESS, "keys transferred to emulator memory.");
@@ -1725,6 +1730,8 @@ out:
         printKeyTable(sectorsCnt, e_sector);
 
         if (transferToEml) {
+            // fast push mode
+            conn.block_after_ACK = true;
             uint8_t block[16] = {0x00};
             for (i = 0; i < sectorsCnt; ++i) {
                 uint8_t blockno = FirstBlockOfSector(i) + NumBlocksPerSector(i) - 1;
@@ -1733,6 +1740,10 @@ out:
                     num_to_bytes(e_sector[i].Key[0], 6, block);
                 if (e_sector[i].foundKey[1])
                     num_to_bytes(e_sector[i].Key[1], 6, block + 10);
+                if (i == sectorsCnt - 1) {
+                    // Disable fast mode on last packet
+                    conn.block_after_ACK = false;
+                }
                 mfEmlSetMem(block, blockno, 1);
             }
             PrintAndLogEx(SUCCESS, "Found keys have been transferred to the emulator memory");
@@ -2013,6 +2024,8 @@ out:
     printKeyTable(SectorsCnt, e_sector);
 
     if (transferToEml) {
+        // fast push mode
+        conn.block_after_ACK = true;
         uint8_t block[16] = {0x00};
         for (i = 0; i < SectorsCnt; ++i) {
             uint8_t blockno = FirstBlockOfSector(i) + NumBlocksPerSector(i) - 1;
@@ -2021,6 +2034,10 @@ out:
                 num_to_bytes(e_sector[i].Key[0], 6, block);
             if (e_sector[i].foundKey[1])
                 num_to_bytes(e_sector[i].Key[1], 6, block + 10);
+            if (i == SectorsCnt - 1) {
+                // Disable fast mode on last packet
+                conn.block_after_ACK = false;
+            }
             mfEmlSetMem(block, blockno, 1);
         }
         PrintAndLogEx(SUCCESS, "Found keys have been transferred to the emulator memory");
@@ -2028,8 +2045,8 @@ out:
 
     // Disable fast mode and send a dummy command to make it effective
     conn.block_after_ACK = false;
-    SendCommandMIX(CMD_PING, 0, 0, 0, NULL, 0);
-    WaitForResponseTimeout(CMD_ACK, NULL, 1000);
+    SendCommandNG(CMD_PING, NULL, 0);
+    WaitForResponseTimeout(CMD_PING, NULL, 1000);
 
 
     if (createDumpFile) {
@@ -2303,7 +2320,7 @@ static int CmdHF14AMfSniff(const char *Cmd) {
     PrintAndLogEx(NORMAL, "-------------------------------------------------------------------------\n");
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_MIFARE_SNIFFER, 0, 0, 0, NULL, 0);
+    SendCommandNG(CMD_MIFARE_SNIFFER, NULL, 0);
 
     PacketResponseNG resp;
 
@@ -2432,7 +2449,7 @@ int CmdHF14AMfDbg(const char *Cmd) {
     uint8_t dbgMode = param_get8ex(Cmd, 0, 0, 10);
     if (dbgMode > 4) return usage_hf14_dbg();
 
-    SendCommandOLD(CMD_MIFARE_SET_DBGMODE, dbgMode, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_MIFARE_SET_DBGMODE, dbgMode, 0, 0, NULL, 0);
     return 0;
 }
 
@@ -2518,7 +2535,7 @@ static int CmdHF14AMfEClear(const char *Cmd) {
     if (c == 'h') return usage_hf14_eclr();
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_MIFARE_EML_MEMCLR, 0, 0, 0, NULL, 0);
+    SendCommandNG(CMD_MIFARE_EML_MEMCLR, NULL, 0);
     return 0;
 }
 
@@ -2611,8 +2628,14 @@ int CmdHF14AMfELoad(const char *Cmd) {
 
     PrintAndLogEx(INFO, "Copying to emulator memory");
 
+    // fast push mode
+    conn.block_after_ACK = true;
     blockNum = 0;
     while (datalen) {
+        if (datalen == blockWidth) {
+            // Disable fast mode on last packet
+            conn.block_after_ACK = false;
+        }
 
         if (mfEmlSetMem_xt(data + counter, blockNum, 1, blockWidth)) {
             PrintAndLogEx(FAILED, "Cant set emul block: %3d", blockNum);
@@ -2723,7 +2746,7 @@ static int CmdHF14AMfECFill(const char *Cmd) {
 
     PrintAndLogEx(NORMAL, "--params: numSectors: %d, keyType: %c\n", numSectors, (keyType == 0) ? 'A' : 'B');
     clearCommandBuffer();
-    SendCommandOLD(CMD_MIFARE_EML_CARDLOAD, numSectors, keyType, 0, NULL, 0);
+    SendCommandMIX(CMD_MIFARE_EML_CARDLOAD, numSectors, keyType, 0, NULL, 0);
     return 0;
 }
 
@@ -3123,7 +3146,13 @@ static int CmdHF14AMfCSave(const char *Cmd) {
 
     if (fillEmulator) {
         PrintAndLogEx(INFO, "uploading to emulator memory");
+        // fast push mode
+        conn.block_after_ACK = true;
         for (i = 0; i < numblocks; i += 5) {
+            if (i == numblocks - 1) {
+                // Disable fast mode on last packet
+                conn.block_after_ACK = false;
+            }
             if (mfEmlSetMem(dump + (i * MFBLOCK_SIZE), i, 5)) {
                 PrintAndLogEx(WARNING, "Cant set emul block: %d", i);
             }
@@ -3288,7 +3317,7 @@ static int CmdHF14AMfice(const char *Cmd) {
         flags |= initialize ? 0x0001 : 0;
         flags |= slow ? 0x0002 : 0;
         clearCommandBuffer();
-        SendCommandOLD(CMD_MIFARE_ACQUIRE_NONCES, blockNo + keyType * 0x100, trgBlockNo + trgKeyType * 0x100, flags, NULL, 0);
+        SendCommandMIX(CMD_MIFARE_ACQUIRE_NONCES, blockNo + keyType * 0x100, trgBlockNo + trgKeyType * 0x100, flags, NULL, 0);
 
         if (!WaitForResponseTimeout(CMD_ACK, &resp, 3000)) goto out;
         if (resp.oldarg[0])  goto out;
@@ -3320,7 +3349,7 @@ out:
     }
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_MIFARE_ACQUIRE_NONCES, blockNo + keyType * 0x100, trgBlockNo + trgKeyType * 0x100, 4, NULL, 0);
+    SendCommandMIX(CMD_MIFARE_ACQUIRE_NONCES, blockNo + keyType * 0x100, trgBlockNo + trgKeyType * 0x100, 4, NULL, 0);
     return 0;
 }
 

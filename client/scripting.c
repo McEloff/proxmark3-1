@@ -45,33 +45,13 @@ static int l_fast_push_mode(lua_State *L) {
 
     // Disable fast mode and send a dummy command to make it effective
     if (enable == false) {
-        SendCommandMIX(CMD_PING, 0, 0, 0, NULL, 0);
-        WaitForResponseTimeout(CMD_ACK, NULL, 1000);
+        SendCommandNG(CMD_PING, NULL, 0);
+        WaitForResponseTimeout(CMD_PING, NULL, 1000);
     }
 
     //Push the retval on the stack
     lua_pushboolean(L, enable);
     return 1;
-}
-
-/**
- * The following params expected:
- *  UsbCommand c
- *@brief l_SendCommand
- * @param L
- * @return
- */
-static int l_SendCommand(lua_State *L) {
-    size_t size;
-    const char *data = luaL_checklstring(L, 1, &size);
-    if (size != sizeof(PacketCommandOLD)) {
-        printf("Got data size %d, expected %d", (int) size, (int) sizeof(PacketCommandOLD));
-        lua_pushstring(L, "Wrong data size");
-        return 1;
-    }
-
-    SendCommand((PacketCommandOLD *)data);
-    return 0;
 }
 
 /**
@@ -86,7 +66,7 @@ static int l_SendCommand(lua_State *L) {
  * @return
  */
 static int l_SendCommandOLD(lua_State *L) {
-//  SendCommandOLD(CMD_HF_SNIFFER, skippairs, skiptriggers, 0, NULL, 0);
+//  SendCommandMIX(CMD_HF_SNIFFER, skippairs, skiptriggers, 0, NULL, 0);
 // (uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len)
 
     uint64_t cmd, arg0, arg1, arg2;
@@ -1042,7 +1022,6 @@ static int setLuaPath(lua_State *L, const char *path) {
 
 int set_pm3_libraries(lua_State *L) {
     static const luaL_Reg libs[] = {
-        {"SendCommand",                 l_SendCommand},
         {"SendCommandOLD",              l_SendCommandOLD},
         {"SendCommandMIX",              l_SendCommandMIX},
         {"SendCommandNG",               l_SendCommandNG},

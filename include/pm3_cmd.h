@@ -137,36 +137,32 @@ typedef struct {
     uint16_t read_gap;
 } t55xx_config;
 
-// TODO add more fields to report all hw & sw capabilities of pm3
 typedef struct {
     uint32_t baudrate;
-    bool via_fpc;
+    bool via_fpc                       : 1;
     // rdv4
-    bool compiled_with_flash;
-    bool compiled_with_smartcard;
-    bool compiled_with_fpc_usart;
-    bool compiled_with_fpc_usart_dev;
-    bool compiled_with_fpc_usart_host;
+    bool compiled_with_flash           : 1;
+    bool compiled_with_smartcard       : 1;
+    bool compiled_with_fpc_usart       : 1;
+    bool compiled_with_fpc_usart_dev   : 1;
+    bool compiled_with_fpc_usart_host  : 1;
     // lf
-    bool compiled_with_lf;
-    bool compiled_with_hitag;
+    bool compiled_with_lf              : 1;
+    bool compiled_with_hitag           : 1;
     // hf
-    bool compiled_with_hfsniff;
-    bool compiled_with_iso14443a;
-    bool compiled_with_iso14443b;
-    bool compiled_with_iso15693;
-    bool compiled_with_felica;
-    bool compiled_with_legicrf;
-    bool compiled_with_iclass;
+    bool compiled_with_hfsniff         : 1;
+    bool compiled_with_iso14443a       : 1;
+    bool compiled_with_iso14443b       : 1;
+    bool compiled_with_iso15693        : 1;
+    bool compiled_with_felica          : 1;
+    bool compiled_with_legicrf         : 1;
+    bool compiled_with_iclass          : 1;
     // misc
-    bool compiled_with_lcd;
+    bool compiled_with_lcd             : 1;
 
-    // Following are not yet implemented:
     // rdv4
-    bool hw_available_flash;
-    bool hw_available_smartcard;
-    // rdv4 bt addon
-    bool hw_available_fpc_usart_btaddon;
+    bool hw_available_flash            : 1;
+    bool hw_available_smartcard        : 1;
 } PACKED capabilities_t;
 
 extern capabilities_t pm3_capabilities;
@@ -461,7 +457,8 @@ extern capabilities_t pm3_capabilities;
 #define PM3_EMALLOC           -12
 // File error                           client:     error related to file access on host
 #define PM3_EFILE             -13
-
+// Generic TTY error
+#define PM3_ENOTTY            -14
 // No data                              pm3:        no data available, no host frame available (not really an error)
 #define PM3_ENODATA           -98
 // Quit program                         client:     reserved, order to quit the program
@@ -477,7 +474,7 @@ extern capabilities_t pm3_capabilities;
 // all zero's configure: no timeout for read/write used.
 // took settings from libnfc/buses/uart.c
 
-// uart_windows.c
+// uart_windows.c & uart_posix.c
 # define UART_FPC_CLIENT_RX_TIMEOUT_MS  170
 # define UART_USB_CLIENT_RX_TIMEOUT_MS  20
 # define UART_TCP_CLIENT_RX_TIMEOUT_MS  300
