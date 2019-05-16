@@ -20,6 +20,7 @@ static int usage_hf_search() {
     PrintAndLogEx(NORMAL, "");
     return 0;
 }
+
 static int usage_hf_sniff() {
     PrintAndLogEx(NORMAL, "The high frequence sniffer will assign all available memory on device for sniffed data");
     PrintAndLogEx(NORMAL, "Use " _YELLOW_("'data samples'")" command to download from device,  and " _YELLOW_("'data plot'")" to look at it");
@@ -33,6 +34,16 @@ static int usage_hf_sniff() {
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "           hf sniff");
     PrintAndLogEx(NORMAL, "           hf sniff 1000 0");
+    return 0;
+}
+
+static int usage_hf_tune() {
+    PrintAndLogEx(NORMAL, "Usage: hf tune [<iter>]");
+    PrintAndLogEx(NORMAL, "Continuously measure HF antenna tuning.");
+    PrintAndLogEx(NORMAL, "Press button or keyboard to interrupt.");
+    PrintAndLogEx(NORMAL, "Options:");
+    PrintAndLogEx(NORMAL, "       <iter>               - number of iterations (default: infinite)");
+    PrintAndLogEx(NORMAL, "");
     return 0;
 }
 
@@ -82,17 +93,45 @@ int CmdHFSearch(const char *Cmd) {
 }
 
 int CmdHFTune(const char *Cmd) {
-    (void)Cmd; // Cmd is not used so far
-    PrintAndLogEx(SUCCESS, "Measuring HF antenna, press button to exit");
-    clearCommandBuffer();
-    SendCommandNG(CMD_MEASURE_ANTENNA_TUNING_HF, NULL, 0);
+    char cmdp = tolower(param_getchar(Cmd, 0));
+    if (cmdp == 'h') return usage_hf_tune();
+    int iter =  param_get32ex(Cmd, 0, 0, 10);
+
     PacketResponseNG resp;
+    PrintAndLogEx(SUCCESS, "Measuring HF antenna, click button or press a key to exit");
+    clearCommandBuffer();
+    uint8_t mode[] = {1};
+    SendCommandNG(CMD_MEASURE_ANTENNA_TUNING_HF, mode, sizeof(mode));
     if (!WaitForResponseTimeout(CMD_MEASURE_ANTENNA_TUNING_HF, &resp, 1000)) {
-        PrintAndLogEx(WARNING, "Timeout while waiting for Proxmark HF measure, aborting");
+        PrintAndLogEx(WARNING, "Timeout while waiting for Proxmark HF initialization, aborting");
         return PM3_ETIMEOUT;
     }
-    if (resp.status != PM3_EOPABORTED)
-        return resp.status;
+    mode[0] = 2;
+    // loop forever (till button pressed) if iter = 0 (default)
+    for (uint8_t i = 0; iter == 0 || i < iter; i++) {
+        if (ukbhit()) { // abort by keyboard press
+            int gc = getchar();
+            (void)gc;
+            break;
+        }
+        SendCommandNG(CMD_MEASURE_ANTENNA_TUNING_HF, mode, sizeof(mode));
+        if (!WaitForResponseTimeout(CMD_MEASURE_ANTENNA_TUNING_HF, &resp, 1000)) {
+            PrintAndLogEx(WARNING, "Timeout while waiting for Proxmark HF measure, aborting");
+            return PM3_ETIMEOUT;
+        }
+        if ((resp.status == PM3_EOPABORTED) || (resp.length != sizeof(uint16_t)))
+            break;
+        uint16_t volt = resp.data.asDwords[0];
+        PrintAndLogEx(INPLACE, "%u mV / %5u V", volt, (uint16_t)(volt / 1000));
+    }
+    mode[0] = 3;
+    SendCommandNG(CMD_MEASURE_ANTENNA_TUNING_HF, mode, sizeof(mode));
+    if (!WaitForResponseTimeout(CMD_MEASURE_ANTENNA_TUNING_HF, &resp, 1000)) {
+        PrintAndLogEx(WARNING, "Timeout while waiting for Proxmark HF shutdown, aborting");
+        return PM3_ETIMEOUT;
+    }
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(SUCCESS, "Done.");
     return PM3_SUCCESS;
 }
 

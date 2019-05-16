@@ -869,7 +869,7 @@ int detect_classic_prng(void) {
     uint32_t flags = ISO14A_CONNECT | ISO14A_RAW | ISO14A_APPEND_CRC | ISO14A_NO_RATS;
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_READER_ISO_14443a, flags, sizeof(cmd), 0, cmd, sizeof(cmd));
+    SendCommandMIX(CMD_READER_ISO_14443a, flags, sizeof(cmd), 0, cmd, sizeof(cmd));
 
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
         PrintAndLogEx(WARNING, "PRNG UID: Reply timeout.");
@@ -912,26 +912,8 @@ int detect_classic_nackbug(bool verbose) {
     if (verbose)
         PrintAndLogEx(SUCCESS, "press pm3-button on the Proxmark3 device to abort both Proxmark3 and client.\n");
 
-    // for nice animation
-    bool term = !isatty(STDIN_FILENO);
-#if defined(__linux__) || (__APPLE__)
-    char star[] = {'-', '\\', '|', '/'};
-    uint8_t staridx = 0;
-#endif
-
     while (true) {
-
-        if (term) {
-            printf(".");
-        } else {
-            printf(
-#if defined(__linux__) || (__APPLE__)
-                _GREEN_("\e[s%c\e[u"), star[(staridx++ % 4) ]
-#else
-                "."
-#endif
-            );
-        }
+        printf(".");
         fflush(stdout);
         if (ukbhit()) {
             int gc = getchar();
@@ -939,10 +921,16 @@ int detect_classic_nackbug(bool verbose) {
             return PM3_EOPABORTED;
         }
 
-        if (WaitForResponseTimeout(CMD_ACK, &resp, 500)) {
-            int32_t ok = resp.oldarg[0];
-            uint32_t nacks = resp.oldarg[1];
-            uint32_t auths = resp.oldarg[2];
+        if (WaitForResponseTimeout(CMD_MIFARE_NACK_DETECT, &resp, 500)) {
+
+            if ( resp.status == PM3_EOPABORTED ) {
+                PrintAndLogEx(WARNING, "button pressed. Aborted.");
+                return PM3_EOPABORTED;
+            }
+
+            uint8_t ok = resp.data.asBytes[0];
+            uint8_t nacks = resp.data.asBytes[1];
+            uint16_t auths = bytes_to_num(resp.data.asBytes + 2, 2);
             PrintAndLogEx(NORMAL, "");
 
             if (verbose) {
@@ -950,9 +938,6 @@ int detect_classic_nackbug(bool verbose) {
                 PrintAndLogEx(SUCCESS, "num of received NACK  : %u", nacks);
             }
             switch (ok) {
-                case 99 :
-                    PrintAndLogEx(WARNING, "button pressed. Aborted.");
-                    return PM3_EOPABORTED;
                 case 96 :
                 case 98 : {
                     if (verbose)
@@ -992,8 +977,10 @@ void detect_classic_magic(void) {
     PacketResponseNG resp;
     clearCommandBuffer();
     SendCommandNG(CMD_MIFARE_CIDENT, NULL, 0);
-    if (WaitForResponseTimeout(CMD_ACK, &resp, 1500))
-        isGeneration = resp.oldarg[0] & 0xff;
+    if (WaitForResponseTimeout(CMD_MIFARE_CIDENT, &resp, 1500)) {
+        if ( resp.status == PM3_SUCCESS )
+            isGeneration = resp.data.asBytes[0];
+    }
 
     switch (isGeneration) {
         case 1:

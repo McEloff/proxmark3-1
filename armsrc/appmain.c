@@ -55,6 +55,7 @@ uint8_t ToSend[TOSEND_BUFFER_SIZE];
 int ToSendMax = -1;
 static int ToSendBit;
 struct common_area common_area __attribute__((section(".commonarea")));
+int button_status = BUTTON_NO_CLICK;
 
 void ToSendReset(void) {
     ToSendMax = -1;
@@ -295,33 +296,22 @@ void MeasureAntennaTuning(void) {
     arg2 <<= 32;
     arg2 |= peakf;
 
-    reply_old(CMD_MEASURED_ANTENNA_TUNING, arg0, v_hf, arg2, LF_Results, 256);
+    reply_mix(CMD_MEASURE_ANTENNA_TUNING, arg0, v_hf, arg2, LF_Results, 256);
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();
 }
 
-void MeasureAntennaTuningHf(void) {
+uint16_t MeasureAntennaTuningHfData(void) {
     uint16_t volt = 0; // in mV
-    // Let the FPGA drive the high-frequency antenna around 13.56 MHz.
-    FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
-    FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_READER_RX_XCORR);
-    SpinDelay(50);
     volt = (MAX_ADC_HF_VOLTAGE * AvgAdc(ADC_CHAN_HF)) >> 10;
     bool use_high = (volt > MAX_ADC_HF_VOLTAGE - 300);
 
-    while (!BUTTON_PRESS()) {
-        SpinDelay(20);
-        if (!use_high) {
-            volt = (MAX_ADC_HF_VOLTAGE * AvgAdc(ADC_CHAN_HF)) >> 10;
-        } else {
-            volt = (MAX_ADC_HF_VOLTAGE_RDV40 * AvgAdc(ADC_CHAN_HF_RDV40)) >> 10;
-        }
-        DbprintfEx(FLAG_INPLACE, "%u mV / %5u V", volt, (uint16_t)(volt / 1000));
+    if (!use_high) {
+        volt = (MAX_ADC_HF_VOLTAGE * AvgAdc(ADC_CHAN_HF)) >> 10;
+    } else {
+        volt = (MAX_ADC_HF_VOLTAGE_RDV40 * AvgAdc(ADC_CHAN_HF_RDV40)) >> 10;
     }
-    FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    DbprintfEx(FLAG_NEWLINE, "");
-    Dbprintf("[+] cancelled", 1);
-    reply_ng(CMD_MEASURE_ANTENNA_TUNING_HF, PM3_EOPABORTED, NULL, 0);
+    return volt;
 }
 
 void ReadMem(int addr) {
@@ -422,17 +412,23 @@ void SendStatus(void) {
     DbpString(_BLUE_("Installed StandAlone Mode"));
     ModInfo();
 
+#ifdef WITH_FLASH
+    Flashmem_print_info();
+#endif
 
     reply_old(CMD_ACK, 1, 0, 0, 0, 0);
 }
 
 void SendCapabilities(void) {
     capabilities_t capabilities;
+    capabilities.version = CAPABILITIES_VERSION;
     capabilities.via_fpc = reply_via_fpc;
+    
+    capabilities.baudrate = 0; // no real baudrate for USB-CDC
+#ifdef WITH_FPC_USART
     if (reply_via_fpc)
-        capabilities.baudrate = USART_BAUD_RATE;
-    else
-        capabilities.baudrate = 0; // no real baudrate for USB-CDC
+        capabilities.baudrate = usart_baudrate;
+#endif
 
 #ifdef WITH_FLASH
     capabilities.compiled_with_flash = true;
@@ -819,7 +815,8 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_T55XX_WRITE_BLOCK:
-            T55xxWriteBlock(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes[0]);
+            // uses NG format
+            T55xxWriteBlock(packet->data.asBytes);
             break;
         case CMD_T55XX_WAKEUP:
             T55xxWakeUp(packet->oldarg[0]);
@@ -865,7 +862,7 @@ static void PacketReceived(PacketCommandNG *packet) {
 
 #ifdef WITH_HITAG
         case CMD_SNIFF_HITAG: // Eavesdrop Hitag tag, args = type
-            SniffHitag(packet->oldarg[0]);
+            SniffHitag();
             break;
         case CMD_SIMULATE_HITAG: // Simulate Hitag tag, args = memory content
             SimulateHitagTag((bool)packet->oldarg[0], packet->data.asBytes);
@@ -992,7 +989,7 @@ static void PacketReceived(PacketCommandNG *packet) {
             ReaderMifare(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2]);
             break;
         case CMD_MIFARE_READBL:
-            MifareReadBlock(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
+            MifareReadBlock(packet->oldarg[0], packet->oldarg[1], packet->data.asBytes);
             break;
         case CMD_MIFAREU_READBL:
             MifareUReadBlock(packet->oldarg[0], packet->oldarg[1], packet->data.asBytes);
@@ -1007,10 +1004,10 @@ static void PacketReceived(PacketCommandNG *packet) {
             MifareUSetPwd(packet->oldarg[0], packet->data.asBytes);
             break;
         case CMD_MIFARE_READSC:
-            MifareReadSector(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
+            MifareReadSector(packet->oldarg[0], packet->oldarg[1], packet->data.asBytes);
             break;
         case CMD_MIFARE_WRITEBL:
-            MifareWriteBlock(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
+            MifareWriteBlock(packet->oldarg[0], packet->oldarg[1], packet->data.asBytes);
             break;
         //case CMD_MIFAREU_WRITEBL_COMPAT:
         //MifareUWriteBlockCompat(packet->oldarg[0], packet->data.asBytes);
@@ -1022,13 +1019,13 @@ static void PacketReceived(PacketCommandNG *packet) {
             MifareAcquireEncryptedNonces(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
             break;
         case CMD_MIFARE_ACQUIRE_NONCES:
-            MifareAcquireNonces(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
+            MifareAcquireNonces(packet->oldarg[0], packet->oldarg[2]);
             break;
         case CMD_MIFARE_NESTED:
             MifareNested(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
             break;
         case CMD_MIFARE_CHKKEYS: {
-            MifareChkKeys(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes, packet->ng);
+            MifareChkKeys(packet->data.asBytes);
             break;
         }
         case CMD_MIFARE_CHKKEYS_FAST: {
@@ -1044,16 +1041,16 @@ static void PacketReceived(PacketCommandNG *packet) {
             MifareSetDbgLvl(packet->oldarg[0]);
             break;
         case CMD_MIFARE_EML_MEMCLR:
-            MifareEMemClr(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
+            MifareEMemClr();
             break;
         case CMD_MIFARE_EML_MEMSET:
             MifareEMemSet(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
             break;
         case CMD_MIFARE_EML_MEMGET:
-            MifareEMemGet(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
+            MifareEMemGet(packet->oldarg[0], packet->oldarg[1]);
             break;
         case CMD_MIFARE_EML_CARDLOAD:
-            MifareECardLoad(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
+            MifareECardLoad(packet->oldarg[0], packet->oldarg[1]);
             break;
 
         // Work with "magic Chinese" card
@@ -1071,7 +1068,7 @@ static void PacketReceived(PacketCommandNG *packet) {
 //            SniffMifare(packet->oldarg[0]);
 //            break;
         case CMD_MIFARE_SETMOD:
-            MifareSetMod(packet->oldarg[0], packet->data.asBytes);
+            MifareSetMod(packet->data.asBytes);
             break;
         //mifare desfire
         case CMD_MIFARE_DESFIRE_READBL:
@@ -1178,7 +1175,7 @@ static void PacketReceived(PacketCommandNG *packet) {
         }
 #endif
 
-#ifdef WITH_FPC_USART_DEV
+#ifdef WITH_FPC_USART
         case CMD_USART_TX: {
             LED_B_ON();
             usart_writebuffer_sync(packet->data.asBytes, packet->length);
@@ -1226,6 +1223,16 @@ static void PacketReceived(PacketCommandNG *packet) {
             LED_B_OFF();
             break;
         }
+        case CMD_USART_CONFIG: {
+            struct p {
+                uint32_t baudrate;
+                uint8_t parity;
+            } PACKED;
+            struct p *payload = (struct p *) &packet->data.asBytes;
+            usart_init(payload->baudrate, payload->parity);
+            reply_ng(CMD_USART_CONFIG, PM3_SUCCESS, NULL, 0);
+            break;
+        }
 #endif
 
         case CMD_BUFF_CLEAR:
@@ -1238,7 +1245,29 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
 
         case CMD_MEASURE_ANTENNA_TUNING_HF:
-            MeasureAntennaTuningHf();
+            if (packet->length != 1)
+                reply_ng(CMD_MEASURE_ANTENNA_TUNING_HF, PM3_EINVARG, NULL, 0);
+            switch (packet->data.asBytes[0]) {
+                case 1: // MEASURE_ANTENNA_TUNING_HF_START
+                    // Let the FPGA drive the high-frequency antenna around 13.56 MHz.
+                    FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
+                    FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_READER_RX_XCORR);
+                    reply_ng(CMD_MEASURE_ANTENNA_TUNING_HF, PM3_SUCCESS, NULL, 0);
+                    break;
+                case 2:
+                    if (button_status == BUTTON_SINGLE_CLICK)
+                        reply_ng(CMD_MEASURE_ANTENNA_TUNING_HF, PM3_EOPABORTED, NULL, 0);
+                    uint16_t volt = MeasureAntennaTuningHfData();
+                    reply_ng(CMD_MEASURE_ANTENNA_TUNING_HF, PM3_SUCCESS, (uint8_t *)&volt, sizeof(volt));
+                    break;
+                case 3:
+                    FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
+                    reply_ng(CMD_MEASURE_ANTENNA_TUNING_HF, PM3_SUCCESS, NULL, 0);
+                    break;
+                default:
+                    reply_ng(CMD_MEASURE_ANTENNA_TUNING_HF, PM3_EINVARG, NULL, 0);
+                    break;
+            }
             break;
 
         case CMD_LISTEN_READER_FIELD:
@@ -1614,7 +1643,7 @@ void  __attribute__((noreturn)) AppMain(void) {
 #endif
 
 #ifdef WITH_FPC_USART
-    usart_init();
+    usart_init(USART_BAUD_RATE, USART_PARITY);
 #endif
 
     // This is made as late as possible to ensure enumeration without timeout
@@ -1632,6 +1661,8 @@ void  __attribute__((noreturn)) AppMain(void) {
 
         // Check if there is a packet available
         PacketCommandNG rx;
+        memset(&rx.data, 0, sizeof(rx.data));
+
         int ret = receive_ng(&rx);
         if (ret == PM3_SUCCESS) {
             PacketReceived(&rx);
@@ -1642,8 +1673,8 @@ void  __attribute__((noreturn)) AppMain(void) {
         }
 
         // Press button for one second to enter a possible standalone mode
-        if (BUTTON_HELD(1000) > 0) {
-
+        button_status = BUTTON_HELD(1000);
+        if (button_status == BUTTON_HOLD) {
             /*
             * So this is the trigger to execute a standalone mod.  Generic entrypoint by following the standalone/standalone.h headerfile
             * All standalone mod "main loop" should be the RunMod() function.

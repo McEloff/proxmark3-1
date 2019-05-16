@@ -65,7 +65,7 @@ typedef struct {
         uint32_t asDwords[PM3_CMD_DATA_SIZE / 4];
     } data;
     bool ng;             // does it store NG data or OLD data?
-} PACKED PacketCommandNG;
+} PacketCommandNG;
 
 // For reception and CRC check
 typedef struct {
@@ -111,7 +111,7 @@ typedef struct {
         uint32_t asDwords[PM3_CMD_DATA_SIZE / 4];
     } data;
     bool ng;             // does it store NG data or OLD data?
-} PACKED PacketResponseNG;
+} PacketResponseNG;
 
 // For reception and CRC check
 typedef struct {
@@ -138,6 +138,7 @@ typedef struct {
 } t55xx_config;
 
 typedef struct {
+    uint8_t version;
     uint32_t baudrate;
     bool via_fpc                       : 1;
     // rdv4
@@ -164,8 +165,16 @@ typedef struct {
     bool hw_available_flash            : 1;
     bool hw_available_smartcard        : 1;
 } PACKED capabilities_t;
-
+#define CAPABILITIES_VERSION 1
 extern capabilities_t pm3_capabilities;
+
+// For CMD_T55XX_WRITE_BLOCK
+typedef struct {
+    uint32_t data;
+    uint32_t pwd;
+    uint8_t blockno;
+    uint8_t flags;
+} PACKED t55xx_write_block_t;
 
 // For the bootloader
 #define CMD_DEVICE_INFO                                                   0x0000
@@ -212,6 +221,7 @@ extern capabilities_t pm3_capabilities;
 #define CMD_USART_RX                                                      0x0160
 #define CMD_USART_TX                                                      0x0161
 #define CMD_USART_TXRX                                                    0x0162
+#define CMD_USART_CONFIG                                                  0x0163
 
 // For low-frequency tags
 #define CMD_READ_TI_TYPE                                                  0x0202
@@ -327,7 +337,6 @@ extern capabilities_t pm3_capabilities;
 // For measurements of the antenna tuning
 #define CMD_MEASURE_ANTENNA_TUNING                                        0x0400
 #define CMD_MEASURE_ANTENNA_TUNING_HF                                     0x0401
-#define CMD_MEASURED_ANTENNA_TUNING                                       0x0410
 #define CMD_LISTEN_READER_FIELD                                           0x0420
 
 // For direct FPGA control
@@ -475,7 +484,7 @@ extern capabilities_t pm3_capabilities;
 // took settings from libnfc/buses/uart.c
 
 // uart_windows.c & uart_posix.c
-# define UART_FPC_CLIENT_RX_TIMEOUT_MS  170
+# define UART_FPC_CLIENT_RX_TIMEOUT_MS  200
 # define UART_USB_CLIENT_RX_TIMEOUT_MS  20
 # define UART_TCP_CLIENT_RX_TIMEOUT_MS  300
 

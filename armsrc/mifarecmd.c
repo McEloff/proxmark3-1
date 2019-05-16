@@ -38,7 +38,7 @@ static uint8_t dummy_answer = 0;
 // Select, Authenticate, Read a MIFARE tag.
 // read block
 //-----------------------------------------------------------------------------
-void MifareReadBlock(uint8_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain) {
+void MifareReadBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain) {
     // params
     uint8_t blockNo = arg0;
     uint8_t keyType = arg1;
@@ -198,7 +198,7 @@ void MifareUReadBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain) {
 // Select, Authenticate, Read a MIFARE tag.
 // read sector (data = 4 x 16 bytes = 64 bytes, or 16 x 16 bytes = 256 bytes)
 //-----------------------------------------------------------------------------
-void MifareReadSector(uint8_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain) {
+void MifareReadSector(uint8_t arg0, uint8_t arg1, uint8_t *datain) {
     // params
     uint8_t sectorNo = arg0;
     uint8_t keyType = arg1;
@@ -363,7 +363,7 @@ void MifareUReadCard(uint8_t arg0, uint16_t arg1, uint8_t arg2, uint8_t *datain)
 // Select, Authenticate, Write a MIFARE tag.
 // read block
 //-----------------------------------------------------------------------------
-void MifareWriteBlock(uint8_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain) {
+void MifareWriteBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain) {
     // params
     uint8_t blockNo = arg0;
     uint8_t keyType = arg1;
@@ -616,7 +616,7 @@ int valid_nonce(uint32_t Nt, uint32_t NtEnc, uint32_t Ks1, uint8_t *parity) {
             (oddparity8((Nt >> 8) & 0xFF) == ((parity[2]) ^ oddparity8((NtEnc >> 8) & 0xFF) ^ BIT(Ks1, 0)))) ? 1 : 0;
 }
 
-void MifareAcquireNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, uint8_t *datain) {
+void MifareAcquireNonces(uint32_t arg0, uint32_t flags) {
 
     uint8_t uid[10] = {0x00};
     uint8_t answer[MAX_MIFARE_FRAME_SIZE] = {0x00};
@@ -1516,7 +1516,7 @@ OUT:
     }
 }
 
-void MifareChkKeys(uint16_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain, bool ng) {
+void MifareChkKeys(uint8_t *datain) {
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
 
@@ -1538,18 +1538,11 @@ void MifareChkKeys(uint16_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain, b
     uint8_t blockNo, keyType, keyCount;
     bool clearTrace, have_uid = false;
 
-    if (ng) {
-        keyType = datain[0];
-        blockNo = datain[1];
-        clearTrace = datain[2];
-        keyCount = datain[3];
-        datain += 4;
-    } else {
-        blockNo = arg0 & 0xFF;
-        keyType = (arg0 >> 8) & 0xFF;
-        clearTrace = arg1;
-        keyCount = arg2;
-    }
+    keyType = datain[0];
+    blockNo = datain[1];
+    clearTrace = datain[2];
+    keyCount = datain[3];
+    datain += 4;
 
     LEDsoff();
     LED_A_ON();
@@ -1607,12 +1600,7 @@ void MifareChkKeys(uint16_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain, b
 
     LED_B_ON();
 
-    if (ng) {
-        reply_ng(CMD_MIFARE_CHKKEYS, PM3_SUCCESS, (uint8_t *)&keyresult, sizeof(keyresult));
-    } else {
-        reply_mix(CMD_ACK, keyresult.found, 0, 0, (uint8_t *)&keyresult.key, sizeof(keyresult.key));
-    }
-//    reply_old(CMD_ACK, keyresult.found, 0, 0, (uint8_t*)&keyresult.key, sizeof(keyresult.key));
+    reply_ng(CMD_MIFARE_CHKKEYS, PM3_SUCCESS, (uint8_t *)&keyresult, sizeof(keyresult));
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();
 
@@ -1637,7 +1625,7 @@ void MifareSetDbgLvl(uint16_t arg0) {
 // destroy the Emulator Memory.
 //-----------------------------------------------------------------------------
 
-void MifareEMemClr(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) {
+void MifareEMemClr(void) {
     FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
     emlClearMem();
 }
@@ -1648,7 +1636,7 @@ void MifareEMemSet(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain)
     emlSetMem_xt(datain, arg0, arg1, arg2); // data, block num, blocks count, block byte width
 }
 
-void MifareEMemGet(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) {
+void MifareEMemGet(uint32_t arg0, uint32_t arg1) {
     FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
     uint8_t buf[PM3_CMD_DATA_SIZE] = {0x00};
     emlGetMem(buf, arg0, arg1); // data, block num, blocks count (max 4)
@@ -1662,7 +1650,7 @@ void MifareEMemGet(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain)
 // Load a card into the emulator memory
 //
 //-----------------------------------------------------------------------------
-void MifareECardLoad(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) {
+void MifareECardLoad(uint32_t arg0, uint32_t arg1) {
     uint64_t ui64Key;
     uint32_t cuid = 0;
     uint8_t numSectors = arg0;
@@ -1957,6 +1945,7 @@ void MifareCIdent() {
     uint8_t *buf = BigBuf_malloc(PM3_CMD_DATA_SIZE);
     uint8_t *uid = BigBuf_malloc(10);
     uint32_t cuid = 0;
+    uint8_t data[1] = {0x00};
 
     iso14443a_setup(FPGA_HF_ISO14443A_READER_LISTEN);
 
@@ -1994,7 +1983,9 @@ TEST2:
     };
 
 OUT:
-    reply_old(CMD_ACK, isGen, 0, 0, 0, 0);
+	
+    data[0] = isGen;
+    reply_ng(CMD_MIFARE_CIDENT, PM3_SUCCESS, data, sizeof(data));
     // turns off
     OnSuccessMagic();
     BigBuf_free();
@@ -2007,15 +1998,17 @@ void OnSuccessMagic() {
 }
 void OnErrorMagic(uint8_t reason) {
     //          ACK, ISOK, reason,0,0,0
-    reply_old(CMD_ACK, 0, reason, 0, 0, 0);
+    reply_mix(CMD_ACK, 0, reason, 0, 0, 0);
     OnSuccessMagic();
 }
 
-void MifareSetMod(uint8_t mod, uint8_t *key) {
-    uint64_t ui64Key = bytes_to_num(key, 6);
+void MifareSetMod(uint8_t *datain) {
+
+    uint8_t mod = datain[0];
+    uint64_t ui64Key = bytes_to_num(datain + 1, 6);
 
     // variables
-    uint8_t isOK = 0;
+    uint16_t isOK = PM3_EFATAL;
     uint8_t uid[10] = {0};
     uint32_t cuid = 0;
     struct Crypto1State mpcs = {0, 0};
@@ -2054,14 +2047,15 @@ void MifareSetMod(uint8_t mod, uint8_t *key) {
             break;
         }
 
-        isOK = 1;
+        isOK = PM3_SUCCESS;
         break;
     }
 
     crypto1_destroy(pcs);
 
     LED_B_ON();
-    reply_old(CMD_ACK, isOK, 0, 0, 0, 0);
+    reply_ng(CMD_MIFARE_SETMOD, isOK, NULL, 0);
+
     LED_B_OFF();
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);

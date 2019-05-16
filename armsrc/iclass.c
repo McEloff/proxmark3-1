@@ -2229,7 +2229,7 @@ void iClass_ReadCheck(uint8_t blockno, uint8_t keytype) {
     uint8_t resp[] = {0, 0, 0, 0, 0, 0, 0, 0};
     size_t isOK = 0;
     isOK = sendCmdGetResponseWithRetries(readcheck, sizeof(readcheck), resp, sizeof(resp), 6);
-    reply_old(CMD_ACK, isOK, 0, 0, 0, 0);
+    reply_mix(CMD_ACK, isOK, 0, 0, 0, 0);
     switch_off();
 }
 
@@ -2248,7 +2248,7 @@ void iClass_Authentication(uint8_t *mac) {
 
     // 6 retries
     bool isOK = sendCmdGetResponseWithRetries(check, sizeof(check), resp, 4, 6);
-    reply_old(CMD_ACK, isOK, 0, 0, 0, 0);
+    reply_mix(CMD_ACK, isOK, 0, 0, 0, 0);
 }
 
 typedef struct iclass_premac {
@@ -2332,7 +2332,7 @@ void iClass_Authentication_fast(uint64_t arg0, uint64_t arg1, uint8_t *datain) {
 
 out:
     // send keyindex.
-    reply_old(CMD_ACK, isOK, i, 0, 0, 0);
+    reply_mix(CMD_ACK, isOK, i, 0, 0, 0);
 
     if (isOK >= 1 || lastChunk) {
         switch_off();
@@ -2360,7 +2360,7 @@ bool iClass_ReadBlock(uint8_t blockno, uint8_t *data, uint8_t len) {
 void iClass_ReadBlk(uint8_t blockno) {
     uint8_t data[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     bool isOK = iClass_ReadBlock(blockno, data, sizeof(data));
-    reply_old(CMD_ACK, isOK, 0, 0, data, sizeof(data));
+    reply_mix(CMD_ACK, isOK, 0, 0, data, sizeof(data));
     switch_off();
 }
 
@@ -2394,7 +2394,7 @@ void iClass_Dump(uint8_t blockno, uint8_t numblks) {
         memcpy(dataout + (blkCnt * 8), blockdata, 8);
     }
     //return pointer to dump memory in arg3
-    reply_old(CMD_ACK, isOK, blkCnt, BigBuf_max_traceLen(), 0, 0);
+    reply_mix(CMD_ACK, isOK, blkCnt, BigBuf_max_traceLen(), 0, 0);
     switch_off();
     BigBuf_free();
 }
@@ -2424,7 +2424,7 @@ bool iClass_WriteBlock_ext(uint8_t blockno, uint8_t *data) {
 // turn off afterwards
 void iClass_WriteBlock(uint8_t blockno, uint8_t *data) {
     bool isOK = iClass_WriteBlock_ext(blockno, data);
-    reply_old(CMD_ACK, isOK, 0, 0, 0, 0);
+    reply_mix(CMD_ACK, isOK, 0, 0, 0, 0);
     switch_off();
 }
 
@@ -2451,6 +2451,6 @@ void iClass_Clone(uint8_t startblock, uint8_t endblock, uint8_t *data) {
     else
         DbpString("Clone incomplete");
 
-    reply_old(CMD_ACK, 1, 0, 0, 0, 0);
+    reply_mix(CMD_ACK, 1, 0, 0, 0, 0);
     switch_off();
 }

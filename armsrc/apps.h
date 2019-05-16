@@ -100,8 +100,8 @@ void WriteEM410x(uint32_t card, uint32_t id_hi, uint32_t id_lo);
 void CopyIndala64toT55x7(uint32_t hi, uint32_t lo); // Clone Indala 64-bit tag by UID to T55x7
 void CopyIndala224toT55x7(uint32_t uid1, uint32_t uid2, uint32_t uid3, uint32_t uid4, uint32_t uid5, uint32_t uid6, uint32_t uid7); // Clone Indala 224-bit tag by UID to T55x7
 void T55xxResetRead(void);
-void T55xxWriteBlock(uint32_t Data, uint8_t Block, uint32_t Pwd, uint8_t arg);
-void T55xxWriteBlockExt(uint32_t Data, uint8_t Block, uint32_t Pwd, uint8_t arg);
+void T55xxWriteBlock(uint8_t *data);
+void T55xxWriteBlockExt(uint32_t data, uint8_t blockno, uint32_t pwd, uint8_t flags);
 void T55xxReadBlock(uint16_t arg0, uint8_t Block, uint32_t Pwd);
 void T55xxWakeUp(uint32_t Pwd);
 void T55xx_ChkPwds(void);
@@ -142,28 +142,28 @@ void EPA_PACE_Collect_Nonce(PacketCommandNG *c);
 void EPA_PACE_Replay(PacketCommandNG *c);
 
 // mifarecmd.h
-void MifareReadBlock(uint8_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain);
+void MifareReadBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain);
 void MifareUReadBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain);
 void MifareUC_Auth(uint8_t arg0, uint8_t *keybytes);
 void MifareUReadCard(uint8_t arg0, uint16_t arg1, uint8_t arg2, uint8_t *datain);
-void MifareReadSector(uint8_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain);
-void MifareWriteBlock(uint8_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain);
+void MifareReadSector(uint8_t arg0, uint8_t arg1, uint8_t *datain);
+void MifareWriteBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain);
 //void MifareUWriteBlockCompat(uint8_t arg0,uint8_t *datain);
 void MifareUWriteBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain);
 void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
 void MifareAcquireEncryptedNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, uint8_t *datain);
-void MifareAcquireNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, uint8_t *datain);
-void MifareChkKeys(uint16_t arg0, uint8_t arg1, uint8_t arg2, uint8_t *datain, bool ng);
+void MifareAcquireNonces(uint32_t arg0, uint32_t flags);
+void MifareChkKeys(uint8_t *datain);
 void MifareChkKeys_fast(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
 void MifareSetDbgLvl(uint16_t arg0);
-void MifareEMemClr(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
+void MifareEMemClr(void);
 void MifareEMemSet(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
-void MifareEMemGet(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
-void MifareECardLoad(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
+void MifareEMemGet(uint32_t arg0, uint32_t arg1);
+void MifareECardLoad(uint32_t arg0, uint32_t arg1);
 void MifareCSetBlock(uint32_t arg0, uint32_t arg1, uint8_t *datain);  // Work with "magic Chinese" card
 void MifareCGetBlock(uint32_t arg0, uint32_t arg1, uint8_t *datain);
 void MifareCIdent();  // is "magic chinese" card?
-void MifareSetMod(uint8_t mod, uint8_t *key);
+void MifareSetMod(uint8_t *datain);
 void MifareUSetPwd(uint8_t arg0, uint8_t *datain);
 void OnSuccessMagic();
 void OnErrorMagic(uint8_t reason);

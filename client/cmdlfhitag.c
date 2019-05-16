@@ -177,7 +177,7 @@ static int CmdLFHitagList(const char *Cmd) {
         f = fopen(filename, "wb");
         if (!f) {
             PrintAndLogEx(WARNING, "Error: Could not open file [%s]", filename);
-            return 1;
+            return PM3_EFILE;
         }
     }
 
@@ -339,7 +339,7 @@ static int CmdLFHitagSim(const char *Cmd) {
     if (tag_mem_supplied) {
         SendCommandOLD(cmd, 1, 0, 0, data, datalen);
     } else {
-        SendCommandNG(cmd, NULL, 0);
+        SendCommandMIX(cmd, 0, 0, 0, NULL, 0);
     }
 
     free(data);
@@ -455,9 +455,10 @@ static void printHitagConfiguration(uint8_t config) {
 }
 
 static bool getHitagUid(uint32_t *uid) {
-
+    hitag_data htd;
+    memset(&htd, 0, sizeof(htd));
     clearCommandBuffer();
-    SendCommandMIX(CMD_READER_HITAG, RHT2F_UID_ONLY, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_READER_HITAG, RHT2F_UID_ONLY, 0, 0, &htd, sizeof(htd));
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 2500)) {
         PrintAndLogEx(WARNING, "timeout while waiting for reply.");

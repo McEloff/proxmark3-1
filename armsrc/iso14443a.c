@@ -2483,7 +2483,7 @@ void ReaderIso14443a(PacketCommandNG *c) {
         if (!(param & ISO14A_NO_SELECT)) {
             iso14a_card_select_t *card = (iso14a_card_select_t *)buf;
             arg0 = iso14443a_select_card(NULL, card, NULL, true, 0, param & ISO14A_NO_RATS);
-            reply_old(CMD_ACK, arg0, card->uidlen, 0, buf, sizeof(iso14a_card_select_t));
+            reply_mix(CMD_ACK, arg0, card->uidlen, 0, buf, sizeof(iso14a_card_select_t));
             if (arg0 == 0)
                 goto OUT;
         }
@@ -2844,7 +2844,7 @@ void ReaderMifare(bool first_try, uint8_t block, uint8_t keytype) {
     memcpy(buf + 16, ks_list, 8);
     memcpy(buf + 24, mf_nr_ar, 8);
 
-    reply_old(CMD_ACK, isOK, 0, 0, buf, sizeof(buf));
+    reply_mix(CMD_ACK, isOK, 0, 0, buf, sizeof(buf));
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();
@@ -2864,8 +2864,8 @@ void DetectNACKbug() {
     uint8_t par[1] = {0};    // maximum 8 Bytes to be sent here, 1 byte parity is therefore enough
 
     uint32_t nt = 0, previous_nt = 0, nt_attacked = 0, cuid = 0;
-    int32_t isOK = 0, catch_up_cycles = 0, last_catch_up = 0;
-    uint8_t cascade_levels = 0, num_nacks = 0;
+    int32_t catch_up_cycles = 0, last_catch_up = 0;
+    uint8_t cascade_levels = 0, num_nacks = 0, isOK = 0;
     uint16_t elapsed_prng_sequences = 1;
     uint16_t consecutive_resyncs = 0;
     uint16_t unexpected_random = 0;
@@ -2873,6 +2873,8 @@ void DetectNACKbug() {
     uint32_t sync_time = 0;
     bool have_uid = false;
     bool received_nack;
+
+    int32_t status = PM3_SUCCESS;
 
     // Mifare Classic's random generator repeats every 2^16 cycles (and so do the nonces).
     int32_t sync_cycles = PRNG_SEQUENCE_LENGTH;
@@ -2900,8 +2902,8 @@ void DetectNACKbug() {
         WDT_HIT();
 
         // Test if the action was cancelled
-        if (BUTTON_PRESS()) {
-            isOK = 99;
+        if (BUTTON_PRESS() || usb_poll_validate_length()) {
+            status = PM3_EOPABORTED;
             break;
         }
 
@@ -2909,7 +2911,8 @@ void DetectNACKbug() {
         if (!have_uid) { // need a full select cycle to get the uid first
             iso14a_card_select_t card_info;
             if (!iso14443a_select_card(uid, &card_info, &cuid, true, 0, true)) {
-                if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("Mifare: Can't select card (ALL)");
+                if (MF_DBGLEVEL >= MF_DBG_ERROR) Dbprintf("Mifare: Can't select card (ALL)");
+                i = 0;
                 continue;
             }
             switch (card_info.uidlen) {
@@ -2923,12 +2926,16 @@ void DetectNACKbug() {
                     cascade_levels = 3;
                     break;
                 default:
-                    break;
+                    i = 0;
+                    have_uid = false;
+                    continue;
             }
             have_uid = true;
         } else { // no need for anticollision. We can directly select the card
             if (!iso14443a_fast_select_card(uid, cascade_levels)) {
                 if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("Mifare: Can't select card (UID)");
+                i = 0;
+                have_uid = false;
                 continue;
             }
         }
@@ -3059,6 +3066,7 @@ void DetectNACKbug() {
 
         // tried all 256 possible parities without success.
         if (par[0] == 0) {
+            // did we get one NACK?
             if (num_nacks == 1)
                 isOK = 1;
             break;
@@ -3070,8 +3078,15 @@ void DetectNACKbug() {
 
     // num_nacks = number of nacks recieved. should be only 1. if not its a clone card which always sends NACK (parity == 0) ?
     // i  =  number of authentications sent.  Not always 256, since we are trying to sync but close to it.
-    reply_old(CMD_ACK, isOK, num_nacks, i, 0, 0);
 
+    uint8_t *data = BigBuf_malloc(4);
+    data[0] = isOK;
+    data[1] = num_nacks;
+    num_to_bytes(i, 2, data + 2);
+    reply_ng(CMD_MIFARE_NACK_DETECT, status, data, 4);
+
+    //reply_mix(CMD_ACK, isOK, num_nacks, i, 0, 0);
+    BigBuf_free();
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();
     set_tracing(false);

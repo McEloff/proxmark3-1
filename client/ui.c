@@ -52,6 +52,9 @@ void PrintAndLogOptions(const char *str[][2], size_t size, size_t space) {
     }
     PrintAndLogEx(NORMAL, "%s", buff);
 }
+
+uint8_t PrintAndLogEx_spinidx = 0;
+
 void PrintAndLogEx(logLevel_t level, const char *fmt, ...) {
 
     // skip debug messages if client debugging is turned off i.e. 'DATA SETDEBUG 0'
@@ -63,10 +66,8 @@ void PrintAndLogEx(logLevel_t level, const char *fmt, ...) {
     char buffer2[MAX_PRINT_BUFFER + 20] = {0};
     char *token = NULL;
     char *tmp_ptr = NULL;
-    //   {NORMAL, SUCCESS, INFO, FAILED, WARNING, ERR, DEBUG}
-    static const char *prefixes[7] = { "", "[+] ", "[=] ", "[-] ", "[!] ", "[!!] ", "[#] "};
     FILE *stream = stdout;
-
+    char *spinner[] = {_YELLOW_("[\\]"), _YELLOW_("[|]"), _YELLOW_("[/]"), _YELLOW_("[-]")};
     switch (level) {
         case ERR:
             strncpy(prefix, _RED_("[!!]"), sizeof(prefix) - 1);
@@ -87,8 +88,14 @@ void PrintAndLogEx(logLevel_t level, const char *fmt, ...) {
         case INFO:
             strncpy(prefix, _YELLOW_("[=]"), sizeof(prefix) - 1);
             break;
+        case INPLACE:
+            strncpy(prefix, spinner[PrintAndLogEx_spinidx], sizeof(prefix) - 1);
+            PrintAndLogEx_spinidx++;
+            if (PrintAndLogEx_spinidx == ARRAYLEN(spinner))
+                PrintAndLogEx_spinidx = 0;
+            break;
         case NORMAL:
-            strncpy(prefix, prefixes[level], sizeof(prefix) - 1);
+            // no prefixes for normal
             break;
     }
 
@@ -97,7 +104,7 @@ void PrintAndLogEx(logLevel_t level, const char *fmt, ...) {
     vsnprintf(buffer, sizeof(buffer), fmt, args);
     va_end(args);
 
-    // no prefixes for normal
+    // no prefixes for normal & inplace
     if (level == NORMAL) {
         fPrintAndLog(stream, "%s", buffer);
         return;
@@ -127,7 +134,12 @@ void PrintAndLogEx(logLevel_t level, const char *fmt, ...) {
         fPrintAndLog(stream, "%s", buffer2);
     } else {
         snprintf(buffer2, sizeof(buffer2), "%s%s", prefix, buffer);
-        fPrintAndLog(stream, "%s", buffer2);
+        if (level == INPLACE) {
+            fprintf(stream, "\r%s", buffer2);
+            fflush(stream);
+        } else {
+            fPrintAndLog(stream, "%s", buffer2);
+        }
     }
 }
 
