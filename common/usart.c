@@ -199,7 +199,7 @@ void usart_init(uint32_t baudrate, uint8_t parity) {
     pPIO->PIO_PPUER |= (AT91C_PA21_RXD1 | AT91C_PA22_TXD1);
 
     // set mode
-    uint32_t mode = AT91C_US_USMODE_NORMAL |      // normal mode
+    uint32_t mode = AT91C_US_USMODE_NORMAL |         // normal mode
                     AT91C_US_CLKS_CLOCK |            // MCK (48MHz)
                     AT91C_US_OVER |                  // oversampling
                     AT91C_US_CHRL_8_BITS |           // 8 bits
@@ -222,10 +222,25 @@ void usart_init(uint32_t baudrate, uint8_t parity) {
     // all interrupts disabled
     pUS1->US_IDR = 0xFFFF;
 
+    // http://ww1.microchip.com/downloads/en/DeviceDoc/doc6175.pdf
     // note that for very large baudrates, error is not neglectible:
     // b921600  => 8.6%
     // b1382400 => 8.6%
-    pUS1->US_BRGR =  48054841 / (usart_baudrate << 3);
+    // FP, Fractional Part  (Datasheet p402, Supported in AT91SAM512 / 256) (31.6.1.3)
+    // FP = 0 disabled;
+    // FP = 1-7 Baudrate resolution,
+    // CD, Clock divider,
+    //    sync == 0 , (async?)
+    //       OVER = 0,  -no
+    //          baudrate == selected clock/16/CD
+    //       OVER = 1,  -yes we are oversampling
+    //          baudrate == selected clock/8/CD    --> this is ours
+    // 
+    uint32_t brgr = 48000000 / (usart_baudrate << 3);
+    // doing fp = round((mck / (usart_baudrate << 3) - brgr) * 8) with integers:
+    uint32_t fp = ((16 * 48000000 / (usart_baudrate << 3) - 16 * brgr)+1)/2;
+
+    pUS1->US_BRGR =  (fp << 16) | brgr;
 
     // Write the Timeguard Register
     pUS1->US_TTGR = 0;

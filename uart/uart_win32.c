@@ -49,18 +49,18 @@ typedef struct {
 } serial_port_windows;
 
 uint32_t newtimeout_value = 0;
-bool newtimeout_pending = true;
+bool newtimeout_pending = false;
 
 int uart_reconfigure_timeouts(uint32_t value) {
     newtimeout_value = value;
-    __atomic_test_and_set(&newtimeout_pending, __ATOMIC_SEQ_CST);    
+    newtimeout_pending = true;
     return PM3_SUCCESS;
 }
 
 static int uart_reconfigure_timeouts_polling(serial_port sp) {
-    bool shall_update = __atomic_load_n(&newtimeout_pending, __ATOMIC_SEQ_CST);
-    if ( shall_update == false )
+    if ( newtimeout_pending == false )
         return PM3_SUCCESS;
+    newtimeout_pending = false;
 
     serial_port_windows *spw;
     spw = (serial_port_windows *)sp;
@@ -150,6 +150,8 @@ bool uart_set_speed(serial_port sp, const uint32_t uiPortSpeed) {
         case 115200:
         case 230400:
         case 460800:
+        case 921600:
+        case 1382400:
             break;
         default:
             return false;
@@ -174,23 +176,23 @@ uint32_t uart_get_speed(const serial_port sp) {
 }
 
 int uart_receive(const serial_port sp, uint8_t *pbtRx, uint32_t pszMaxRxLen, uint32_t *pszRxLen) {
+    uart_reconfigure_timeouts_polling(sp);
     int res = ReadFile(((serial_port_windows *)sp)->hPort, pbtRx, pszMaxRxLen, (LPDWORD)pszRxLen, NULL);
     if (res)
         return PM3_SUCCESS;
 
     int errorcode = GetLastError();
 
-    // disconnected device
     if (res == 0 && errorcode == 2) {
         return PM3_EIO;
     }
 
 //    printf("[!]res %d | rx errorcode == %d \n", res, errorcode);
-    return res;
+    // disconnected device
+    return PM3_ENOTTY;
 }
 
 int uart_send(const serial_port sp, const uint8_t *p_tx, const uint32_t len) {
-    uart_reconfigure_timeouts_polling(sp);
     DWORD txlen = 0;
     int res = WriteFile(((serial_port_windows *)sp)->hPort, p_tx, len, &txlen, NULL);
     if (res)
@@ -202,6 +204,7 @@ int uart_send(const serial_port sp, const uint8_t *p_tx, const uint32_t len) {
     }
 
 //    printf("[!!]res %d | send errorcode == %d \n", res, errorcode);
+    // disconnected device
     return PM3_ENOTTY;
 }
 
