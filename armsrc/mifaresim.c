@@ -493,7 +493,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
     bool finished = false;
     bool button_pushed = BUTTON_PRESS();
 
-    while (!button_pushed && !usb_poll_validate_length()) {
+    while (!button_pushed) {
         WDT_HIT();
 
         // find reader field
@@ -503,7 +503,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                 cardSTATE_TO_IDLE();
                 LED_A_ON();
             }
-            button_pushed = BUTTON_PRESS();
+            button_pushed = BUTTON_PRESS() || usb_poll_validate_length();
             continue;
         }
 
@@ -1146,9 +1146,6 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
             }
 
         }  // End Switch Loop
-
-        button_pushed = BUTTON_PRESS();
-
     }  // End While Loop
 
 
