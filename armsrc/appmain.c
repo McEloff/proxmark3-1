@@ -325,8 +325,8 @@ extern struct version_information version_information;
 /* bootrom version information is pointed to from _bootphase1_version_pointer */
 extern char *_bootphase1_version_pointer, _flash_start, _flash_end, _bootrom_start, _bootrom_end, __data_src_start__;
 void SendVersion(void) {
-    char temp[PM3_CMD_DATA_SIZE]; /* Limited data payload in USB packets */
-    char VersionString[PM3_CMD_DATA_SIZE] = { '\0' };
+    char temp[PM3_CMD_DATA_SIZE - 12]; /* Limited data payload in USB packets */
+    char VersionString[PM3_CMD_DATA_SIZE - 12] = { '\0' };
 
     /* Try to find the bootrom version information. Expect to find a pointer at
      * symbol _bootphase1_version_pointer, perform slight sanity checks on the
@@ -357,7 +357,21 @@ void SendVersion(void) {
     // Send Chip ID and used flash memory
     uint32_t text_and_rodata_section_size = (uint32_t)&__data_src_start__ - (uint32_t)&_flash_start;
     uint32_t compressed_data_section_size = common_area.arg1;
-    reply_old(CMD_ACK, *(AT91C_DBGU_CIDR), text_and_rodata_section_size + compressed_data_section_size, 0, VersionString, strlen(VersionString));
+
+    struct p {
+        uint32_t id;
+        uint32_t section_size;
+        uint32_t versionstr_len;
+        char versionstr[PM3_CMD_DATA_SIZE - 12];
+    } PACKED;
+
+    struct p payload;
+    payload.id = *(AT91C_DBGU_CIDR);
+    payload.section_size = text_and_rodata_section_size + compressed_data_section_size;
+    payload.versionstr_len = strlen(VersionString);
+    memcpy(payload.versionstr, VersionString, strlen(VersionString)); 
+
+    reply_ng(CMD_VERSION, PM3_SUCCESS, (uint8_t*)&payload, 12 + strlen(VersionString));
 }
 
 // measure the Connection Speed by sending SpeedTestBufferSize bytes to client and measuring the elapsed time.
@@ -551,7 +565,7 @@ at the same place! :-)
 */
 #define LIGHT_LEVELS 20
 
-void ListenReaderField(int limit) {
+void ListenReaderField(uint8_t limit) {
 #define LF_ONLY 1
 #define HF_ONLY 2
 #define REPORT_CHANGE 10    // report new values only if they have changed at least by REPORT_CHANGE
@@ -737,13 +751,27 @@ static void PacketReceived(PacketCommandNG *packet) {
             setSamplingConfig((sample_config *) packet->data.asBytes);
             break;
         case CMD_ACQUIRE_RAW_ADC_SAMPLES_125K: {
-            uint32_t bits = SampleLF(packet->oldarg[0], packet->oldarg[1]);
-            reply_old(CMD_ACK, bits, 0, 0, 0, 0);
+            struct p {
+                uint8_t silent;
+                uint32_t samples;
+            } PACKED;
+            struct p *payload;
+            payload = (struct p*)packet->data.asBytes;
+            uint32_t bits = SampleLF(payload->silent, payload->samples);
+            reply_ng(CMD_ACQUIRE_RAW_ADC_SAMPLES_125K, PM3_SUCCESS, (uint8_t *)&bits, sizeof(bits));
             break;
         }
-        case CMD_MOD_THEN_ACQUIRE_RAW_ADC_SAMPLES_125K:
-            ModThenAcquireRawAdcSamples125k(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
+        case CMD_MOD_THEN_ACQUIRE_RAW_ADC_SAMPLES_125K: {
+            struct p {
+               uint32_t delay;
+               uint16_t ones;
+               uint16_t zeros;
+            } PACKED;
+            struct p *payload;
+            payload = (struct p*)packet->data.asBytes;
+            ModThenAcquireRawAdcSamples125k(payload->delay, payload->zeros, payload->ones, packet->data.asBytes+8);
             break;
+            }
         case CMD_LF_SNIFF_RAW_ADC_SAMPLES: {
             uint32_t bits = SniffLF();
             reply_old(CMD_ACK, bits, 0, 0, 0, 0);
@@ -794,7 +822,13 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         case CMD_SIMULATE_TAG_125K:
             LED_A_ON();
-            SimulateTagLowFrequency(packet->oldarg[0], packet->oldarg[1], 1);
+            struct p {
+                uint16_t len;
+                uint16_t gap;
+            } PACKED;
+            struct p *payload = (struct p*)packet->data.asBytes;
+            // length, start gap, led control
+            SimulateTagLowFrequency(payload->len, payload->gap, 1);
             reply_ng(CMD_SIMULATE_TAG_125K, PM3_EOPABORTED, NULL, 0);
             LED_A_OFF();
             break;
@@ -811,7 +845,14 @@ static void PacketReceived(PacketCommandNG *packet) {
             );
             break;
         case CMD_T55XX_READ_BLOCK: {
-            T55xxReadBlock(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2]);
+            struct p {
+                uint32_t password;
+                uint8_t blockno;
+                uint8_t page;
+                bool pwdmode;
+            } PACKED;
+            struct p* payload = (struct p*) packet->data.asBytes;
+            T55xxReadBlock(payload->page, payload->pwdmode, false, payload->blockno, payload->password);
             break;
         }
         case CMD_T55XX_WRITE_BLOCK:
@@ -1271,7 +1312,9 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
 
         case CMD_LISTEN_READER_FIELD:
-            ListenReaderField(packet->oldarg[0]);
+            if (packet->length != sizeof(uint8_t) )
+                break;
+            ListenReaderField(packet->data.asBytes[0]);
             break;
 
         case CMD_FPGA_MAJOR_MODE_OFF: // ## FPGA Control
@@ -1309,17 +1352,32 @@ static void PacketReceived(PacketCommandNG *packet) {
         case CMD_UPLOAD_SIM_SAMPLES_125K: {
             // iceman; since changing fpga_bitstreams clears bigbuff, Its better to call it before.
             // to be able to use this one for uploading data to device
-            // arg1 = 0 upload for LF usage
+            // flag = 
+            //    b0  0 upload for LF usage 
             //        1 upload for HF usage
-#define FPGA_LF 1
-            if (packet->oldarg[1] == FPGA_LF)
-                FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
-            else
+            //    b1  0 skip
+            //        1 clear bigbuff
+            struct p {
+                uint8_t flag;
+                uint16_t offset;
+                uint8_t *data;
+            };
+            struct p* payload = (struct p*)packet->data.asBytes;
+
+
+            if ((payload->flag & 0x1) == 0x1)
                 FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
+            else
+                FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
+            
+            if ((payload->flag & 0x2) == 0x2) {
+                BigBuf_Clear_ext(false);
+                BigBuf_free();
+            }
 
             uint8_t *mem = BigBuf_get_addr();
-            memcpy(mem + packet->oldarg[0], packet->data.asBytes, PM3_CMD_DATA_SIZE);
-            reply_old(CMD_ACK, 1, 0, 0, 0, 0);
+            memcpy(mem + payload->offset, &payload->data, PM3_CMD_DATA_SIZE - 3);    
+            reply_ng(CMD_UPLOAD_SIM_SAMPLES_125K, PM3_SUCCESS, NULL, 0);
             break;
         }
 #endif
@@ -1346,7 +1404,9 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_READ_MEM:
-            ReadMem(packet->oldarg[0]);
+            if (packet->length != sizeof(uint32_t))
+                break;
+            ReadMem(packet->data.asDwords[0]);
             break;
 #ifdef WITH_FLASH
         case CMD_FLASHMEM_SET_SPIBAUDRATE:
@@ -1517,11 +1577,11 @@ static void PacketReceived(PacketCommandNG *packet) {
 #endif
         case CMD_SET_LF_DIVISOR:
             FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
-            FpgaSendCommand(FPGA_CMD_SET_DIVISOR, packet->oldarg[0]);
+            FpgaSendCommand(FPGA_CMD_SET_DIVISOR, packet->data.asBytes[0]);
             break;
 
         case CMD_SET_ADC_MUX:
-            switch (packet->oldarg[0]) {
+            switch (packet->data.asBytes[0]) {
                 case 0:
                     SetAdcMuxFor(GPIO_MUXSEL_LOPKD);
                     break;

@@ -242,7 +242,7 @@ void ModThenAcquireRawAdcSamples125k(uint32_t delay_off, uint32_t period_0, uint
     // Turn off antenna
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     // tell client we are done
-    reply_old(CMD_ACK, 0, 0, 0, 0, 0);
+    reply_ng(CMD_MOD_THEN_ACQUIRE_RAW_ADC_SAMPLES_125K, PM3_SUCCESS, NULL, 0);
 }
 
 /* blank r/w tag data stream
@@ -1409,7 +1409,7 @@ void T55xxWriteBlockExt(uint32_t data, uint8_t blockno, uint32_t pwd, uint8_t fl
 
     // make sure tag is fully powered up...
     WaitMS(4);
-    
+
     // Trigger T55x7 in mode.
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     WaitUS(t_config.start_gap);
@@ -1423,7 +1423,7 @@ void T55xxWriteBlockExt(uint32_t data, uint8_t blockno, uint32_t pwd, uint8_t fl
         // std opcode 10 == page 0
         // std opcode 11 == page 1
         T55xxWriteBit(1);
-        T55xxWriteBit(page);        
+        T55xxWriteBit(page);
     }
 
     if (pwd_mode) {
@@ -1479,24 +1479,19 @@ void T55xxWriteBlockExt(uint32_t data, uint8_t blockno, uint32_t pwd, uint8_t fl
 // Write one card block in page 0, no lock
 // uses NG format
 void T55xxWriteBlock(uint8_t *data) {
-    t55xx_write_block_t *c = (t55xx_write_block_t *)data;    
-    T55xxWriteBlockExt(c->data, c->blockno, c->pwd, c->flags);    
+    t55xx_write_block_t *c = (t55xx_write_block_t *)data;
+    T55xxWriteBlockExt(c->data, c->blockno, c->pwd, c->flags);
     reply_ng(CMD_T55XX_WRITE_BLOCK, PM3_SUCCESS, NULL, 0);
 }
 
 // Read one card block in page [page]
-void T55xxReadBlock(uint16_t arg0, uint8_t Block, uint32_t Pwd) {
+void T55xxReadBlock(uint8_t page, bool pwd_mode, bool brute_mem, uint8_t block, uint32_t pwd) {
     LED_A_ON();
-    bool PwdMode = arg0 & 0x1;
-    uint8_t Page = (arg0 & 0x2) >> 1;
-    bool brute_mem =  arg0 & 0x4;
-    uint32_t i;
-
-    // regular read mode
-    bool RegReadMode = (Block == 0xFF);
-
+    bool regular_readmode = (block == 0xFF);
     uint8_t start_wait = 4;
     size_t samples = 12000;
+    uint32_t i;
+
     if (brute_mem) {
         start_wait = 0;
         samples = 1024;
@@ -1506,7 +1501,7 @@ void T55xxReadBlock(uint16_t arg0, uint8_t Block, uint32_t Pwd) {
     BigBuf_Clear_keep_EM();
 
     //make sure block is at max 7
-    Block &= 0x7;
+    block &= 0x7;
 
     // Set up FPGA, 125kHz to power up the tag
     LFSetupFPGAForADC(95, true);
@@ -1519,20 +1514,20 @@ void T55xxReadBlock(uint16_t arg0, uint8_t Block, uint32_t Pwd) {
 
     // Opcode 1[page]
     T55xxWriteBit(1);
-    T55xxWriteBit(Page); //Page 0
+    T55xxWriteBit(page); //Page 0
 
-    if (PwdMode) {
+    if (pwd_mode) {
         // Send Pwd
         for (i = 0x80000000; i != 0; i >>= 1)
-            T55xxWriteBit(Pwd & i);
+            T55xxWriteBit(pwd & i);
     }
     // Send a zero bit separation
     T55xxWriteBit(0);
 
     // Send Block number (if direct access mode)
-    if (!RegReadMode)
+    if (!regular_readmode)
         for (i = 0x04; i != 0; i >>= 1)
-            T55xxWriteBit(Block & i);
+            T55xxWriteBit(block & i);
 
     // Turn field on to read the response
     // 137*8 seems to get to the start of data pretty well...
@@ -1546,7 +1541,7 @@ void T55xxReadBlock(uint16_t arg0, uint8_t Block, uint32_t Pwd) {
     // Turn the field off
     if (!brute_mem) {
         FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-        reply_old(CMD_ACK, 0, 0, 0, 0, 0);
+        reply_ng(CMD_T55XX_READ_BLOCK, PM3_SUCCESS, NULL, 0);
         LED_A_OFF();
     }
 }
@@ -1566,7 +1561,9 @@ void T55xx_ChkPwds() {
     uint8_t x = 32;
     while (x--) {
         b1 = 0;
-        T55xxReadBlock(4, 1, 0);
+
+//        T55xxReadBlock(uint8_t page, bool pwd_mode, bool brute_mem, uint8_t block, uint32_t pwd)
+        T55xxReadBlock(0, 0, true, 1, 0);
         for (uint16_t j = 0; j < 1024; ++j)
             b1 += buf[j];
 
@@ -1577,7 +1574,6 @@ void T55xx_ChkPwds() {
 
     baseline >>= 5;
     Dbprintf("[=] Baseline determined [%u]", baseline);
-
 
     uint8_t *pwds = BigBuf_get_EM_addr();
     uint16_t pwdCount = 0;
@@ -1612,8 +1608,7 @@ void T55xx_ChkPwds() {
 
         pwd = bytes_to_num(pwds + i * 4, 4);
 
-
-        T55xxReadBlock(5, 0, pwd);
+        T55xxReadBlock(0, true, true, 0, pwd);
 
         // calc mean of BigBuf 1024 samples.
         uint32_t sum = 0;
