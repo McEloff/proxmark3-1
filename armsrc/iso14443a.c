@@ -758,9 +758,15 @@ static bool GetIso14443aCommandFromReader(uint8_t *received, uint8_t *par, int *
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
     (void)b;
 
-    uint16_t check = 1;
+    uint16_t check = 0;
 
     for (;;) {
+        if ( check == 1000 ) {
+            if ( BUTTON_PRESS() || usb_poll_validate_length() )
+                return false;
+            check = 0;
+        }
+        ++check;
         WDT_HIT();
         if (check == 1000) {
             if (usb_poll_validate_length() || BUTTON_PRESS())
@@ -1767,15 +1773,15 @@ int EmGetCmd(uint8_t *received, uint16_t *len, uint8_t *par) {
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
     (void)b;
 
-    uint16_t check = 1;
+    uint16_t check = 0;
 
     for (;;) {
         WDT_HIT();
 
-        if (check == 1000) {
-            if (BUTTON_PRESS() || usb_poll_validate_length())
-                return 1;
-            check = 0;
+        if ( check == 1000 ) {
+          if (BUTTON_PRESS() || usb_poll_validate_length())
+              return 1;
+          check = 0;
         }
         ++check;
 
