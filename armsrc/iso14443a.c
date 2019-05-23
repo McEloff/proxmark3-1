@@ -1082,7 +1082,19 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
     uint16_t len = 0;
 
     // To control where we are in the protocol
-    int order = -1;
+#define ORDER_NO_FIELD      -1
+#define ORDER_NONE           0
+#define ORDER_REQA           1
+#define ORDER_SELECT_ALL_CL1 2
+#define ORDER_SELECT_CL1     3
+#define ORDER_HALTED         5
+#define ORDER_WUPA           6
+#define ORDER_AUTH           7
+#define ORDER_SELECT_ALL_CL2 20
+#define ORDER_SELECT_CL2     30
+#define ORDER_EV1_COMP_WRITE 40
+#define ORDER_RATS           70
+    int order = ORDER_NO_FIELD;
     int lastorder;
 
     // Just to allow some checks
@@ -1104,10 +1116,10 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
         WDT_HIT();
 
         // find reader field
-        if (order == -1) {
+        if (order == ORDER_NO_FIELD) {
             vHf = (MAX_ADC_HF_VOLTAGE_RDV40 * AvgAdc(ADC_CHAN_HF)) >> 10;
             if (vHf > MF_MINFIELDV) {
-                order = 0;
+                order = ORDER_NONE;
                 LED_A_ON();
             }
             button_pushed = BUTTON_PRESS() || usb_poll_validate_length();
@@ -1119,7 +1131,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
 
         if (res == 2) { //Field is off!
             LEDsoff();
-            order = -1;
+            order = ORDER_NO_FIELD;
             if (reinit) {
                 BigBuf_free_keep_EM();
                 if (SimulateIso14443aInit(tagType, FLAG_UID_IN_EMUL, data, &responses, &cuid, counters, tearings, &pages) == false) {
@@ -1142,7 +1154,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
         // we need to check "ordered" states before, because received data may be same to any command - is wrong!!!
         //
 
-        if (order == 15 && len == 18) {
+        if (order == ORDER_EV1_COMP_WRITE && len == 18) {
             // MIFARE_ULC_COMP_WRITE part 2
             // 16 bytes data + 2 bytes crc, only least significant 4 bytes are written
             bool isCrcCorrect = CheckCrc14A(receivedCmd, len);
@@ -1156,10 +1168,10 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
                 // send NACK 0x1 == crc/parity error
                 EmSend4bit(CARD_NACK_PA);
             }
-            order = 30; // back to "selected" state
+            order = ORDER_NONE; // back to work state
             p_response = NULL;
 
-        } else if (order == 7 && len == 8) {
+        } else if (order == ORDER_AUTH && len == 8) {
             // Received {nr] and {ar} (part of authentication)
             LogTrace(receivedCmd, Uart.len, Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.parity, true);
             uint32_t nr = bytes_to_num(receivedCmd, 4);
@@ -1221,31 +1233,31 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
                         break;
                 }
             }
-            order = 30; // back to "selected" state
+            order = ORDER_NONE; // back to work state
             p_response = NULL;
 
-        //
-        // now check commands in received buffer
-        //
+            //
+            // now check commands in received buffer
+            //
 
         } else if (receivedCmd[0] == ISO14443A_CMD_REQA && len == 1) { // Received a REQUEST
             p_response = &responses[ATQA];
-            order = 1;
+            order = ORDER_REQA;
         } else if (receivedCmd[0] == ISO14443A_CMD_WUPA && len == 1) { // Received a WAKEUP
             p_response = &responses[ATQA];
-            order = 6;
+            order = ORDER_WUPA;
         } else if (receivedCmd[1] == 0x20 && receivedCmd[0] == ISO14443A_CMD_ANTICOLL_OR_SELECT && len == 2) {    // Received request for UID (cascade 1)
             p_response = &responses[UIDC1];
-            order = 2;
+            order = ORDER_SELECT_ALL_CL1;
         } else if (receivedCmd[1] == 0x20 && receivedCmd[0] == ISO14443A_CMD_ANTICOLL_OR_SELECT_2 && len == 2) {  // Received request for UID (cascade 2)
             p_response = &responses[UIDC2];
-            order = 20;
+            order = ORDER_SELECT_ALL_CL2;
         } else if (receivedCmd[1] == 0x70 && receivedCmd[0] == ISO14443A_CMD_ANTICOLL_OR_SELECT && len == 9) {    // Received a SELECT (cascade 1)
             p_response = &responses[SAKC1];
-            order = 3;
+            order = ORDER_SELECT_CL1;
         } else if (receivedCmd[1] == 0x70 && receivedCmd[0] == ISO14443A_CMD_ANTICOLL_OR_SELECT_2 && len == 9) {  // Received a SELECT (cascade 2)
             p_response = &responses[SAKC2];
-            order = 30;
+            order = ORDER_SELECT_CL2;
         } else if (receivedCmd[0] == ISO14443A_CMD_READBLOCK && len == 4) {    // Received a (plain) READ
             uint8_t block = receivedCmd[1];
             // if Ultralight or NTAG (4 byte blocks)
@@ -1326,7 +1338,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
                     // send ACK
                     EmSend4bit(CARD_ACK);
                     // go to part 2
-                    order = 15;
+                    order = ORDER_EV1_COMP_WRITE;
                 }
             } else {
                 // send NACK 0x1 == crc/parity error
@@ -1339,7 +1351,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
             uint8_t index = receivedCmd[1];
             if (index > 2) {
                 // send NACK 0x0 == invalid argument
-                EmSend4bit(0x00);
+                EmSend4bit(CARD_NACK_IV);
             } else {
                 uint8_t cmd[] =  {0x00, 0x00, 0x00, 0x14, 0xa5};
                 htole24(counters[index], cmd);
@@ -1351,7 +1363,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
             uint8_t index = receivedCmd[1];
             if (index > 2) {
                 // send NACK 0x0 == invalid argument
-                EmSend4bit(0x00);
+                EmSend4bit(CARD_NACK_IV);
             } else {
                 uint32_t val = le24toh(receivedCmd + 2) + counters[index];
                 // if new value + old value is bigger 24bits,  fail
@@ -1370,7 +1382,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
             uint8_t index = receivedCmd[1];
             if (index > 2) {
                 // send NACK 0x0 == invalid argument
-                EmSend4bit(0x00);
+                EmSend4bit(CARD_NACK_IV);
             } else {
                 uint8_t cmd[3];
                 cmd[0] = tearings[index];
@@ -1381,6 +1393,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
         } else if (receivedCmd[0] == ISO14443A_CMD_HALT && len == 4) {    // Received a HALT
             LogTrace(receivedCmd, Uart.len, Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.parity, true);
             p_response = NULL;
+            order = ORDER_HALTED;
         } else if (receivedCmd[0] == MIFARE_ULEV1_VERSION && len == 3 && (tagType == 2 || tagType == 7)) {
             p_response = &responses[VERSION];
         } else if ((receivedCmd[0] == MIFARE_AUTH_KEYA || receivedCmd[0] == MIFARE_AUTH_KEYB) && len == 4 && tagType != 2 && tagType != 7) {    // Received an authentication request
@@ -1394,14 +1407,14 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
 
             prepare_tag_modulation(&dynamic_response_info, DYNAMIC_MODULATION_BUFFER_SIZE);
             p_response = &dynamic_response_info;
-            order = 7;
+            order = ORDER_AUTH;
         } else if (receivedCmd[0] == ISO14443A_CMD_RATS && len == 4) {    // Received a RATS request
             if (tagType == 1 || tagType == 2) {    // RATS not supported
                 EmSend4bit(CARD_NACK_NA);
                 p_response = NULL;
             } else {
                 p_response = &responses[RATS];
-                order = 70;
+                order = ORDER_RATS;
             }
         } else if (receivedCmd[0] == MIFARE_ULC_AUTH_1) {  // ULC authentication, or Desfire Authentication
             LogTrace(receivedCmd, Uart.len, Uart.startTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.endTime * 16 - DELAY_AIR2ARM_AS_TAG, Uart.parity, true);
@@ -1486,7 +1499,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
                     }
                     // Do not respond
                     dynamic_response_info.response_n = 0;
-                    order = 30; // back to "selected" state
+                    order = ORDER_NONE; // back to work state
                 }
                 break;
             }
@@ -1509,10 +1522,10 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
         }
 
         // Count number of wakeups received after a halt
-        if (order == 6 && lastorder == 5) { happened++; }
+        if (order == ORDER_WUPA && lastorder == ORDER_HALTED) { happened++; }
 
         // Count number of other messages after a halt
-        if (order != 6 && lastorder == 5) { happened2++; }
+        if (order != ORDER_WUPA && lastorder == ORDER_HALTED) { happened2++; }
 
         cmdsRecvd++;
 
@@ -1726,7 +1739,7 @@ void CodeIso14443aAsReaderPar(const uint8_t *cmd, uint16_t len, const uint8_t *p
 int EmGetCmd(uint8_t *received, uint16_t *len, uint8_t *par) {
     *len = 0;
 
-    uint32_t timer = 0, vtime;
+    uint32_t timer = 0;
     int analogCnt = 0;
     int analogAVG = 0;
 
@@ -1765,11 +1778,17 @@ int EmGetCmd(uint8_t *received, uint16_t *len, uint8_t *par) {
             AT91C_BASE_ADC->ADC_CR = AT91C_ADC_START;
             if (analogCnt >= 32) {
                 if ((MAX_ADC_HF_VOLTAGE_RDV40 * (analogAVG / analogCnt) >> 10) < MF_MINFIELDV) {
-                    vtime = GetTickCount();
-                    if (!timer) timer = vtime;
-                    // 50ms no field --> card to idle state
-                    if (vtime - timer > 50) return 2;
-                } else if (timer) timer = 0;
+                    if (timer == 0) {
+                        timer = GetTickCount();
+                    } else {
+                        // 50ms no field --> card to idle state
+                        if (GetTickCountDelta(timer) > 50) {
+                            return 2;
+                        }
+                    }
+                } else {
+                    timer = 0;
+                }
                 analogCnt = 0;
                 analogAVG = 0;
             }
@@ -2144,7 +2163,7 @@ static int GetATQA(uint8_t *resp, uint8_t *resp_par) {
         ReaderTransmitBitsPar(wupa, 7, NULL, NULL);
         // Receive the ATQA
         len = ReaderReceive(resp, resp_par);
-    } while (len == 0 && GetTickCount() <= start_time + WUPA_RETRY_TIMEOUT);
+    } while (len == 0 && GetTickCountDelta(start_time) <= WUPA_RETRY_TIMEOUT);
 
     iso14a_set_timeout(save_iso14a_timeout);
     return len;
