@@ -9,20 +9,63 @@
 //-----------------------------------------------------------------------------
 #include "hf_eloff.h"
 
+uint32_t eloff_lf_bits = 0;
 
-void ModInfo(void) {
-    DbpString("   HF Mifare, HF Ultralight EV1/NTAG simulation");
+void StandaloneReplyStatus() {
+    if (eloff_lf_bits != 0) {
+        reply_ng(CMD_GET_STANDALONE_DONE_STATUS, STANDALONE_ELOFF_LF_SUCCESS, (uint8_t *) &eloff_lf_bits, sizeof(eloff_lf_bits));
+    } else {
+        reply_ng(CMD_GET_STANDALONE_DONE_STATUS, PM3_EUNDEF, NULL, 0);
+    }
 }
 
-void RunMod() {
+void ModInfo(void) {
+    DbpString("   HF: Mifare/Ultralight/EV1 simulation; LF: cloner");
+}
+
+void WorkWithLF() {
+    FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
+
+    int step = 0;
+    
+    LED_B_ON();
+    LED_C_ON();
+    for (;;) {
+        WDT_HIT();
+        // wait for button to be released
+        while (BUTTON_PRESS())
+            WDT_HIT();
+        
+        if (step == 0) {
+            LED_B_ON();
+            LED_C_ON();
+            while (!BUTTON_PRESS() && !usb_poll_validate_length())
+                WDT_HIT();
+            LEDsoff();
+            step++;
+        } else if (step == 1) {
+            LED_B_ON();
+            LED_D_ON();
+            // read LF samples
+            eloff_lf_bits = SampleLF(true, 30000);
+            LEDsoff();
+            step= 0;
+        }
+        
+        // exit, send a usbcommand.
+        if (usb_poll_validate_length()) break;
+    }
+}
+
+void WorkWithHF() {
+    FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
+
     int step = 0;
     uint8_t data[20] = {0};
 
-    StandAloneMode();
-    FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
-
     MF_DBGLEVEL = 0;
     for (;;) {
+        WDT_HIT();
         // wait for button to be released
         while (BUTTON_PRESS())
             WDT_HIT();
@@ -77,6 +120,17 @@ void RunMod() {
             if (step > 2) {
                 step = 0;
             }
+            SpinDown(50);
         }
+    }
+}
+
+void RunMod() {
+    StandAloneMode();
+
+    if (BUTTON_HELD(3000) > 0) {
+        WorkWithLF();
+    } else {
+        WorkWithHF();
     }
 }

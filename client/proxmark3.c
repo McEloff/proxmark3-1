@@ -495,6 +495,11 @@ int main(int argc, char *argv[]) {
         OpenProxmark(port, waitCOMPort, 20, false, speed);
     }
 
+    // check standalone done status before main cycle
+    if (session.pm3_present) {
+        CheckStandaloneDoneStatus();
+    }
+
     if (session.pm3_present && (TestProxmark() != PM3_SUCCESS)) {
         PrintAndLogEx(ERR, _RED_("ERROR:") "cannot communicate with the Proxmark\n");
         CloseProxmark();

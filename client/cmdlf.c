@@ -932,14 +932,35 @@ out:
 int CmdLFfind(const char *Cmd) {
     int ans = 0;
     size_t minLength = 2000;
-    char cmdp = tolower(param_getchar(Cmd, 0));
-    char testRaw = param_getchar(Cmd, 1);
+    char source = '0';
+    bool testRaw = false;
+    bool errors = false;
+    uint8_t cmdp = 0;
 
-    if (strlen(Cmd) > 3 || cmdp == 'h') return usage_lf_find();
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        char c = tolower(param_getchar(Cmd, cmdp));
+        switch (c) {
+            case 'h':
+                return usage_lf_find();
+            case 'u':
+                testRaw = true;
+                cmdp++;
+                break;
+            case '0':
+            case '1':
+                source = c;
+                cmdp++;
+                break;
+            default:
+                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
+                errors = true;
+                break;
+        }
+    }
+    
+    if (errors) return usage_lf_find();
 
-    if (cmdp == 'u') testRaw = 'u';
-
-    bool isOnline = (session.pm3_present && (cmdp != '1'));
+    bool isOnline = (session.pm3_present && (source == '0'));
 
     if (isOnline)
         lf_read(true, 30000);
@@ -1001,7 +1022,7 @@ int CmdLFfind(const char *Cmd) {
 
     PrintAndLogEx(FAILED, _RED_("No known 125/134 kHz tags found!"));
 
-    if (testRaw == 'u') {
+    if (testRaw) {
         //test unknown tag formats (raw mode)
         PrintAndLogEx(INFO, "\nChecking for unknown tags:\n");
         ans = AutoCorrelate(GraphBuffer, GraphBuffer, GraphTraceLen, 8000, false, false);

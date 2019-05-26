@@ -20,4 +20,6 @@
 #include "iso14443a.h"
 #include "BigBuf.h"
 
+void StandaloneReplyStatus();
+
 #endif /* __HF_ELOFF_H */

@@ -44,6 +44,10 @@
 #include "flashmem.h"
 #endif
 
+#ifdef WITH_STANDALONE_HF_ELOFF
+#include "standalone/hf_eloff.h"
+#endif
+
 //=============================================================================
 // A buffer where we can queue things up to be sent through the FPGA, for
 // any purpose (fake tag, as reader, whatever). We go MSB first, since that
@@ -1672,6 +1676,14 @@ static void PacketReceived(PacketCommandNG *packet) {
                 dev_info |= DEVICE_INFO_FLAG_BOOTROM_PRESENT;
             }
             reply_old(CMD_DEVICE_INFO, dev_info, 0, 0, 0, 0);
+            break;
+        }
+        case CMD_GET_STANDALONE_DONE_STATUS: {
+#ifdef WITH_STANDALONE_HF_ELOFF
+            StandaloneReplyStatus();
+#else
+            reply_ng(CMD_GET_STANDALONE_DONE_STATUS, PM3_EUNDEF, NULL, 0);
+#endif
             break;
         }
         default:

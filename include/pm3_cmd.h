@@ -404,6 +404,9 @@ typedef struct {
 #define CMD_EMV_LOAD_VALUE                                                0x0707
 #define CMD_EMV_DUMP_CARD                                                 0x0708
 
+// For Standalone mode replies
+#define CMD_GET_STANDALONE_DONE_STATUS                                    0x1001
+
 #define CMD_UNKNOWN                                                       0xFFFF
 
 //Mifare simulation flags
@@ -473,6 +476,9 @@ typedef struct {
 // Quit program                         client:     reserved, order to quit the program
 #define PM3_EFATAL            -99
 
+
+// CMD_GET_STANDALONE_DONE_STATUS responses
+#define STANDALONE_ELOFF_LF_SUCCESS  1
 
 // Receiving from USART need more than 30ms as we used on USB
 // else we get errors about partial packet reception
