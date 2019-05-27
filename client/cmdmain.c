@@ -81,8 +81,6 @@ command_t *getTopLevelCommandTable() {
 }
 
 void CheckStandaloneDoneStatus(void) {
-    PacketResponseNG response;
-
     clearCommandBuffer();
     SendCommandNG(CMD_GET_STANDALONE_DONE_STATUS, NULL, 0); 
 
@@ -90,7 +88,7 @@ void CheckStandaloneDoneStatus(void) {
     if (WaitForResponseTimeout(CMD_GET_STANDALONE_DONE_STATUS, &resp, 2500)) {
         switch (resp.status) {
             case STANDALONE_ELOFF_LF_SUCCESS: {
-                uint32_t bits = (response.data.asDwords[0] / 8 );
+                uint32_t bits = (resp.data.asDwords[0] / 8 );
                 if (bits != 0) {
                     if(getSamples(bits, false) == PM3_SUCCESS) {
                         CmdLFfind("1");
