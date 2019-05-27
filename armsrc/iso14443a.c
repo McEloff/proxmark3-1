@@ -626,7 +626,7 @@ void RAMFUNC SniffIso14443a(uint8_t param) {
 
     if (MF_DBGLEVEL >= MF_DBG_ERROR) {
         Dbprintf("maxDataLen=%d, Uart.state=%x, Uart.len=%d", maxDataLen, Uart.state, Uart.len);
-        Dbprintf("traceLen=%d, Uart.output[0]=%08x", BigBuf_get_traceLen(), (uint32_t)Uart.output[0]);
+        Dbprintf("traceLen=" _YELLOW_("%d")", Uart.output[0]="_YELLOW_("%08x"), BigBuf_get_traceLen(), (uint32_t)Uart.output[0]);
     }
     switch_off();
 }
@@ -917,7 +917,7 @@ static bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_res
         }
         break;
         default: {
-            if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("Error: unkown tagtype (%d)", tagType);
+            if (MF_DBGLEVEL >= MF_DBG_ERROR) Dbprintf("Error: unkown tagtype (%d)", tagType);
             return false;
         }
         break;
@@ -962,7 +962,7 @@ static bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_res
         sak &= 0xFB;
         *cuid = bytes_to_num(data, 4);
     } else {
-        if (MF_DBGLEVEL >= MF_DBG_ERROR)    Dbprintf("[-] ERROR: UID size not defined");
+        if (MF_DBGLEVEL >= MF_DBG_ERROR) Dbprintf("[-] ERROR: UID size not defined");
         return false;
     }
 
@@ -1033,7 +1033,7 @@ static bool SimulateIso14443aInit(int tagType, int flags, uint8_t *data, tag_res
 // response to send, and send it.
 // 'hf 14a sim'
 //-----------------------------------------------------------------------------
-void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
+void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data) {
     tag_response_info_t *responses;
     uint32_t cuid = 0;
     uint32_t nonce = 0;
@@ -1077,9 +1077,10 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
     // free eventually allocated BigBuf memory but keep Emulator Memory
     BigBuf_free_keep_EM();
 
-
     if (SimulateIso14443aInit(tagType, flags, data, &responses, &cuid, counters, tearings, &pages) == false) {
         BigBuf_free_keep_EM();
+        if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
+            reply_ng(CMD_SIMULATE_MIFARE_CARD, PM3_EINIT, NULL, 0);
         return;
     }
 
@@ -1104,6 +1105,8 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
     int order = ORDER_NO_FIELD;
     int lastorder;
 
+    int retval = PM3_SUCCESS;
+    
     // Just to allow some checks
     int happened = 0;
     int happened2 = 0;
@@ -1143,12 +1146,15 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
                 BigBuf_free_keep_EM();
                 if (SimulateIso14443aInit(tagType, FLAG_UID_IN_EMUL, data, &responses, &cuid, counters, tearings, &pages) == false) {
                     BigBuf_free_keep_EM();
+                    if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
+                        reply_ng(CMD_SIMULATE_MIFARE_CARD, PM3_EINIT, NULL, 0);
                     return;
                 }
                 reinit = false;
             }
             continue;
         } else if (res == 1) { // button pressed
+            retval = PM3_EOPABORTED;
             break;
         }
 
@@ -1547,7 +1553,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
     for (uint8_t i = 0; i < nonces_count; i++) {
         // for interactive call send collected nonces to client
         if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
-            reply_old(CMD_ACK, CMD_SIMULATE_MIFARE_CARD, 0, 0, &ar_nr_collected[i], sizeof(nonces_t));
+            reply_ng(CMD_SIMULATE_MIFARE_CARD, CMD_SIMULATE_MIFARE_CARD, (uint8_t *) &ar_nr_collected[i], sizeof(nonces_t));
         else {
             // for non-interactive call print nonces
             Dbprintf("%s, sector %2d: mfkey32v2 %08x %08x %08x %08x %08x %08x %08x",
@@ -1565,7 +1571,7 @@ void SimulateIso14443aTag(int tagType, int flags, uint8_t *data) {
     }
     // interrupt interactive client
     if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
-        reply_old(CMD_ACK, 1, 0, 0, 0, 0);
+        reply_ng(CMD_SIMULATE_MIFARE_CARD, retval, NULL, 0);
     switch_off();
 
     set_tracing(false);

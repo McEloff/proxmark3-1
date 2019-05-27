@@ -81,14 +81,17 @@ void WriteTItag(uint32_t idhi, uint32_t idlo, uint16_t crc);
 
 void AcquireTiType(void);
 void AcquireRawBitsTI(void);
-void SimulateTagLowFrequencyEx(int period, int gap, int ledcontrol, int numcycles);
-void SimulateTagLowFrequency(int period, int gap, int ledcontrol);
+void SimulateTagLowFrequencyEx(int period, int gap, bool ledcontrol, int numcycles);
+void SimulateTagLowFrequency(int period, int gap, bool ledcontrol);
 void SimulateTagLowFrequencyBidir(int divisor, int max_bitlen);
-void CmdHIDsimTAGEx(uint32_t hi, uint32_t lo, int ledcontrol, int numcycles);
-void CmdHIDsimTAG(uint32_t hi, uint32_t lo, int ledcontrol);
-void CmdFSKsimTAG(uint16_t arg1, uint16_t arg2, size_t size, uint8_t *bits, int ledcontrol);
-void CmdASKsimTag(uint16_t arg1, uint16_t arg2, size_t size, uint8_t *bits, int ledcontrol);
-void CmdPSKsimTag(uint16_t arg1, uint16_t arg2, size_t size, uint8_t *bits, int ledcontrol);
+
+void CmdHIDsimTAGEx(uint32_t hi, uint32_t lo, bool ledcontrol, int numcycles);
+void CmdHIDsimTAG(uint32_t hi, uint32_t lo, bool ledcontrol);
+
+void CmdFSKsimTAG(uint8_t fchigh, uint8_t fclow, uint8_t separator, uint8_t clk, uint16_t bitslen, uint8_t *bits, bool ledcontrol);
+void CmdASKsimTAG(uint8_t encoding, uint8_t invert, uint8_t separator, uint8_t clk, uint16_t size, uint8_t *bits, bool ledcontrol);
+void CmdPSKsimTag(uint8_t carrier, uint8_t invert, uint8_t clk, uint16_t size, uint8_t *bits, bool ledcontrol);
+
 void CmdHIDdemodFSK(int findone, uint32_t *high, uint32_t *low, int ledcontrol);
 void CmdAWIDdemodFSK(int findone, uint32_t *high, uint32_t *low, int ledcontrol); // Realtime demodulation mode for AWID26
 void CmdEM410xdemod(int findone, uint32_t *high, uint64_t *low, int ledcontrol);
@@ -126,7 +129,6 @@ void ClearFpgaShiftingRegisters(void);
 
 // iso14443a.h
 void RAMFUNC SniffIso14443a(uint8_t param);
-void SimulateIso14443aTag(int tagType, int flags, uint8_t *data);
 void ReaderIso14443a(PacketCommandNG *c);
 
 // Also used in iclass.c
@@ -156,13 +158,16 @@ void MifareAcquireNonces(uint32_t arg0, uint32_t flags);
 void MifareChkKeys(uint8_t *datain);
 void MifareChkKeys_fast(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
 void MifareSetDbgLvl(uint16_t arg0);
+
 void MifareEMemClr(void);
-void MifareEMemSet(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain);
-void MifareEMemGet(uint32_t arg0, uint32_t arg1);
+void MifareEMemSet(uint8_t blockno, uint8_t blockcnt, uint8_t blockwidth, uint8_t *datain);
+void MifareEMemGet(uint8_t blockno, uint8_t blockcnt);
 int MifareECardLoad(uint32_t arg0, uint32_t arg1);
+
 void MifareCSetBlock(uint32_t arg0, uint32_t arg1, uint8_t *datain);  // Work with "magic Chinese" card
 void MifareCGetBlock(uint32_t arg0, uint32_t arg1, uint8_t *datain);
 void MifareCIdent();  // is "magic chinese" card?
+
 void MifareSetMod(uint8_t *datain);
 void MifareUSetPwd(uint8_t arg0, uint8_t *datain);
 void OnSuccessMagic();
