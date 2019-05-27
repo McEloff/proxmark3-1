@@ -128,7 +128,7 @@ void WorkWithHF() {
 void RunMod() {
     StandAloneMode();
 
-    if (BUTTON_HELD(3000) > 0) {
+    if (BUTTON_HELD(5000) > 0) {
         WorkWithLF();
     } else {
         WorkWithHF();
