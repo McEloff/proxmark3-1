@@ -47,7 +47,15 @@ void WorkWithLF() {
             LED_B_ON();
             LED_D_ON();
             // read LF samples
-            eloff_lf_bits = SampleLF(true, 30000);
+            while (!BUTTON_PRESS() && !usb_poll_validate_length()) {
+                WDT_HIT();
+                uint32_t bits = SampleLF(true, 30000);
+                if (getSignalProperties()->amplitude > NOISE_AMPLITUDE_THRESHOLD * 3) {
+                    eloff_lf_bits = bits;
+                    break;
+                }
+            }    
+            
             LEDsoff();
             step= 0;
         }
@@ -55,7 +63,7 @@ void WorkWithLF() {
         // exit, send a usbcommand.
         if (usb_poll_validate_length()) break;
     }
-}
+ }
 
 void WorkWithHF() {
     FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
