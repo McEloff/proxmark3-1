@@ -618,3 +618,29 @@ void pm3_version(bool verbose) {
     }
     PrintAndLogEx(NORMAL, "\n");
 }
+
+void pm3_get_standalone_done_status(void) {
+    PacketResponseNG resp; 
+    clearCommandBuffer();
+
+    SendCommandNG(CMD_GET_STANDALONE_DONE_STATUS, NULL, 0); 
+
+    if (WaitForResponseTimeout(CMD_GET_STANDALONE_DONE_STATUS, &resp, 1000)) {
+        switch (resp.status) {
+            case STANDALONE_ELOFF_LF_SUCCESS: {
+                uint32_t bits = (resp.data.asDwords[0] / 8 );
+                if (bits != 0) {
+                    if(getSamples(bits, false) == PM3_SUCCESS) {
+                        CmdLFfind("1");
+                    }
+                }
+                break;
+            }
+            default:
+                // not supports
+                break;
+        }
+    } else {
+        PrintAndLogEx(WARNING, "Command GET_STANDALONE_DONE_STATUS execution time out");
+    }
+}

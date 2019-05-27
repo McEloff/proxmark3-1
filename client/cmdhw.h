@@ -14,5 +14,6 @@
 int CmdHW(const char *Cmd);
 
 void pm3_version(bool verbose);
+void pm3_get_standalone_done_status(void);
 
 #endif

@@ -14,7 +14,6 @@
 #define _POSIX_C_SOURCE 200112L
 #endif
 #include "cmdmain.h"
-#include "comms.h"
 
 static int CmdHelp(const char *Cmd);
 
@@ -78,30 +77,4 @@ int CommandReceived(char *Cmd) {
 
 command_t *getTopLevelCommandTable() {
     return CommandTable;
-}
-
-void CheckStandaloneDoneStatus(void) {
-    clearCommandBuffer();
-    SendCommandNG(CMD_GET_STANDALONE_DONE_STATUS, NULL, 0); 
-
-    PacketResponseNG resp; 
-    if (WaitForResponseTimeout(CMD_GET_STANDALONE_DONE_STATUS, &resp, 2500)) {
-        switch (resp.status) {
-            case STANDALONE_ELOFF_LF_SUCCESS: {
-                uint32_t bits = (resp.data.asDwords[0] / 8 );
-                if (bits != 0) {
-                    if(getSamples(bits, false) == PM3_SUCCESS) {
-                        CmdLFfind("1");
-                    }
-                }
-                break;
-            }
-            default:
-                // not supports
-                break;
-        }
-    } else {
-        PrintAndLogEx(WARNING, "Command GET_STANDALONE_DONE_STATUS execution time out");
-    }
-
 }

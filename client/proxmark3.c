@@ -91,6 +91,8 @@ main_loop(char *script_cmds_file, char *script_cmd) {
             pm3_version(false);
         else
             pm3_version(true);
+        // todo: check valid version before to support operation
+        pm3_get_standalone_done_status();
     }
 
     if (script_cmds_file) {
@@ -493,11 +495,6 @@ int main(int argc, char *argv[]) {
     // try to open USB connection to Proxmark
     if (port != NULL) {
         OpenProxmark(port, waitCOMPort, 20, false, speed);
-    }
-
-    // check standalone done status before main cycle
-    if (session.pm3_present) {
-        CheckStandaloneDoneStatus();
     }
 
     if (session.pm3_present && (TestProxmark() != PM3_SUCCESS)) {

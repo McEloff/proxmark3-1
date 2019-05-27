@@ -38,6 +38,5 @@
 
 int CommandReceived(char *Cmd);
 command_t *getTopLevelCommandTable(void);
-void CheckStandaloneDoneStatus(void);
 
 #endif
