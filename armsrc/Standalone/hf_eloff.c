@@ -23,6 +23,20 @@ void ModInfo(void) {
     DbpString("   HF: Mifare/Ultralight/EV1 simulation; LF: scanner");
 }
 
+uint32_t DemodLF(int trigger_threshold) {
+    // Configure to go in 125Khz listen mode
+    LFSetupFPGAForADC(95, true);
+
+    // clear read buffer
+    BigBuf_Clear_ext(false);
+
+    // read samples
+    uint32_t ret = DoAcquisition_default(trigger_threshold, true);
+
+    FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
+    return ret;
+}
+
 void WorkWithLF() {
     FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
 
@@ -46,17 +60,8 @@ void WorkWithLF() {
         } else if (step == 1) {
             LED_B_ON();
             LED_D_ON();
-            eloff_lf_bits = 0;
             // read LF samples
-            while (!BUTTON_PRESS() && !usb_poll_validate_length()) {
-                WDT_HIT();
-                uint32_t bits = SampleLF(true, 30000);
-                if (getSignalProperties()->amplitude > NOISE_AMPLITUDE_THRESHOLD * 3) {
-                    eloff_lf_bits = bits;
-                    break;
-                }
-            }    
-            
+            eloff_lf_bits = DemodLF(NOISE_AMPLITUDE_THRESHOLD * 3);
             LEDsoff();
             step= 0;
         }
