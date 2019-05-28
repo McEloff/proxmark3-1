@@ -20,7 +20,7 @@ void StandaloneReplyStatus() {
 }
 
 void ModInfo(void) {
-    DbpString("   HF: Mifare/Ultralight/EV1 simulation; LF: cloner");
+    DbpString("   HF: Mifare/Ultralight/EV1 simulation; LF: scanner");
 }
 
 void WorkWithLF() {
@@ -46,6 +46,7 @@ void WorkWithLF() {
         } else if (step == 1) {
             LED_B_ON();
             LED_D_ON();
+            eloff_lf_bits = 0;
             // read LF samples
             while (!BUTTON_PRESS() && !usb_poll_validate_length()) {
                 WDT_HIT();
