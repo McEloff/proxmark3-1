@@ -301,3 +301,7 @@ void RunMod() {
     Dbprintf("- [ End ] -> You can take shell back ...");
     Dbprintf("- [  !  ] -> use 'script run read_pwd_mem' to print passwords");
 }
+
+void StandaloneReplyStatus() {
+    reply_ng(CMD_GET_STANDALONE_DONE_STATUS, PM3_EUNDEF, NULL, 0);
+}

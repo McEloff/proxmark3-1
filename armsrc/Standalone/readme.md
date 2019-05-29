@@ -17,6 +17,8 @@ The ModInfo function, which is your identification of your standalone mode.  Thi
 
 The RunMod function, which is your "main" function when running.  You need to check for Usb commands, in order to let the pm3 client break the standalone mode.  See this basic skeleton of main function RunMod() and Modinfo() below.
 
+The StandaloneReplyStatus function, which sends done status to client. After Usb reconnected client requests status of standalone mode completion. You whill need basic response like below.
+
 ````
 void ModInfo(void) {
     DbpString("   LF good description of your mode - aka FooRun (your name)");
@@ -38,6 +40,11 @@ void RunMod(void) {
 
         // do your standalone stuff..
     }
+
+void StandaloneReplyStatus() {
+    // no specific data whill sends to client
+    reply_ng(CMD_GET_STANDALONE_DONE_STATUS, PM3_EUNDEF, NULL, 0);
+}
 ````
 
 Each standalone mode needs to have its own compiler flag to be added in `armsrc/Makefile`.

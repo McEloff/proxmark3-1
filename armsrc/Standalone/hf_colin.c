@@ -1,4 +1,4 @@
-//-----------------------------------------------------------------------------
+﻿//-----------------------------------------------------------------------------
 // Colin Brigato, 2016, 2017
 // Christian Herrmann, 2017
 //
@@ -1126,4 +1126,8 @@ int saMifareCSetBlock(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *data
     }
 
     return isOK;
+}
+
+void StandaloneReplyStatus() {
+    reply_ng(CMD_GET_STANDALONE_DONE_STATUS, PM3_EUNDEF, NULL, 0);
 }

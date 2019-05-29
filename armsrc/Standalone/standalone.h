@@ -16,5 +16,6 @@
 
 void RunMod();
 void ModInfo();
+void StandaloneReplyStatus();
 
 #endif /* __STANDALONE_H */

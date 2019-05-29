@@ -1,4 +1,4 @@
-//-----------------------------------------------------------------------------
+﻿//-----------------------------------------------------------------------------
 // Samy Kamkar, 2012
 // Federico Dotta, 2015
 // Maurizio Agazzini, 2015
@@ -325,3 +325,6 @@ void hid_corporate_1000_calculate_checksum_and_set(uint32_t *high, uint32_t *low
 // simulate a HID tag until the button is pressed or after #numcycles cycles
 // Used to bruteforce HID in standalone mode.
 
+void StandaloneReplyStatus() {
+    reply_ng(CMD_GET_STANDALONE_DONE_STATUS, PM3_EUNDEF, NULL, 0);
+}
