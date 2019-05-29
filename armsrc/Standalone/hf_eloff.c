@@ -61,7 +61,7 @@ void WorkWithLF() {
             LED_B_ON();
             LED_D_ON();
             // read LF samples
-            eloff_lf_bits = DemodLF(NOISE_AMPLITUDE_THRESHOLD * 3);
+            eloff_lf_bits = DemodLF(NOISE_AMPLITUDE_THRESHOLD * 6);
             LEDsoff();
             step= 0;
         }
