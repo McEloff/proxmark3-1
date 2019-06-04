@@ -213,6 +213,10 @@ main_loop(char *script_cmds_file, char *script_cmd) {
         }
     } // end while
 
+    clearCommandBuffer();
+    SendCommandNG(CMD_QUIT_SESSION, NULL, 0);
+    msleep(100); // Make sure command is sent before killing client
+
     if (sf)
         fclose(sf);
 

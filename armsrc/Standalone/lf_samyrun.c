@@ -32,7 +32,7 @@ void RunMod() {
         WDT_HIT();
 
         // exit from SamyRun,   send a usbcommand.
-        if (usb_poll_validate_length()) break;
+        if (data_available()) break;
 
         // Was our button held down or pressed?
         int button_pressed = BUTTON_HELD(1000);
@@ -44,7 +44,7 @@ void RunMod() {
         if (button_pressed > 0 && cardRead == 0) {
             LEDsoff();
             LED(selected + 1, 0);
-            LED(LED_RED2, 0);
+            LED(LED_D, 0);
 
             // record
             DbpString("[=] starting recording");
@@ -71,7 +71,7 @@ void RunMod() {
         } else if (button_pressed > 0 && cardRead == 1) {
             LEDsoff();
             LED(selected + 1, 0);
-            LED(LED_ORANGE, 0);
+            LED(LED_A, 0);
 
             // record
             Dbprintf("[=] cloning %x %x %08x", selected, high[selected], low[selected]);
@@ -110,7 +110,7 @@ void RunMod() {
             // Begin transmitting
             if (playing) {
 
-                LED(LED_GREEN, 0);
+                LED(LED_B, 0);
                 DbpString("[=] playing");
 
                 // wait for button to be released

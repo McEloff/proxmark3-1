@@ -53,7 +53,7 @@ void WorkWithLF() {
         if (step == 0) {
             LED_B_ON();
             LED_C_ON();
-            while (!BUTTON_PRESS() && !usb_poll_validate_length())
+            while (!BUTTON_PRESS() && !data_available())
                 WDT_HIT();
             LEDsoff();
             step++;
@@ -67,7 +67,7 @@ void WorkWithLF() {
         }
         
         // exit, send a usbcommand.
-        if (usb_poll_validate_length()) break;
+        if (data_available()) break;
     }
  }
 
@@ -126,7 +126,7 @@ void WorkWithHF() {
         }
 
         // exit, send a usbcommand.
-        if (usb_poll_validate_length()) break;
+        if (data_available()) break;
 
         // Was our button held down or pressed?
         if (BUTTON_HELD(1000) > 0) {

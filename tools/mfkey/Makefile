@@ -1,3 +1,9 @@
+# Hide full compilation line:
+ifneq ($(V),1)
+  Q?=@
+endif
+# To see full command lines, use make V=1
+
 VPATH = ../../common ../../common/crapto1 ../../client
 CC = gcc
 LD = gcc
@@ -10,10 +16,12 @@ EXES = mfkey32 mfkey32v2 mfkey64
 all: $(OBJS) $(EXES)
 
 %.o : %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(info [-] CC $<)
+	$(Q)$(CC) $(CFLAGS) -c -o $@ $<
 
 % : %.c $(OBJS)
-	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
+	$(info [=] LD $@)
+	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJS) $<
 
 clean:
-	rm -f $(OBJS) $(EXES)
+	$(Q)rm -f $(OBJS) $(EXES)

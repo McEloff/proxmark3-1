@@ -503,7 +503,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                 cardSTATE_TO_IDLE();
                 LED_A_ON();
             }
-            button_pushed = BUTTON_PRESS() || usb_poll_validate_length();
+            button_pushed = BUTTON_PRESS() || data_available();
             continue;
         }
 

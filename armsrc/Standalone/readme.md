@@ -36,7 +36,7 @@ void RunMod(void) {
         WDT_HIT();
 
         // exit from standalone mode, just send a usbcommand
-        if (usb_poll_validate_length()) break;
+        if (data_available()) break;
 
         // do your standalone stuff..
     }
@@ -67,17 +67,18 @@ This leads to your next step, your DEFINE name needed in Makefile.
 
 ## Update COMMON/MAKEFILE.HAL
 
-Add your suggested DEFINE to the samples of directive flag provided in the `common/Makefile.hal`.
+Add your mode to the `common/Makefile.hal` help and modes list:
 ```
-#PLATFORM_DEFS += -DWITH_STANDALONE_LF_SAMYRUN
-#PLATFORM_DEFS += -DWITH_STANDALONE_LF_ICERUN
-#PLATFORM_DEFS += -DWITH_STANDALONE_LF_PROXBRUTE
-#PLATFORM_DEFS += -DWITH_STANDALONE_LF_HIDBRUTE
-#PLATFORM_DEFS += -DWITH_STANDALONE_HF_YOUNG
-#PLATFORM_DEFS += -DWITH_STANDALONE_HF_MATTYRUN
-#PLATFORM_DEFS += -DWITH_STANDALONE_HF_COLIN
-#PLATFORM_DEFS += -DWITH_STANDALONE_HF_BOG
-#PLATFORM_DEFS += -DWITH_STANDALONE_LF_FOO
++==========================================================+
+| STANDALONE      | DESCRIPTION                            |
++==========================================================+
+...
++----------------------------------------------------------+
+| LF_FOO          | My foobar mode will make you coffee    |
++----------------------------------------------------------+
+
+STANDALONE_MODES := LF_SAMYRUN LF_ICERUN LF_PROXBRUTE LF_HIDBRUTE LF_FOO
+STANDALONE_MODES += HF_YOUNG HF_MATTYRUN HF_COLIN HF_BOG
 ```
 
 ## Update ARMSRC/MAKEFILE

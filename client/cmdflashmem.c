@@ -50,7 +50,9 @@ static int usage_flashmem_read(void) {
 }
 static int usage_flashmem_load(void) {
     PrintAndLogEx(NORMAL, "Loads binary file into flash memory on device");
-    PrintAndLogEx(NORMAL, "Usage:  mem load o <offset> f <file name> m t i");
+    PrintAndLogEx(NORMAL, "Usage:  mem load [o <offset>] f <file name> [m|t|i]");
+    PrintAndLogEx(NORMAL, "Warning: mem area to be written must have been wiped first");
+    PrintAndLogEx(NORMAL, "(this is already taken care when loading dictionaries)");
     PrintAndLogEx(NORMAL, "  o <offset>    :      offset in memory");
     PrintAndLogEx(NORMAL, "  f <filename>  :      file name");
     PrintAndLogEx(NORMAL, "  m             :      upload 6 bytes keys (mifare key dictionary)");
@@ -67,7 +69,7 @@ static int usage_flashmem_load(void) {
 }
 static int usage_flashmem_save(void) {
     PrintAndLogEx(NORMAL, "Saves flash memory on device into the file");
-    PrintAndLogEx(NORMAL, " Usage:  mem save o <offset> l <length> f <file name>");
+    PrintAndLogEx(NORMAL, " Usage:  mem save [o <offset>] [l <length>] f <file name>");
     PrintAndLogEx(NORMAL, "  o <offset>    :      offset in memory");
     PrintAndLogEx(NORMAL, "  l <length>    :      length");
     PrintAndLogEx(NORMAL, "  f <filename>  :      file name");
@@ -88,19 +90,18 @@ static int usage_flashmem_wipe(void) {
 //  PrintAndLogEx(NORMAL, "  i           :      inital total wipe");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
-    PrintAndLogEx(NORMAL, "        mem wipe ");     // wipe page 0,1,2
     PrintAndLogEx(NORMAL, "        mem wipe p 0");  // wipes first page.
     return PM3_SUCCESS;
 }
 static int usage_flashmem_info(void) {
     PrintAndLogEx(NORMAL, "Collect signature and verify it from flash memory\n");
-    PrintAndLogEx(NORMAL, " Usage:  mem info [h|s|w]");
-    PrintAndLogEx(NORMAL, "  s    :      create a signature");
-    PrintAndLogEx(NORMAL, "  w    :      write signature to flash memory");
+    PrintAndLogEx(NORMAL, " Usage:  mem info");
+//    PrintAndLogEx(NORMAL, "  s    :      create a signature");
+//    PrintAndLogEx(NORMAL, "  w    :      write signature to flash memory");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "        mem info");
-    PrintAndLogEx(NORMAL, "        mem info s");
+//    PrintAndLogEx(NORMAL, "        mem info s");
     return PM3_SUCCESS;
 }
 
@@ -357,7 +358,7 @@ static int CmdFlashMemSave(const char *Cmd) {
         return PM3_EMALLOC;
     }
 
-    PrintAndLogEx(NORMAL, "downloading"_YELLOW_("%u")"bytes from flashmem", len);
+    PrintAndLogEx(INFO, "downloading "_YELLOW_("%u")"bytes from flashmem", len);
     if (!GetFromDevice(FLASH_MEM, dump, len, start_index, NULL, -1, true)) {
         PrintAndLogEx(FAILED, "ERROR; downloading from flashmemory");
         free(dump);
@@ -485,21 +486,18 @@ static int CmdFlashMemInfo(const char *Cmd) {
     print_hex_break(mem.signature, sizeof(mem.signature), 32);
 
 //-------------------------------------------------------------------------------
-// Example RSA-1024 keypair, for test purposes  (from common/polarssl/rsa.c)
+// RRG Public RSA Key
 //
 
-// public key modulus N
-#define RSA_N   "9292758453063D803DD603D5E777D788" \
-    "8ED1D5BF35786190FA2F23EBC0848AEA" \
-    "DDA92CA6C3D80B32C4D109BE0F36D6AE" \
-    "7130B9CED7ACDF54CFC7555AC14EEBAB" \
-    "93A89813FBF3C4F8066D2D800F7C38A8" \
-    "1AE31942917403FF4946B0A83D3D3E05" \
-    "EE57C6F5F5606FB5D4BC6CD34EE0801A" \
-    "5E94BB77B07507233A0BC7BAC8F90F79"
-
 // public key Exponent E
-#define RSA_E   "10001"
+#define RSA_E "010001" 
+
+// public key modulus N
+#define RSA_N "E28D809BF323171D11D1ACA4C32A5B7E0A8974FD171E75AD120D60E9B76968FF4B0A6364AE50583F9555B8EE1A725F279E949246DF0EFCE4C02B9F3ACDCC623F9337F21C0C066FFB703D8BFCB5067F309E056772096642C2B1A8F50305D5EC33DB7FB5A3C8AC42EB635AE3C148C910750ABAA280CE82DC2F180F49F30A1393B5" 
+
+//-------------------------------------------------------------------------------
+// Example RSA-1024 keypair, for test purposes  (from common/polarssl/rsa.c)
+//
 
 // private key  Exponent D
 #define RSA_D   "24BF6185468786FDD303083D25E64EFC" \

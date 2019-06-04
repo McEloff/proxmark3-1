@@ -436,7 +436,7 @@ void SendCapabilities(void) {
     capabilities_t capabilities;
     capabilities.version = CAPABILITIES_VERSION;
     capabilities.via_fpc = reply_via_fpc;
-    
+    capabilities.via_usb = reply_via_usb;
     capabilities.baudrate = 0; // no real baudrate for USB-CDC
 #ifdef WITH_FPC_USART
     if (reply_via_fpc)
@@ -742,6 +742,10 @@ static void PacketReceived(PacketCommandNG *packet) {
     */
 
     switch (packet->cmd) {
+        case CMD_QUIT_SESSION:
+            reply_via_fpc = false;
+            reply_via_usb = false;
+            break;
 #ifdef WITH_LF
         case CMD_SET_LF_T55XX_CONFIG:
             setT55xxConfig(packet->oldarg[0], (t55xx_config *) packet->data.asBytes);
@@ -1538,12 +1542,14 @@ static void PacketReceived(PacketCommandNG *packet) {
             Flash_CheckBusy(BUSY_TIMEOUT);
             Flash_WriteEnable();
 
-            if (startidx == DEFAULT_T55XX_KEYS_OFFSET)
+            if (startidx == DEFAULT_T55XX_KEYS_OFFSET) {
                 Flash_Erase4k(3, 0xC);
-            else if (startidx ==  DEFAULT_MF_KEYS_OFFSET)
-                Flash_Erase4k(3, 0xB);
-            else if (startidx == DEFAULT_ICLASS_KEYS_OFFSET)
+            } else if (startidx ==  DEFAULT_MF_KEYS_OFFSET) {
+                Flash_Erase4k(3, 0x9);
                 Flash_Erase4k(3, 0xA);
+            } else if (startidx == DEFAULT_ICLASS_KEYS_OFFSET) {
+                Flash_Erase4k(3, 0xB);
+            }
 
             Flash_CheckBusy(BUSY_TIMEOUT);
             Flash_WriteEnable();
