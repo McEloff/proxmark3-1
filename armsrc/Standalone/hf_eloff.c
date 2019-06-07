@@ -77,7 +77,7 @@ void WorkWithHF() {
     int step = 0;
     uint8_t data[20] = {0};
 
-    MF_DBGLEVEL = 0;
+    DBGLEVEL = DBG_NONE;
     for (;;) {
         WDT_HIT();
         // wait for button to be released

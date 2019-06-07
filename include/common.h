@@ -23,12 +23,12 @@ extern "C" {
 typedef unsigned char byte_t;
 
 // debug
-#define MF_DBG_NONE          0 // no messages
-#define MF_DBG_ERROR         1 // errors only
-#define MF_DBG_INFO          2 // errors + info messages
-#define MF_DBG_DEBUG         3 // errors + info + debug messages
-#define MF_DBG_EXTENDED      4 // errors + info + debug + breaking debug messages
-extern int MF_DBGLEVEL;
+#define DBG_NONE          0 // no messages
+#define DBG_ERROR         1 // errors only
+#define DBG_INFO          2 // errors + info messages
+#define DBG_DEBUG         3 // errors + info + debug messages
+#define DBG_EXTENDED      4 // errors + info + debug + breaking debug messages
+extern int DBGLEVEL;
 
 // Flashmem spi baudrate
 extern uint32_t FLASHMEM_SPIBAUDRATE;
@@ -52,11 +52,12 @@ extern uint32_t FLASHMEM_SPIBAUDRATE;
 // RDV40 Section
 // 256kb divided into 4k sectors.
 //
-// last 4k sector = signature
-// second last 4k sector = settings
-// third last 4k sector = default MF keys dictionary
-// forth last 4k sector = default LF keys dictionary
-
+// 0x3F000 - 1 4kb sector = signature
+// 0x3E000 - 1 4kb sector = settings
+// 0x3D000 - 1 4kb sector = default T55XX keys dictionary
+// 0x3B000 - 1 4kb sector = default ICLASS keys dictionary
+// 0x39000 - 2 4kb sectors = default MFC keys dictionary
+// 
 #ifndef FLASH_MEM_BLOCK_SIZE
 # define FLASH_MEM_BLOCK_SIZE   256
 #endif
