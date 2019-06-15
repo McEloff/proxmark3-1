@@ -175,7 +175,7 @@ static int CmdKeriClone(const char *Cmd) {
 static int CmdKeriSim(const char *Cmd) {
 
     char cmdp = tolower(param_getchar(Cmd, 0));
-    if (strlen(Cmd) == 0 || cmdp == 'h') 
+    if (strlen(Cmd) == 0 || cmdp == 'h')
         return usage_lf_keri_sim();
 
     uint64_t internalid = param_get32ex(Cmd, 0, 0, 10);
@@ -237,7 +237,6 @@ int CmdLFKeri(const char *Cmd) {
 int detectKeri(uint8_t *dest, size_t *size, bool *invert) {
 
     uint8_t preamble[] = {1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
-    uint8_t preamble_i[] = {0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0};
 
     // sanity check.
     if (*size < sizeof(preamble) + 100) return -1;
@@ -247,6 +246,7 @@ int detectKeri(uint8_t *dest, size_t *size, bool *invert) {
     if (!preambleSearch(dest, preamble, sizeof(preamble), size, &startIdx)) {
 
         // if didn't find preamble try again inverting
+        uint8_t preamble_i[] = {0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0};
         if (!preambleSearch(DemodBuffer, preamble_i, sizeof(preamble_i), size, &startIdx))
             return -2;
 

@@ -124,7 +124,7 @@ static int CmdHIDDemod(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
 
     // HID simulation etc uses 0/1 as signal data. This must be converted in order to demod it back again
-    if ( isGraphBitstream() ) {
+    if (isGraphBitstream()) {
         convertGraphFromBitstream();
     }
 
@@ -209,12 +209,8 @@ static int CmdHIDDemod(const char *Cmd) {
             }
         } else { //if bit 38 is not set then 37 bit format is used
             fmtLen = 37;
-            fc = 0;
-            cardnum = 0;
-            if (fmtLen == 37) {
-                cardnum = (lo >> 1) & 0x7FFFF;
-                fc = ((hi & 0xF) << 12) | (lo >> 20);
-            }
+            cardnum = (lo >> 1) & 0x7FFFF;
+            fc = ((hi & 0xF) << 12) | (lo >> 20);
         }
         if (fmtLen == 32 && (lo & 0x40000000)) { //if 32 bit and Kastle bit set
             PrintAndLogEx(SUCCESS, "HID Prox TAG (Kastle format) ID: %08x (%u) - Format Len: 32bit - CC: %u - FC: %u - Card: %u", lo, (lo >> 1) & 0xFFFF, cc, fc, cardnum);
@@ -593,7 +589,7 @@ static int CmdHIDBrute(const char *Cmd) {
 
         // Do one up
         if (up < 0xFFFF)
-            if ( sendTry(fmtlen, fc, up++, delay, bits, verbose) != PM3_SUCCESS) return PM3_ESOFT;
+            if (sendTry(fmtlen, fc, up++, delay, bits, verbose) != PM3_SUCCESS) return PM3_ESOFT;
 
         // Do one down  (if cardnumber is given)
         if (cn > 1)

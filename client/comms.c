@@ -136,7 +136,8 @@ static void SendCommandNG_internal(uint16_t cmd, uint8_t *data, size_t len, bool
     txBufferNG.pre.ng = ng;
     txBufferNG.pre.length = len;
     txBufferNG.pre.cmd = cmd;
-    memcpy(&txBufferNG.data, data, len);
+    if ( len > 0 && data ) 
+        memcpy(&txBufferNG.data, data, len);
 
     if ((conn.send_via_fpc_usart && conn.send_with_crc_on_fpc) || ((!conn.send_via_fpc_usart) && conn.send_with_crc_on_usb)) {
         uint8_t first, second;
@@ -601,9 +602,8 @@ int TestProxmark(void) {
     }
 
     bool error = false;
-    if (len)
-        error = memcmp(data, resp.data.asBytes, len) != 0;
-    
+    error = memcmp(data, resp.data.asBytes, len) != 0;
+
     if (error)
         return PM3_EIO;
 
@@ -611,7 +611,7 @@ int TestProxmark(void) {
     if (WaitForResponseTimeoutW(CMD_CAPABILITIES, &resp, 1000, false) == 0) {
         return PM3_ETIMEOUT;
     }
-        
+
     if ((resp.length != sizeof(pm3_capabilities)) || (resp.data.asBytes[0] != CAPABILITIES_VERSION)) {
         PrintAndLogEx(ERR, _RED_("Capabilities structure version sent by Proxmark3 is not the same as the one used by the client!"));
         PrintAndLogEx(ERR, _RED_("Please flash the Proxmark with the same version as the client."));
@@ -621,9 +621,9 @@ int TestProxmark(void) {
     memcpy(&pm3_capabilities, resp.data.asBytes, MIN(sizeof(capabilities_t), resp.length));
     conn.send_via_fpc_usart = pm3_capabilities.via_fpc;
     conn.uart_speed = pm3_capabilities.baudrate;
-        
+
     PrintAndLogEx(INFO, "Communicating with PM3 over %s", conn.send_via_fpc_usart ? _YELLOW_("FPC UART") : _YELLOW_("USB-CDC"));
-        
+
     if (conn.send_via_fpc_usart) {
         PrintAndLogEx(INFO, "PM3 UART serial baudrate: " _YELLOW_("%u") "\n", conn.uart_speed);
     } else {
@@ -694,7 +694,6 @@ bool WaitForResponseTimeoutW(uint32_t cmd, PacketResponseNG *response, size_t ms
         ms_timeout += communication_delay();
 
     __atomic_store_n(&timeout_start_time,  msclock(), __ATOMIC_SEQ_CST);
-    uint64_t tmp_clk;
 
     // Wait until the command is received
     while (true) {
@@ -705,7 +704,7 @@ bool WaitForResponseTimeoutW(uint32_t cmd, PacketResponseNG *response, size_t ms
             }
         }
 
-        tmp_clk = __atomic_load_n(&timeout_start_time, __ATOMIC_SEQ_CST);
+        uint64_t tmp_clk = __atomic_load_n(&timeout_start_time, __ATOMIC_SEQ_CST);
         if ((ms_timeout != (size_t) -1) && (msclock() - tmp_clk > ms_timeout))
             break;
 
@@ -778,7 +777,6 @@ static bool dl_it(uint8_t *dest, uint32_t bytes, uint32_t start_index, PacketRes
 
     uint32_t bytes_completed = 0;
     __atomic_store_n(&timeout_start_time,  msclock(), __ATOMIC_SEQ_CST);
-    uint64_t tmp_clk;
 
     // Add delay depending on the communication channel & speed
     if (ms_timeout != (size_t) -1)
@@ -815,7 +813,7 @@ static bool dl_it(uint8_t *dest, uint32_t bytes, uint32_t start_index, PacketRes
             }
         }
 
-        tmp_clk = __atomic_load_n(&timeout_start_time, __ATOMIC_SEQ_CST);
+        uint64_t tmp_clk = __atomic_load_n(&timeout_start_time, __ATOMIC_SEQ_CST);
         if (msclock() - tmp_clk > ms_timeout) {
             PrintAndLogEx(FAILED, "Timed out while trying to download data from device");
             break;

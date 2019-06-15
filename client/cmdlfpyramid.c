@@ -154,28 +154,27 @@ static int CmdPyramidDemod(const char *Cmd) {
     }
 
     uint8_t fmtLen = size - j - 8;
-    uint32_t fc, cardnum, code1;
 
     if (fmtLen == 26) {
-        fc = bytebits_to_byte(bits + 73, 8);
-        cardnum = bytebits_to_byte(bits + 81, 16);
-        code1 = bytebits_to_byte(bits + 72, fmtLen);
+        uint32_t fc = bytebits_to_byte(bits + 73, 8);
+        uint32_t cardnum = bytebits_to_byte(bits + 81, 16);
+        uint32_t code1 = bytebits_to_byte(bits + 72, fmtLen);
         PrintAndLogEx(SUCCESS, "Pyramid ID Found - BitLength: %d, FC: %d, Card: %d - Wiegand: %x, Raw: %08x%08x%08x%08x", fmtLen, fc, cardnum, code1, rawHi3, rawHi2, rawHi, rawLo);
     } else if (fmtLen == 45) {
         fmtLen = 42; //end = 10 bits not 7 like 26 bit fmt
-        fc = bytebits_to_byte(bits + 53, 10);
-        cardnum = bytebits_to_byte(bits + 63, 32);
+        uint32_t fc = bytebits_to_byte(bits + 53, 10);
+        uint32_t cardnum = bytebits_to_byte(bits + 63, 32);
         PrintAndLogEx(SUCCESS, "Pyramid ID Found - BitLength: %d, FC: %d, Card: %d - Raw: %08x%08x%08x%08x", fmtLen, fc, cardnum, rawHi3, rawHi2, rawHi, rawLo);
         /*
             } else if (fmtLen > 32) {
-                cardnum = bytebits_to_byte(bits + 81, 16);
-                //code1 = bytebits_to_byte(bits+(size-fmtLen),fmtLen-32);
+                uint32_t cardnum = bytebits_to_byte(bits + 81, 16);
+                //uint32_t code1 = bytebits_to_byte(bits+(size-fmtLen),fmtLen-32);
                 //code2 = bytebits_to_byte(bits+(size-32),32);
                 PrintAndLogEx(SUCCESS, "Pyramid ID Found - BitLength: %d -unknown BitLength- (%d), Raw: %08x%08x%08x%08x", fmtLen, cardnum, rawHi3, rawHi2, rawHi, rawLo);
                 */
     } else {
-        cardnum = bytebits_to_byte(bits + 81, 16);
-        //code1 = bytebits_to_byte(bits+(size-fmtLen),fmtLen);
+        uint32_t cardnum = bytebits_to_byte(bits + 81, 16);
+        //uint32_t code1 = bytebits_to_byte(bits+(size-fmtLen),fmtLen);
         PrintAndLogEx(SUCCESS, "Pyramid ID Found - BitLength: %d -unknown BitLength- (%d), Raw: %08x%08x%08x%08x", fmtLen, cardnum, rawHi3, rawHi2, rawHi, rawLo);
     }
 
@@ -266,7 +265,7 @@ static int CmdPyramidSim(const char *Cmd) {
 
     uint8_t bs[128];
     memset(bs, 0x00, sizeof(bs));
-    
+
     if (sscanf(Cmd, "%u %u", &fc, &cn) != 2) return usage_lf_pyramid_sim();
 
     facilitycode = (fc & 0x000000FF);
@@ -332,7 +331,8 @@ int getPyramidBits(uint32_t fc, uint32_t cn, uint8_t *pyramidBits) {
     // Get 26 wiegand from FacilityCode, CardNumber
     uint8_t wiegand[24];
     memset(wiegand, 0x00, sizeof(wiegand));
-    num_to_bytebits(fc, 8, wiegand);    num_to_bytebits(cn, 16, wiegand + 8);
+    num_to_bytebits(fc, 8, wiegand);
+    num_to_bytebits(cn, 16, wiegand + 8);
 
     // add wiegand parity bits (dest, source, len)
     wiegand_add_parity(pre + 80, wiegand, 24);

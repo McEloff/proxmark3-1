@@ -384,7 +384,6 @@ void printDemodBuff(void) {
 }
 
 int CmdPrintDemodBuff(const char *Cmd) {
-    char hex[512] = {0x00};
     bool hexMode = false;
     bool errors = false;
     uint32_t offset = 0;
@@ -425,6 +424,7 @@ int CmdPrintDemodBuff(const char *Cmd) {
 
     if (hexMode) {
         char *buf = (char *)(DemodBuffer + offset);
+        char hex[512] = {0x00};
         int numBits = binarraytohex(hex, sizeof(hex), buf, length);
         if (numBits == 0) {
             return PM3_ESOFT;
@@ -448,7 +448,7 @@ int CmdGetBitStream(const char *Cmd) {
 }
 int CmdConvertBitStream(const char *Cmd) {
 
-    if ( isGraphBitstream() ) {
+    if (isGraphBitstream()) {
         convertGraphFromBitstream();
     } else {
         // get high, low
@@ -716,7 +716,7 @@ int ASKbiphaseDemod(const char *Cmd, bool verbose) {
     setDemodBuff(BitStream, size, 0);
     setClockGrid(clk, startIdx + clk * offset / 2);
     if (g_debugMode || verbose) {
-        PrintAndLogEx(NORMAL, "Biphase Decoded using offset %d | clock %d | #errors %d | start index %d\ndata\n", offset, clk, errCnt, (startIdx + clk * offset / 2) );
+        PrintAndLogEx(DEBUG, "Biphase Decoded using offset %d | clock %d | #errors %d | start index %d\ndata\n", offset, clk, errCnt, (startIdx + clk * offset / 2));
         printDemodBuff();
     }
     return PM3_SUCCESS;
@@ -745,15 +745,13 @@ int AutoCorrelate(const int *in, int *out, size_t len, size_t window, bool SaveG
 
     //test
     double autocv = 0.0;    // Autocovariance value
-    double ac_value;        // Computed autocorrelation value to be returned
-    double variance;        // Computed variance
-    double mean;
     size_t correlation = 0;
     int lastmax = 0;
 
     // in, len, 4000
-    mean = compute_mean(in, len);
-    variance = compute_variance(in, len);
+    double mean = compute_mean(in, len);
+    // Computed variance
+    double variance = compute_variance(in, len);
 
     static int CorrelBuffer[MAX_GRAPH_TRACE_LEN];
 
@@ -766,8 +764,9 @@ int AutoCorrelate(const int *in, int *out, size_t len, size_t window, bool SaveG
 
         CorrelBuffer[i] = autocv;
 
+        // Computed autocorrelation value to be returned
         // Autocorrelation is autocovariance divided by variance
-        ac_value = autocv / variance;
+        double ac_value = autocv / variance;
 
         // keep track of which distance is repeating.
         if (ac_value > 1) {
@@ -936,12 +935,12 @@ static int CmdUndec(const char *Cmd) {
 //by marshmellow
 //shift graph zero up or down based on input + or -
 static int CmdGraphShiftZero(const char *Cmd) {
-    int shift = 0, shiftedVal;
+    int shift = 0;
     //set options from parameters entered with the command
     sscanf(Cmd, "%i", &shift);
 
     for (size_t i = 0; i < GraphTraceLen; i++) {
-        shiftedVal = GraphBuffer[i] + shift;
+        int shiftedVal = GraphBuffer[i] + shift;
 
         if (shiftedVal > 127)
             shiftedVal = 127;

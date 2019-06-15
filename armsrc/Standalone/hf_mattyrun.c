@@ -223,7 +223,6 @@ void RunMod() {
     */
     bool printKeys = false;         // Prints keys
     bool transferToEml = true;      // Transfer keys to emulator memory
-    bool ecfill = true;             // Fill emulator memory with cards content.
     bool simulation = true;         // Simulates an exact copy of the target tag
     bool fillFromEmulator = false;  // Dump emulator memory.
 
@@ -236,7 +235,6 @@ void RunMod() {
     uint64_t key64;                 // Defines current key
     uint8_t *keyBlock;              // Where the keys will be held in memory.
     uint8_t stKeyBlock = 20;        // Set the quantity of keys in the block.
-    int filled;                     // Used to check if the memory was filled with success.
     bool keyFound = false;
 
     /*
@@ -368,7 +366,7 @@ void RunMod() {
         }
         Dbprintf("\t✓ Found keys have been transferred to the emulator memory.");
         if (ecfill) {
-
+            int filled;
             Dbprintf("\tFilling in with key A.");
             filled = MifareECardLoad(sectorsCnt, 0);
             if (filled != PM3_SUCCESS) {
@@ -389,19 +387,19 @@ void RunMod() {
 
                 LED_B_ON(); // green
                 // assuming arg0==0,  use hardcoded uid 0xdeadbeaf
-                uint16_t flags;
-                switch (p_card.uidlen){
-                    case 10: 
-                        flags = FLAG_10B_UID_IN_DATA;
+                uint16_t simflags;
+                switch (p_card.uidlen) {
+                    case 10:
+                        simflags = FLAG_10B_UID_IN_DATA;
                         break;
                     case 7:
-                        flags = FLAG_7B_UID_IN_DATA;
+                        simflags = FLAG_7B_UID_IN_DATA;
                         break;
                     default:
-                        flags = FLAG_4B_UID_IN_DATA;
+                        simflags = FLAG_4B_UID_IN_DATA;
                         break;
                 }
-                Mifare1ksim(flags | FLAG_MF_1K, 0, uid);
+                Mifare1ksim(simflags | FLAG_MF_1K, 0, uid);
                 LED_B_OFF();
 
                 /*

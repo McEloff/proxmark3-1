@@ -486,15 +486,15 @@ int CmdHF14ASim(const char *Cmd) {
         flags |= FLAG_UID_IN_EMUL;
 
     struct {
-       uint8_t tagtype;
-       uint8_t flags;
-       uint8_t uid[10];
+        uint8_t tagtype;
+        uint8_t flags;
+        uint8_t uid[10];
     } PACKED payload;
-    
+
     payload.tagtype = tagtype;
     payload.flags = flags;
     memcpy(payload.uid, uid, uidlen);
-    
+
     clearCommandBuffer();
     SendCommandNG(CMD_SIMULATE_TAG_ISO_14443a, (uint8_t *)&payload, sizeof(payload));
     PacketResponseNG resp;
@@ -507,7 +507,7 @@ int CmdHF14ASim(const char *Cmd) {
 
             if ((flags & FLAG_NR_AR_ATTACK) != FLAG_NR_AR_ATTACK) break;
 
-            nonces_t *data = (nonces_t*)resp.data.asBytes;
+            nonces_t *data = (nonces_t *)resp.data.asBytes;
             readerAttack(data[0], setEmulatorMem, verbose);
         }
         showSectorTable();
@@ -519,9 +519,9 @@ int CmdHF14ASim(const char *Cmd) {
 }
 
 int CmdHF14ASniff(const char *Cmd) {
-    uint8_t param = 0, ctmp;
+    uint8_t param = 0;
     for (uint8_t i = 0; i < 2; i++) {
-        ctmp = tolower(param_getchar(Cmd, i));
+        uint8_t ctmp = tolower(param_getchar(Cmd, i));
         if (ctmp == 'h') return usage_hf_14a_sniff();
         if (ctmp == 'c') param |= 0x01;
         if (ctmp == 'r') param |= 0x02;
@@ -714,11 +714,10 @@ static int CmdExchangeAPDU(bool chainingin, uint8_t *datain, int datainlen, bool
     else
         SendCommandMIX(CMD_READER_ISO_14443a, ISO14A_APDU | ISO14A_NO_DISCONNECT | cmdc, 0, 0, NULL, 0);
 
-    uint8_t *recv;
     PacketResponseNG resp;
 
     if (WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
-        recv = resp.data.asBytes;
+        uint8_t *recv = resp.data.asBytes;
         int iLen = resp.oldarg[0];
         uint8_t res = resp.oldarg[1];
 
@@ -802,7 +801,8 @@ int ExchangeAPDU14a(uint8_t *datain, int datainlen, bool activateField, bool lea
             }
 
             // check R-block ACK
-            if ((*dataoutlen == 0) && (*dataoutlen != 0 || chaining != chainBlockNotLast)) {
+//TODO check this one...
+            if ((*dataoutlen == 0) && (*dataoutlen != 0 || chaining != chainBlockNotLast)) { // *dataoutlen!=0. 'A && (!A || B)' is equivalent to 'A && B'
                 if (!leaveSignalON)
                     DropField();
 

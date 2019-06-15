@@ -112,7 +112,7 @@ uint16_t usart_rxdata_available(void) {
 
 uint32_t usart_read_ng(uint8_t *data, size_t len) {
     if (len == 0) return 0;
-    uint32_t packetSize, nbBytesRcv = 0;
+    uint32_t nbBytesRcv = 0;
     uint32_t try = 0;
 //    uint32_t highest_observed_try = 0;
     // Empirical max try observed: 3000000 / USART_BAUD_RATE
@@ -129,7 +129,7 @@ uint32_t usart_read_ng(uint8_t *data, size_t len) {
     while (len) {
         uint32_t available = usart_rxdata_available();
 
-        packetSize = MIN(available, len);
+        uint32_t packetSize = MIN(available, len);
         if (available > 0) {
 //            Dbprintf_usb("Dbg USART ask %d bytes, available %d bytes, packetsize %d bytes", len, available, packetSize);
 //            highest_observed_try = MAX(highest_observed_try, try);
@@ -199,7 +199,7 @@ void usart_init(uint32_t baudrate, uint8_t parity) {
                     AT91C_US_NBSTOP_1_BIT |          // 1 stop bit
                     AT91C_US_CHMODE_NORMAL;          // channel mode: normal
 
-    switch(usart_parity) {
+    switch (usart_parity) {
         case 'N':
             mode |= AT91C_US_PAR_NONE;               // parity: none
             break;
@@ -228,12 +228,12 @@ void usart_init(uint32_t baudrate, uint8_t parity) {
     //          baudrate == selected clock/16/CD
     //       OVER = 1,  -yes we are oversampling
     //          baudrate == selected clock/8/CD    --> this is ours
-    // 
+    //
     uint32_t brgr = 48000000 / (usart_baudrate << 3);
     // doing fp = round((mck / (usart_baudrate << 3) - brgr) * 8) with integers:
-    uint32_t fp = ((16 * 48000000 / (usart_baudrate << 3) - 16 * brgr)+1)/2;
+    uint32_t fp = ((16 * 48000000 / (usart_baudrate << 3) - 16 * brgr) + 1) / 2;
 
-    pUS1->US_BRGR =  (fp << 16) | brgr;
+    pUS1->US_BRGR = (fp << 16) | brgr;
 
     // Write the Timeguard Register
     pUS1->US_TTGR = 0;

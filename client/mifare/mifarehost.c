@@ -339,16 +339,16 @@ int mfnested(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t trgBlockNo,
     while (p1 <= statelists[0].tail.sltail && p2 <= statelists[1].tail.sltail) {
         if (Compare16Bits(p1, p2) == 0) {
 
-            struct Crypto1State savestate, *savep = &savestate;
+            struct Crypto1State savestate;
             savestate = *p1;
-            while (Compare16Bits(p1, savep) == 0 && p1 <= statelists[0].tail.sltail) {
+            while (Compare16Bits(p1, &savestate) == 0 && p1 <= statelists[0].tail.sltail) {
                 *p3 = *p1;
                 lfsr_rollback_word(p3, statelists[0].nt ^ statelists[0].uid, 0);
                 p3++;
                 p1++;
             }
             savestate = *p2;
-            while (Compare16Bits(p2, savep) == 0 && p2 <= statelists[1].tail.sltail) {
+            while (Compare16Bits(p2, &savestate) == 0 && p2 <= statelists[1].tail.sltail) {
                 *p4 = *p2;
                 lfsr_rollback_word(p4, statelists[1].nt ^ statelists[1].uid, 0);
                 p4++;
@@ -455,13 +455,13 @@ int mfEmlGetMem(uint8_t *data, int blockNum, int blocksCount) {
         uint8_t blockno;
         uint8_t blockcnt;
     } PACKED payload;
-      
+
     payload.blockno = blockNum;
     payload.blockcnt = blocksCount;
-    
+
     clearCommandBuffer();
-    SendCommandNG(CMD_MIFARE_EML_MEMGET, (uint8_t*)&payload, sizeof(payload));
-    
+    SendCommandNG(CMD_MIFARE_EML_MEMGET, (uint8_t *)&payload, sizeof(payload));
+
     PacketResponseNG resp;
     if (WaitForResponseTimeout(CMD_MIFARE_EML_MEMGET, &resp, 1500) == 0) {
         PrintAndLogEx(WARNING, "Command execute timeout");
@@ -479,14 +479,14 @@ int mfEmlSetMem(uint8_t *data, int blockNum, int blocksCount) {
 }
 
 int mfEmlSetMem_xt(uint8_t *data, int blockNum, int blocksCount, int blockBtWidth) {
-    
+
     struct p {
         uint8_t blockno;
         uint8_t blockcnt;
         uint8_t blockwidth;
         uint8_t data[];
     } PACKED;
-    
+
     size_t size = blocksCount * blockBtWidth;
     if (size > (PM3_CMD_DATA_SIZE - sizeof(struct p))) {
         return PM3_ESOFT;
@@ -497,9 +497,9 @@ int mfEmlSetMem_xt(uint8_t *data, int blockNum, int blocksCount, int blockBtWidt
     payload->blockcnt = blocksCount;
     payload->blockwidth = blockBtWidth;
     memcpy(payload->data, data, size);
-   
+
     clearCommandBuffer();
-    SendCommandNG(CMD_MIFARE_EML_MEMSET, (uint8_t*)payload, sizeof(payload) + size );
+    SendCommandNG(CMD_MIFARE_EML_MEMSET, (uint8_t *)payload, sizeof(payload) + size);
     return PM3_SUCCESS;
 }
 
@@ -710,10 +710,6 @@ void mf_crypto1_decrypt(struct Crypto1State *pcs, uint8_t *data, int len, bool i
 }
 
 int mfTraceDecode(uint8_t *data_src, int len, bool wantSaveToEmlFile) {
-    uint32_t nt = 0;      // tag challenge
-    uint32_t nr_enc = 0;  // encrypted reader challenge
-    uint32_t ar_enc = 0;  // encrypted reader response
-    uint32_t at_enc = 0;  // encrypted tag response
     if (traceState == TRACE_ERROR)
         return PM3_ESOFT;
 
@@ -831,6 +827,10 @@ int mfTraceDecode(uint8_t *data_src, int len, bool wantSaveToEmlFile) {
             break;
         case TRACE_AUTH_OK:
             if (len == 4) {
+                uint32_t nt = 0;      // tag challenge
+                uint32_t nr_enc = 0;  // encrypted reader challenge
+                uint32_t ar_enc = 0;  // encrypted reader response
+                uint32_t at_enc = 0;  // encrypted tag response
                 traceState = TRACE_IDLE;
                 // encrypted tag response
                 at_enc = bytes_to_num(data, 4);
@@ -963,7 +963,7 @@ int detect_classic_nackbug(bool verbose) {
 
         if (WaitForResponseTimeout(CMD_MIFARE_NACK_DETECT, &resp, 500)) {
 
-            if ( resp.status == PM3_EOPABORTED ) {
+            if (resp.status == PM3_EOPABORTED) {
                 PrintAndLogEx(WARNING, "button pressed. Aborted.");
                 return PM3_EOPABORTED;
             }
@@ -1018,7 +1018,7 @@ void detect_classic_magic(void) {
     clearCommandBuffer();
     SendCommandNG(CMD_MIFARE_CIDENT, NULL, 0);
     if (WaitForResponseTimeout(CMD_MIFARE_CIDENT, &resp, 1500)) {
-        if ( resp.status == PM3_SUCCESS )
+        if (resp.status == PM3_SUCCESS)
             isGeneration = resp.data.asBytes[0];
     }
 

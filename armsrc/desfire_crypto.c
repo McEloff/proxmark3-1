@@ -89,6 +89,8 @@ void cmac(const desfirekey_t key, uint8_t *ivect, const uint8_t *data, size_t le
 }
 
 size_t key_block_size(const desfirekey_t key) {
+    if (key == NULL)
+        return 0;
     size_t block_size = 8;
     switch (key->type) {
         case T_DES:
@@ -288,7 +290,6 @@ void *mifare_cryto_preprocess_data(desfiretag_t tag, void *data, size_t *nbytes,
 
 void *mifare_cryto_postprocess_data(desfiretag_t tag, void *data, size_t *nbytes, int communication_settings) {
     void *res = data;
-    size_t edl;
     void *edata = NULL;
     uint8_t first_cmac_byte = 0x00;
 
@@ -322,7 +323,7 @@ void *mifare_cryto_postprocess_data(desfiretag_t tag, void *data, size_t *nbytes
                             break;
                         }
 
-                        edl = enciphered_data_length(tag, *nbytes - 1, communication_settings);
+                        size_t edl = enciphered_data_length(tag, *nbytes - 1, communication_settings);
                         edata = malloc(edl);
 
                         memcpy(edata, data, *nbytes - 1);

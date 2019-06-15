@@ -195,7 +195,7 @@ static void ConstructEM410xEmulGraph(const char *uid, const  uint8_t clock) {
     /* clear our graph */
     ClearGraph(true);
 
-   /* write 16 zero bit sledge */
+    /* write 16 zero bit sledge */
     for (i = 0; i < 20; i++)
         AppendGraph(false, clock, 0);
 
@@ -387,12 +387,12 @@ int AskEm410xDemod(const char *Cmd, uint32_t *hi, uint64_t *lo, bool verbose) {
     bool st = true;
 
     // em410x simulation etc uses 0/1 as signal data. This must be converted in order to demod it back again
-    if ( isGraphBitstream() ) {
+    if (isGraphBitstream()) {
         convertGraphFromBitstream();
     }
 
-    if (ASKDemod_ext(Cmd, false, false, 1, &st) != PM3_SUCCESS) 
-	return PM3_ESOFT;
+    if (ASKDemod_ext(Cmd, false, false, 1, &st) != PM3_SUCCESS)
+        return PM3_ESOFT;
     return AskEm410xDecode(verbose, hi, lo);
 }
 /*
@@ -416,8 +416,8 @@ static int CmdEM410xDemod(const char *Cmd) {
     uint32_t hi = 0;
     uint64_t lo = 0;
 
-    if (AskEm410xDemod(Cmd, &hi, &lo, true) != PM3_SUCCESS) 
-	return PM3_ESOFT;
+    if (AskEm410xDemod(Cmd, &hi, &lo, true) != PM3_SUCCESS)
+        return PM3_ESOFT;
 
     g_em410xid = lo;
     return PM3_SUCCESS;
@@ -884,9 +884,9 @@ int EM4x50Read(const char *Cmd, bool verbose) {
         if (start >= 0) {
             PrintAndLogEx(NORMAL, "\nNote: one block = 50 bits (32 data, 12 parity, 6 marker)");
         } else {
-            PrintAndLogEx(NORMAL, "No data found!, clock tried:%d", clk);
+            PrintAndLogEx(NORMAL, "No data found!, clock tried: " _YELLOW_("%d"), clk);
             PrintAndLogEx(NORMAL, "Try again with more samples.");
-            PrintAndLogEx(NORMAL, "  or after a 'data askedge' command to clean up the read");
+            PrintAndLogEx(NORMAL, "  or after a " _YELLOW_("'data askedge'") " command to clean up the read");
             return PM3_ESOFT;
         }
     } else if (start < 0) return PM3_ESOFT;
@@ -898,7 +898,6 @@ int EM4x50Read(const char *Cmd, bool verbose) {
     // get rid of leading crap
     snprintf(tmp, sizeof(tmp), "%i", skip);
     CmdLtrim(tmp);
-    bool pTest;
     bool AllPTest = true;
     // now work through remaining buffer printing out data blocks
     block = 0;
@@ -930,7 +929,7 @@ int EM4x50Read(const char *Cmd, bool verbose) {
         //set DemodBufferLen to just one block
         DemodBufferLen = skip / clk;
         //test parities
-        pTest = EM_ByteParityTest(DemodBuffer, DemodBufferLen, 5, 9, 0);
+        bool pTest = EM_ByteParityTest(DemodBuffer, DemodBufferLen, 5, 9, 0);
         pTest &= EM_EndParityTest(DemodBuffer, DemodBufferLen, 5, 9, 0);
         AllPTest &= pTest;
         //get output
@@ -1098,7 +1097,7 @@ static int setDemodBufferEM(uint32_t *word, size_t idx) {
     uint8_t parity[45] = {0};
     memcpy(parity, DemodBuffer, 45);
     if (!EM_EndParityTest(DemodBuffer + idx + EM_PREAMBLE_LEN, 45, 5, 9, 0)) {
-        PrintAndLogEx(DEBUG, "DEBUG: Error - End Parity check failed");    
+        PrintAndLogEx(DEBUG, "DEBUG: Error - End Parity check failed");
         return PM3_ESOFT;
     }
 
@@ -1141,16 +1140,16 @@ static int demodEM4x05resp(uint32_t *word) {
 //////////////// 4205 / 4305 commands
 static int EM4x05ReadWord_ext(uint8_t addr, uint32_t pwd, bool usePwd, uint32_t *word) {
 
-   struct {
+    struct {
         uint32_t password;
         uint8_t address;
         uint8_t usepwd;
     } PACKED payload;
-    
+
     payload.password = pwd;
     payload.address = addr;
     payload.usepwd = usePwd;
-    
+
     clearCommandBuffer();
     SendCommandNG(CMD_EM4X_READ_WORD, (uint8_t *)&payload, sizeof(payload));
     PacketResponseNG resp;
@@ -1251,20 +1250,20 @@ static int CmdEM4x05Write(const char *Cmd) {
         PrintAndLogEx(NORMAL, "Writing address %d data %08X using password %08X", addr, data, pwd);
     }
 
-   struct {
+    struct {
         uint32_t password;
         uint32_t data;
         uint8_t address;
         uint8_t usepwd;
     } PACKED payload;
-    
+
     payload.password = pwd;
     payload.data = data;
     payload.address = addr;
     payload.usepwd = usePwd;
-    
+
     clearCommandBuffer();
-    SendCommandNG(CMD_EM4X_WRITE_WORD, (uint8_t*)&payload, sizeof(payload));
+    SendCommandNG(CMD_EM4X_WRITE_WORD, (uint8_t *)&payload, sizeof(payload));
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_EM4X_WRITE_WORD, &resp, 2000)) {
         PrintAndLogEx(WARNING, "Error occurred, device did not respond during write operation.");
@@ -1373,19 +1372,19 @@ static void printEM4x05config(uint32_t wordData) {
     uint8_t pigeon = (wordData & (1 << 26)) >> 26;
     PrintAndLogEx(NORMAL, "ConfigWord: %08X (Word 4)\n", wordData);
     PrintAndLogEx(NORMAL, "Config Breakdown:");
-    PrintAndLogEx(NORMAL, " Data Rate:  %02u | RF/%u", wordData & 0x3F, datarate);
-    PrintAndLogEx(NORMAL, "   Encoder:   %u | %s", encoder, enc);
+    PrintAndLogEx(NORMAL, " Data Rate:  %02u | "_YELLOW_("RF/%u"), wordData & 0x3F, datarate);
+    PrintAndLogEx(NORMAL, "   Encoder:   %u | " _YELLOW_("%s"), encoder, enc);
     PrintAndLogEx(NORMAL, "    PSK CF:   %u | %s", PSKcf, cf);
     PrintAndLogEx(NORMAL, "     Delay:   %u | %s", delay, cdelay);
     PrintAndLogEx(NORMAL, " LastWordR:  %02u | Address of last word for default read - meaning %u blocks are output", LWR, numblks);
-    PrintAndLogEx(NORMAL, " ReadLogin:   %u | Read Login is %s", readLogin, readLogin ? "Required" : "Not Required");
-    PrintAndLogEx(NORMAL, "   ReadHKL:   %u | Read Housekeeping Words Login is %s", readHKL, readHKL ? "Required" : "Not Required");
-    PrintAndLogEx(NORMAL, "WriteLogin:   %u | Write Login is %s", writeLogin, writeLogin ? "Required" : "Not Required");
-    PrintAndLogEx(NORMAL, "  WriteHKL:   %u | Write Housekeeping Words Login is %s", writeHKL, writeHKL ? "Required" : "Not Required");
-    PrintAndLogEx(NORMAL, "    R.A.W.:   %u | Read After Write is %s", raw, raw ? "On" : "Off");
-    PrintAndLogEx(NORMAL, "   Disable:   %u | Disable Command is %s", disable, disable ? "Accepted" : "Not Accepted");
-    PrintAndLogEx(NORMAL, "    R.T.F.:   %u | Reader Talk First is %s", rtf, rtf ? "Enabled" : "Disabled");
-    PrintAndLogEx(NORMAL, "    Pigeon:   %u | Pigeon Mode is %s\n", pigeon, pigeon ? "Enabled" : "Disabled");
+    PrintAndLogEx(NORMAL, " ReadLogin:   %u | Read login is %s", readLogin, readLogin ? _YELLOW_("required") :  _GREEN_("not required") );
+    PrintAndLogEx(NORMAL, "   ReadHKL:   %u | Read housekeeping words login is %s", readHKL, readHKL ? _YELLOW_("required") : _GREEN_("not required") );
+    PrintAndLogEx(NORMAL, "WriteLogin:   %u | Write login is %s", writeLogin, writeLogin ? _YELLOW_("required") :  _GREEN_("not required") );
+    PrintAndLogEx(NORMAL, "  WriteHKL:   %u | Write housekeeping words login is %s", writeHKL, writeHKL ? _YELLOW_("required") :  _GREEN_("not Required") );
+    PrintAndLogEx(NORMAL, "    R.A.W.:   %u | Read after write is %s", raw, raw ? "on" : "off");
+    PrintAndLogEx(NORMAL, "   Disable:   %u | Disable command is %s", disable, disable ? "accepted" : "not accepted");
+    PrintAndLogEx(NORMAL, "    R.T.F.:   %u | Reader talk first is %s", rtf, rtf ? _YELLOW_("enabled") : "disabled");
+    PrintAndLogEx(NORMAL, "    Pigeon:   %u | Pigeon mode is %s\n", pigeon, pigeon ? _YELLOW_("enabled") : "disabled");
 }
 
 static void printEM4x05info(uint32_t block0, uint32_t serial) {
@@ -1394,24 +1393,27 @@ static void printEM4x05info(uint32_t block0, uint32_t serial) {
     uint8_t cap = (block0 >> 5) & 3;
     uint16_t custCode = (block0 >> 9) & 0x3FF;
 
+    char ctstr[50];
+    snprintf(ctstr, sizeof(ctstr), "\n Chip Type:   %u | ", chipType);
     switch (chipType) {
         case 9:
-            PrintAndLogEx(NORMAL, "\n Chip Type:   %u | EM4305", chipType);
+            snprintf(ctstr + strlen(ctstr), sizeof(ctstr) - strlen(ctstr), _YELLOW_("%s"), "EM4305");
             break;
         case 8:
-            PrintAndLogEx(NORMAL, "\n Chip Type:   %u | EM4205", chipType);
+            snprintf(ctstr + strlen(ctstr), sizeof(ctstr) - strlen(ctstr), _YELLOW_("%s"), "EM4205");        
             break;
         case 4:
-            PrintAndLogEx(NORMAL, " Chip Type:   %u | Unknown", chipType);
+            snprintf(ctstr + strlen(ctstr), sizeof(ctstr) - strlen(ctstr), _YELLOW_("%s"), "Unknown");
             break;
         case 2:
-            PrintAndLogEx(NORMAL, " Chip Type:   %u | EM4469", chipType);
+            snprintf(ctstr + strlen(ctstr), sizeof(ctstr) - strlen(ctstr), _YELLOW_("%s"), "EM4469");
             break;
         //add more here when known
         default:
-            PrintAndLogEx(NORMAL, " Chip Type:   %u Unknown", chipType);
+            snprintf(ctstr + strlen(ctstr), sizeof(ctstr) - strlen(ctstr), _YELLOW_("%s"), "Unknown");
             break;
     }
+    PrintAndLogEx(NORMAL, "%s", ctstr);
 
     switch (cap) {
         case 3:
@@ -1433,14 +1435,14 @@ static void printEM4x05info(uint32_t block0, uint32_t serial) {
 
     PrintAndLogEx(NORMAL, " Cust Code: %03u | %s", custCode, (custCode == 0x200) ? "Default" : "Unknown");
     if (serial != 0)
-        PrintAndLogEx(NORMAL, "\n  Serial #: %08X\n", serial);
+        PrintAndLogEx(NORMAL, "\n  Serial #: " _YELLOW_("%08X") "\n", serial);
 }
 
 static void printEM4x05ProtectionBits(uint32_t word) {
     for (uint8_t i = 0; i < 15; i++) {
-        PrintAndLogEx(NORMAL, "      Word:  %02u | %s", i, (((1 << i) & word) || i < 2) ? "Is Write Locked" : "Is Not Write Locked");
+        PrintAndLogEx(NORMAL, "      Word:  %02u | %s", i, (((1 << i) & word) || i < 2) ? _RED_("write Locked") : "unlocked");
         if (i == 14)
-            PrintAndLogEx(NORMAL, "      Word:  %02u | %s", i + 1, (((1 << i) & word) || i < 2) ? "Is Write Locked" : "Is Not Write Locked");
+            PrintAndLogEx(NORMAL, "      Word:  %02u | %s", i + 1, (((1 << i) & word) || i < 2) ? _RED_("write locked") : "unlocked");
     }
 }
 
@@ -1494,7 +1496,7 @@ static int CmdEM4x05Info(const char *Cmd) {
     }
 
     //something went wrong
-    if (!(word & 0x8000)) 
+    if (!(word & 0x8000))
         return PM3_ESOFT;
 
     printEM4x05ProtectionBits(word);
