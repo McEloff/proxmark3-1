@@ -1028,8 +1028,9 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                                 );
                     }
                     cardAUTHKEY = AUTHKEYNONE;	// not authenticated
-                    EmSend4bit(mf_crypto1_encrypt4bit(pcs, CARD_NACK_NA));
                     cardSTATE_TO_IDLE();
+                    // Really tags not respond NACK on invalid authentication
+                    LogTrace(uart->output, uart->len, uart->startTime * 16 - DELAY_AIR2ARM_AS_TAG, uart->endTime * 16 - DELAY_AIR2ARM_AS_TAG, uart->parity, true);
                     break;
                 }
 
