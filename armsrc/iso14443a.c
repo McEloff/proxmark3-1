@@ -768,12 +768,6 @@ static bool GetIso14443aCommandFromReader(uint8_t *received, uint8_t *par, int *
         }
         ++check;
         WDT_HIT();
-        if (check == 1000) {
-            if (data_available() || BUTTON_PRESS())
-                return false;
-            check = 0;
-        }
-        ++check;
 
         if (AT91C_BASE_SSC->SSC_SR & (AT91C_SSC_RXRDY)) {
             b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
@@ -783,6 +777,7 @@ static bool GetIso14443aCommandFromReader(uint8_t *received, uint8_t *par, int *
             }
         }
     }
+    return false;
 }
 
 static bool prepare_tag_modulation(tag_response_info_t *response_info, size_t max_buffer_size)  {
