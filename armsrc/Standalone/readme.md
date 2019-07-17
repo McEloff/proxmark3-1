@@ -1,6 +1,6 @@
 # Standalone Modes
 
-This contains functionality for different StandAlone modes. The fullimage will be built given the correct compiler flags used. Build targets for these files are contained in `armsrc/Makefile` and `common/Makefile.hal`
+This contains functionality for different StandAlone modes. The fullimage will be built given the correct compiler flags used. Build targets for these files are contained in `Makefile.inc` and `Makefile.hal`
 
 If you want to implement a new standalone mode, you need to implement the methods provided in `standalone.h`.
 Have a look at the skeleton standalone mode called IceRun, in the files `lf_icerun.c lf_icerun.h`.
@@ -21,7 +21,7 @@ The StandaloneReplyStatus function, which sends done status to client. After Usb
 
 ````
 void ModInfo(void) {
-    DbpString("   LF good description of your mode - aka FooRun (your name)");
+    DbpString("  LF good description of your mode - aka FooRun (your name)");
 }
 
 void RunMod(void) {
@@ -47,8 +47,6 @@ void StandaloneReplyStatus() {
 }
 ````
 
-Each standalone mode needs to have its own compiler flag to be added in `armsrc/Makefile`.
-
 ## Naming your standalone mode
 
 We suggest that you follow these guidelines:
@@ -65,9 +63,9 @@ This leads to your next step, your DEFINE name needed in Makefile.
 `WITH_STANDALONE_LF_FOO`
 
 
-## Update COMMON/MAKEFILE.HAL
+## Update MAKEFILE.HAL
 
-Add your mode to the `common/Makefile.hal` help and modes list:
+Add your mode to the `Makefile.hal` help and modes list:
 ```
 +==========================================================+
 | STANDALONE      | DESCRIPTION                            |
@@ -81,13 +79,13 @@ STANDALONE_MODES := LF_SAMYRUN LF_ICERUN LF_PROXBRUTE LF_HIDBRUTE LF_FOO
 STANDALONE_MODES += HF_YOUNG HF_MATTYRUN HF_COLIN HF_BOG
 ```
 
-## Update ARMSRC/MAKEFILE
-Add your source code files like the following sample in the `armsrc/Makefile`
+## Update MAKEFILE.INC
+Add your source code files like the following sample in the `Makefile.inc`
 
 ```
 # WITH_STANDALONE_LF_ICERUN
 ifneq (,$(findstring WITH_STANDALONE_LF_ICERUN,$(APP_CFLAGS)))
-	SRC_STANDALONE = lf_icerun.c
+    SRC_STANDALONE = lf_icerun.c
 endif
 
 # WITH_STANDALONE_LF_FOO
@@ -102,12 +100,12 @@ This will enable an easy way to detect on client side which standalone mode has 
 
 ````
 void ModInfo(void) {
-    DbpString("   LF good description of your mode - aka FooRun (your name)");
+    DbpString("  LF good description of your mode - aka FooRun (your name)");
 }
 ````
 
 ## Compiling your standalone mode
-Once all this is done, you and others can now easily compile different standalone modes by just selecting one of the standalone modes (list in `common/Makefile.hal` or ) , e.g.:
+Once all this is done, you and others can now easily compile different standalone modes by just selecting one of the standalone modes (list in `Makefile.hal` or ) , e.g.:
 
 - rename  Makefile.platform.sample -> Makefile.platform
 - edit the "STANDALONE" row inside Makefile.platform.  You need to uncomment it and add your standalone mode name
