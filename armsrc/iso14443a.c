@@ -1085,7 +1085,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data) {
     uint16_t len = 0;
 
     // To control where we are in the protocol
-#define ORDER_NO_FIELD      -1
+#define ORDER_NO_FIELD       255
 #define ORDER_NONE           0
 #define ORDER_REQA           1
 #define ORDER_SELECT_ALL_CL1 2
