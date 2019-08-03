@@ -93,7 +93,7 @@ static uint32_t LastProxToAirDuration;
 // Sequence D: 11110000 modulation with subcarrier during first half
 // Sequence E: 00001111 modulation with subcarrier during second half
 // Sequence F: 00000000 no modulation with subcarrier
-// Sequence COLL: 11111111 load modulation over the full bitlenght.
+// Sequence COLL: 11111111 load modulation over the full bitlength.
 //                         Tricks the reader to think that multiple cards answer (at least one card with 1 and at least one card with 0).
 // READER TO CARD - miller
 // Sequence X: 00001100 drop after half a period
@@ -462,6 +462,82 @@ RAMFUNC int ManchesterDecoding(uint8_t bit, uint16_t offset, uint32_t non_real_t
     }
     return false;    // not finished yet, need more data
 }
+
+
+// Thinfilm, Kovio mangels ISO14443A in the way that they don't use start bit nor parity bits.
+RAMFUNC int ManchesterDecoding_Thinfilm(uint8_t bit) {
+    Demod.twoBits = (Demod.twoBits << 8) | bit;
+
+    if (Demod.state == DEMOD_UNSYNCD) {
+
+        if (Demod.highCnt < 2) {                                            // wait for a stable unmodulated signal
+            if (Demod.twoBits == 0x0000) {
+                Demod.highCnt++;
+            } else {
+                Demod.highCnt = 0;
+            }
+        } else {
+            Demod.syncBit = 0xFFFF;            // not set
+            if ((Demod.twoBits & 0x7700) == 0x7000) Demod.syncBit = 7;
+            else if ((Demod.twoBits & 0x3B80) == 0x3800) Demod.syncBit = 6;
+            else if ((Demod.twoBits & 0x1DC0) == 0x1C00) Demod.syncBit = 5;
+            else if ((Demod.twoBits & 0x0EE0) == 0x0E00) Demod.syncBit = 4;
+            else if ((Demod.twoBits & 0x0770) == 0x0700) Demod.syncBit = 3;
+            else if ((Demod.twoBits & 0x03B8) == 0x0380) Demod.syncBit = 2;
+            else if ((Demod.twoBits & 0x01DC) == 0x01C0) Demod.syncBit = 1;
+            else if ((Demod.twoBits & 0x00EE) == 0x00E0) Demod.syncBit = 0;
+            if (Demod.syncBit != 0xFFFF) {
+                Demod.startTime = (GetCountSspClk() & 0xfffffff8);
+                Demod.startTime -= Demod.syncBit;
+                Demod.bitCount = 1;            // number of decoded data bits
+                Demod.shiftReg = 1;
+                Demod.state = DEMOD_MANCHESTER_DATA;
+            }
+        }
+    } else {
+
+        if (IsManchesterModulationNibble1(Demod.twoBits >> Demod.syncBit)) {      // modulation in first half
+            if (IsManchesterModulationNibble2(Demod.twoBits >> Demod.syncBit)) {  // ... and in second half = collision
+                if (!Demod.collisionPos) {
+                    Demod.collisionPos = (Demod.len << 3) + Demod.bitCount;
+                }
+            }                                                           // modulation in first half only - Sequence D = 1
+            Demod.bitCount++;
+            Demod.shiftReg = (Demod.shiftReg << 1) | 0x1;             // in both cases, add a 1 to the shiftreg
+            if (Demod.bitCount == 8) {                                  // if we decoded a full byte
+                Demod.output[Demod.len++] = (Demod.shiftReg & 0xff);
+                Demod.bitCount = 0;
+                Demod.shiftReg = 0;
+            }
+            Demod.endTime = Demod.startTime + 8 * (8 * Demod.len + Demod.bitCount + 1) - 4;
+        } else {                                                        // no modulation in first half
+            if (IsManchesterModulationNibble2(Demod.twoBits >> Demod.syncBit)) {    // and modulation in second half = Sequence E = 0
+                Demod.bitCount++;
+                Demod.shiftReg = (Demod.shiftReg << 1);                 // add a 0 to the shiftreg
+                if (Demod.bitCount >= 8) {                              // if we decoded a full byte
+                    Demod.output[Demod.len++] = (Demod.shiftReg & 0xff);
+                    Demod.bitCount = 0;
+                    Demod.shiftReg = 0;
+                }
+                Demod.endTime = Demod.startTime + 8 * (8 * Demod.len + Demod.bitCount + 1);
+            } else {                                                    // no modulation in both halves - End of communication
+                if (Demod.bitCount > 0) {                               // there are some remaining data bits
+                    Demod.shiftReg <<= (8 - Demod.bitCount);            // left align the decoded bits
+                    Demod.output[Demod.len++] = Demod.shiftReg & 0xff;  // and add them to the output
+                    return true;
+                }
+                if (Demod.len) {
+                    return true;                                        // we are finished with decoding the raw data sequence
+                } else {                                                // nothing received. Start over
+                    DemodReset();
+                }
+            }
+        }
+    }
+    return false;    // not finished yet, need more data
+}
+
+
 
 //=============================================================================
 // Finally, a `sniffer' for ISO 14443 Type A
@@ -1077,7 +1153,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data) {
     if (SimulateIso14443aInit(tagType, flags, data, &responses, &cuid, counters, tearings, &pages) == false) {
         BigBuf_free_keep_EM();
         if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
-            reply_ng(CMD_SIMULATE_MIFARE_CARD, PM3_EINIT, NULL, 0);
+            reply_ng(CMD_HF_MIFARE_SIMULATE, PM3_EINIT, NULL, 0);
         return;
     }
 
@@ -1142,7 +1218,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data) {
                 if (SimulateIso14443aInit(tagType, FLAG_UID_IN_EMUL, data, &responses, &cuid, counters, tearings, &pages) == false) {
                     BigBuf_free_keep_EM();
                     if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
-                        reply_ng(CMD_SIMULATE_MIFARE_CARD, PM3_EINIT, NULL, 0);
+                        reply_ng(CMD_HF_MIFARE_SIMULATE, PM3_EINIT, NULL, 0);
                     return;
                 }
                 reinit = false;
@@ -1547,7 +1623,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data) {
     for (uint8_t i = 0; i < nonces_count; i++) {
         // for interactive call send collected nonces to client
         if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
-            reply_ng(CMD_SIMULATE_MIFARE_CARD, CMD_SIMULATE_MIFARE_CARD, (uint8_t *) &ar_nr_collected[i], sizeof(nonces_t));
+            reply_ng(CMD_HF_MIFARE_SIMULATE, CMD_HF_MIFARE_SIMULATE, (uint8_t *) &ar_nr_collected[i], sizeof(nonces_t));
         else {
             // for non-interactive call print nonces
             Dbprintf("%s, sector %2d: mfkey32v2 %08x %08x %08x %08x %08x %08x %08x",
@@ -1565,7 +1641,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data) {
     }
     // interrupt interactive client
     if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
-        reply_ng(CMD_SIMULATE_MIFARE_CARD, retval, NULL, 0);
+        reply_ng(CMD_HF_MIFARE_SIMULATE, retval, NULL, 0);
     switch_off();
 
     set_tracing(false);
@@ -1989,6 +2065,55 @@ bool EmLogTrace(uint8_t *reader_data, uint16_t reader_len, uint32_t reader_Start
 }
 
 //-----------------------------------------------------------------------------
+// Kovio - Thinfilm barcode.  TAG-TALK-FIRST -
+// Wait a certain time for tag response
+//  If a response is captured return TRUE
+//  If it takes too long return FALSE
+//-----------------------------------------------------------------------------
+bool GetIso14443aAnswerFromTag_Thinfilm(uint8_t *receivedResponse,  uint8_t *received_len) {
+
+    if (!iso14443a_active)
+        return false;
+
+    // Set FPGA mode to "reader listen mode", no modulation (listen
+    // only, since we are receiving, not transmitting).
+    // Signal field is on with the appropriate LED
+    LED_D_ON();
+    FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_ISO14443A | FPGA_HF_ISO14443A_READER_LISTEN);
+
+    // Now get the answer from the card
+    DemodInit(receivedResponse, NULL);
+
+    // clear RXRDY:
+    uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
+    (void)b;
+
+    uint32_t receive_timer = GetTickCount();
+    for (;;) {
+        WDT_HIT();
+
+        if (AT91C_BASE_SSC->SSC_SR & (AT91C_SSC_RXRDY)) {
+            b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
+            if (ManchesterDecoding_Thinfilm(b)) {
+                *received_len = Demod.len;
+                // log
+                LogTrace(receivedResponse, Demod.len, Demod.startTime * 16 - DELAY_AIR2ARM_AS_READER, Demod.endTime * 16 - DELAY_AIR2ARM_AS_READER, NULL, false);
+                return true;
+            }
+        }
+
+        // timeout already in ms + 10ms guard time
+        if (GetTickCount() - receive_timer >  1160)
+            break;
+    }
+    *received_len = Demod.len;
+    // log
+    LogTrace(receivedResponse, Demod.len, Demod.startTime * 16 - DELAY_AIR2ARM_AS_READER, Demod.endTime * 16 - DELAY_AIR2ARM_AS_READER, NULL, false);
+    return false;
+}
+
+
+//-----------------------------------------------------------------------------
 // Wait a certain time for tag response
 //  If a response is captured return TRUE
 //  If it takes too long return FALSE
@@ -2075,6 +2200,7 @@ int ReaderReceive(uint8_t *receivedAnswer, uint8_t *par) {
     LogTrace(receivedAnswer, Demod.len, Demod.startTime * 16 - DELAY_AIR2ARM_AS_READER, Demod.endTime * 16 - DELAY_AIR2ARM_AS_READER, par, false);
     return Demod.len;
 }
+
 
 // This function misstreats the ISO 14443a anticollision procedure.
 // by fooling the reader there is a collision and forceing the reader to
@@ -2427,8 +2553,7 @@ void iso14443a_setup(uint8_t fpga_minor_mode) {
 
     LED_D_OFF();
     // Signal field is on with the appropriate LED
-    if (fpga_minor_mode == FPGA_HF_ISO14443A_READER_MOD ||
-            fpga_minor_mode == FPGA_HF_ISO14443A_READER_LISTEN)
+    if (fpga_minor_mode == FPGA_HF_ISO14443A_READER_MOD || fpga_minor_mode == FPGA_HF_ISO14443A_READER_LISTEN)
         LED_D_ON();
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_ISO14443A | fpga_minor_mode);
@@ -2446,7 +2571,8 @@ void iso14443a_setup(uint8_t fpga_minor_mode) {
     iso14443a_active = true;
 }
 
-void iso14443a_off() {
+
+void iso14443a_off(void) {
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();
     iso14443a_active = false;
@@ -2957,7 +3083,7 @@ void ReaderMifare(bool first_try, uint8_t block, uint8_t keytype) {
 *  Mifare Classic NACK-bug detection
 *  Thanks to @doegox for the feedback and new approaches.
 */
-void DetectNACKbug() {
+void DetectNACKbug(void) {
     uint8_t mf_auth[]     = {0x60, 0x00, 0xF5, 0x7B};
     uint8_t mf_nr_ar[]    = {0, 0, 0, 0, 0, 0, 0, 0};
     uint8_t uid[10]       = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -3184,7 +3310,7 @@ void DetectNACKbug() {
     data[0] = isOK;
     data[1] = num_nacks;
     num_to_bytes(i, 2, data + 2);
-    reply_ng(CMD_MIFARE_NACK_DETECT, status, data, 4);
+    reply_ng(CMD_HF_MIFARE_NACK_DETECT, status, data, 4);
 
     //reply_mix(CMD_ACK, isOK, num_nacks, i, 0, 0);
     BigBuf_free();

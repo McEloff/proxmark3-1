@@ -14,19 +14,23 @@
 #include "hitag2.h"
 #include "crc16.h"
 #include "string.h"
+#include "printf.h"
 #include "lfdemod.h"
 #include "lfsampling.h"
 #include "protocols.h"
 #include "usb_cdc.h" // for usb_poll_validate_length
 #include "common.h"
 #include "pmflash.h"
-#include "flashmem.h" // persistence on mem
+#include "flashmem.h" // persistence on flash
 
-//#define START_GAP 31*8 // was 250 // SPEC:  1*8 to 50*8 - typ 15*8 (15fc)
-//#define WRITE_GAP 8*8 // 17*8 // was 160 // SPEC:  1*8 to 20*8 - typ 10*8 (10fc)
-//#define WRITE_0   15*8 // 18*8 // was 144 // SPEC: 16*8 to 32*8 - typ 24*8 (24fc)
-//#define WRITE_1   47*8 // 50*8 // was 400 // SPEC: 48*8 to 64*8 - typ 56*8 (56fc)  432 for T55x7; 448 for E5550
-//#define READ_GAP  15*8
+/*
+Notes about EM4xxx timings.
+
+The timing values differs between cards,  we got EM410x,  EM43x5, EM445x  etc.
+We are trying to unify and enable the Proxmark to easily detect and select correct timings automatic.
+The measures from datasheets doesn't always match correct the hardware features of RDV4 antenans and we still wanted to let other devices with other custom antennas
+still benefit from this repo.  This is why its configurable and we use to set these dynamic settings in device external flash memory.
+
 
 //  VALUES TAKEN FROM EM4x function: SendForward
 //  START_GAP = 440;       (55*8) cycles at 125Khz (8us = 1cycle)
@@ -36,41 +40,221 @@
 //  These timings work for 4469/4269/4305 (with the 55*8 above)
 //  WRITE_0 = 23*8 , 9*8
 
-// Sam7s has several timers, we will use the source TIMER_CLOCK1 (aka AT91C_TC_CLKS_TIMER_DIV1_CLOCK)
-// TIMER_CLOCK1 = MCK/2, MCK is running at 48 MHz, Timer is running at 48/2 = 24 MHz
-// Hitag units (T0) have duration of 8 microseconds (us), which is 1/125000 per second (carrier)
-// T0 = TIMER_CLOCK1 / 125000 = 192
-// 1 Cycle = 8 microseconds(us)  == 1 field clock
+Not about ARM TIMERS
+Short note about timers on Proxmark device ARM.  They are a bit differently implemented and gives decent correctness.
 
-// new timer:
-//     = 1us = 1.5ticks
-// 1fc = 8us = 12ticks
-/*
-Default LF T55xx config is set to:
-    startgap = 31*8
-    writegap = 17*8
-    write_0 = 15*8
-    write_1 = 47*8
-    read_gap = 15*8
+SAM7S has several timers, we will use the source TIMER_CLOCK1 (aka AT91C_TC_CLKS_TIMER_DIV1_CLOCK)
+ TIMER_CLOCK1 = MCK/2, MCK is running at 48 MHz, Timer is running at 48/2 = 24 MHz
+
+New timer implemenation in ticks.c, which is used in LFOPS.c
+       1us = 1.5ticks
+ 1fc = 8us = 12ticks
+
+Terms you find in different datasheets and how they match.
+1 Cycle = 8 microseconds(us)  == 1 field clock (fc)
+
+Note about HITAG timing
+Hitag units (T0) have duration of 8 microseconds (us), which is 1/125000 per second (carrier)
+ T0 = TIMER_CLOCK1 / 125000 = 192
+
+
+  ==========================================================================================================
+       T55x7 Timing
+  ==========================================================================================================
+
+    ATA5577 Downlink Protocol Timings.
+    Note: All absolute times assume TC = 1 / fC = 8 μs (fC = 125 kHz)
+
+    Note: These timings are from the datasheet and doesn't map the best to the features of the RVD4 LF antenna.
+          RDV4 LF antenna has high voltage and the drop of power when turning off the rf field takes about 1-2 TC longer.
+
+                                -----------------------------------------------------------------------
+ Fixed-bit-length Protocol     |           Normal Downlink         |           Fast Downlink           |
+ ------------------------------+-----------------------------------+-----------------------------------+------
+| Parameter  | Remark | Symbol |    Min.   |    Typ.   |    Max.   |    Min.   |    Typ.   |    Max.   | Unit |
+|------------+--------+--------+-----------+-----------+-----------+-----------+-----------+-----------+------|
+| Start gap  |        | Sgap   |      8    |     15    |     50    |      8    |     15    |     50    |  Tc  |
+| Write gap  |        | Wgap   |      8    |     10    |     20    |      8    |     10    |     20    |  Tc  |
+|------------+--------+--------+-----------+-----------+-----------+-----------+-----------+-----------+------|
+| coding     | 0 data | d0     |     16    |     24    |     32    |      8    |     12    |     16    |  Tc  |
+|            | 1 data | d1     |     48    |     56    |     64    |     24    |     28    |     32    |  Tc  |
+ -------------------------------------------------------------------------------------------------------------
+
+                                -----------------------------------------------------------------------
+ Long Leading Reference        |           Normal Downlink         |            Fast Downlink          |
+ ------------------------------+-----------------------------------+-----------------------------------+------
+| Parameter | Remark | Symbol  |    Min.   |    Typ.   |    Max.   |    Min.   |    Typ.   |    Max.   | Unit |
+|-----------+--------+---------+-----------+-----------+-----------+-----------+-----------+-----------+------|
+| Start gap |        | Sgap    |     8     |     10    |     50    |      8    |     10    |     50    |  Tc  |
+| Write gap |        | Wgap    |     8     |     10    |     20    |      8    |     10    |     20    |  Tc  |
+|-----------+--------+---------+-----------+-----------+-----------+-----------+-----------+-----------+------|
+|   Write   | Ref    |         |    152    |    160    |    168    |     140   |     144   |    148    |  Tc  |
+|   data    | Pulse  |  dref   |       136 clocks + 0 data bit     |       132 clocks + 0 data bit     |  Tc  |
+|  coding   |--------+---------+-----------------------------------+-----------------------------------+------|
+|           | 0 data | d0      |dref – 143 |dref – 136 |dref – 128 |dref – 135 |dref – 132 |dref – 124 |  Tc  |
+|           | 1 data | d1      |dref – 111 |dref – 104 |dref – 96  |dref – 119 |dref – 116 |dref – 112 |  Tc  |
+ -------------------------------------------------------------------------------------------------------------
+
+                                -----------------------------------------------------------------------
+ Leading-zero Reference        |           Normal Downlink         |            Fast Downlink          |
+ ------------------------------+-----------------------------------+-----------------------------------+------
+| Parameter | Remark | Symbol  |   Min.    |    Typ.   |    Max.   |    Min.   |   Typ.    |    Max.   | Unit |
+|-----------+--------+---------+-----------+-----------+-----------+-----------+-----------+-----------+------|
+| Start gap |        | Sgap    |     8     |      10   |     50    |      8    |     10    |     50    |  Tc  |
+| Write gap |        | Wgap    |     8     |      10   |     20    |      8    |     10    |     20    |  Tc  |
+|-----------+--------+---------+-----------+-----------+-----------+-----------+-----------+-----------+------|
+| Write     | Ref    | dref    |    12     |      –    |     72    |      8    |     –     |     68    |  Tc  |
+| data      | 0 data | d0      | dref – 7  |     dref  | dref + 8  | dref – 3  |   dref    | dref + 4  |  Tc  |
+| coding    | 1 data | d1      | dref + 9  | dref + 16 | dref + 24 | dref + 5  | dref + 8  | dref + 12 |  Tc  |
+ -------------------------------------------------------------------------------------------------------------
+
+                                -----------------------------------------------------------------------
+ 1-of-4 Coding                 |           Normal Downlink         |           Fast Downlink           |
+ ------------------------------+-----------------------------------+-----------------------------------+------
+| Parameter | Remark | Symbol  |   Min.    |   Typ.    |    Max.   |    Min.   |    Typ.   |    Max.   | Unit |
+|-----------+--------+---------+-----------+-----------+-----------+-----------+-----------+-----------+------|
+| Start gap |        | Sgap    |     8     |     10    |     50    |       8   |      10   |     50    |  Tc  |
+| Write gap |        | Wgap    |     8     |     10    |     20    |       8   |      10   |     20    |  Tc  |
+|-----------+--------+---------+-----------+-----------+-----------+-----------+-----------+-----------+------|
+| Write     | Ref 00 | dref    |     8     |     –     |     68    |      12   |      –    |     72    |  Tc  |
+| data      |00 data | d00     | dref – 7  |   dref    | dref + 8  | dref – 3  |    dref   |  dref+ 4  |  Tc  |
+| coding    |01 data | d01     | dref + 9  | dref + 16 | dref + 24 | dref + 5  | dref + 8  | dref + 12 |  Tc  |
+|           |10 data | d10     | dref + 25 | dref + 32 | dref + 40 | dref + 13 | dref + 16 | dref + 20 |  Tc  |
+|           |11 data | d11     | dref + 41 | dref + 48 | dref + 56 | dref + 21 | dref + 24 | dref + 28 |  Tc  |
+ -------------------------------------------------------------------------------------------------------------
+
+Initial values if not in flash
+
+   SG = Start gap
+   WG = Write gap
+   RG = Read gap
+
+ Explainations for array T55xx_Timing below
+         SG     WG    Bit 0/00 Bit 1/01  Bit 10  Bit 11  RG
+   --------------------------------------------------------------------
+        { 29    , 17    , 15    , 47    , 0     , 0     , 15     }, // Default Fixed
+        { 31    , 20    , 18    , 50    , 0     , 0     , 15     }, // Long Leading Ref.
+        { 31    , 20    , 18    , 40    , 0     , 0     , 15     }, // Leading 0
+        { 29    , 17    , 15    , 31    , 47    , 63    , 15     }  // 1 of 4
 */
-t55xx_config t_config = { 29 * 8, 17 * 8, 15 * 8, 47 * 8, 15 * 8 } ;
+t55xx_configurations_t T55xx_Timing  = {
+    {
+        { 29 * 8, 17 * 8, 15 * 8, 47 * 8, 15 * 8, 0, 0 },           // Default Fixed
+        { 31 * 8, 20 * 8, 18 * 8, 50 * 8, 15 * 8, 0, 0 },           // Long Leading Ref.
+        { 31 * 8, 20 * 8, 18 * 8, 40 * 8, 15 * 8, 0, 0 },           // Leading 0
+        { 29 * 8, 17 * 8, 15 * 8, 31 * 8, 15 * 8, 47 * 8, 63 * 8 }  // 1 of 4
+    }
+};
+
+
+// Some defines for readability
+#define T55XX_DLMODE_FIXED         0 // Default Mode
+#define T55XX_DLMODE_LLR           1 // Long Leading Reference
+#define T55XX_DLMODE_LEADING_ZERO  2 // Leading Zero
+#define T55XX_DLMODE_1OF4          3 // 1 of 4
+#define T55XX_LONGLEADINGREFERENCE 4 // Value to tell Write Bit to send long reference
 
 void printT55xxConfig(void) {
+
+#define PRN_NA   sprintf(s  + strlen(s), _RED_("N/A") "| ");
+
     DbpString(_BLUE_("LF T55XX config"));
-    Dbprintf("  [a] startgap............%d*8 (%d)", t_config.start_gap / 8, t_config.start_gap);
-    Dbprintf("  [b] writegap............%d*8 (%d)", t_config.write_gap / 8, t_config.write_gap);
-    Dbprintf("  [c] write_0.............%d*8 (%d)", t_config.write_0 / 8,   t_config.write_0);
-    Dbprintf("  [d] write_1.............%d*8 (%d)", t_config.write_1 / 8,   t_config.write_1);
-    Dbprintf("  [e] readgap.............%d*8 (%d)", t_config.read_gap / 8,  t_config.read_gap);
+    Dbprintf("           [r]               [a]   [b]   [c]   [d]   [e]   [f]   [g]");
+    Dbprintf("           mode            |start|write|write|write| read|write|write");
+    Dbprintf("                           | gap | gap |  0  |  1  | gap |  2  |  3");
+    Dbprintf("---------------------------+-----+-----+-----+-----+-----+-----+------");
+
+    for (uint8_t i = 0; i < 4; i++) {
+
+        char s[160];
+        memset(s, 0, sizeof(s));
+
+        switch (i) {
+            case T55XX_DLMODE_FIXED :
+                sprintf(s, _YELLOW_("fixed bit length") _GREEN_("(default)") "|");
+                break;
+            case T55XX_DLMODE_LLR :
+                sprintf(s, _YELLOW_("    long leading reference") "|");
+                break;
+            case T55XX_DLMODE_LEADING_ZERO :
+                sprintf(s, _YELLOW_("              leading zero") "|");
+                break;
+            case T55XX_DLMODE_1OF4 :
+                sprintf(s, _YELLOW_("   1 of 4 coding reference") "|");
+                break;
+            default:
+                break;
+        }
+
+        if (T55xx_Timing.m[i].start_gap != 0xFFFF)
+            sprintf(s + strlen(s), " %3d | ", T55xx_Timing.m[i].start_gap / 8);
+        else
+            PRN_NA;
+
+        if (T55xx_Timing.m[i].write_gap != 0xFFFF)
+            sprintf(s + strlen(s), "%3d | ", T55xx_Timing.m[i].write_gap / 8);
+        else
+            PRN_NA;
+
+        if (T55xx_Timing.m[i].write_0 != 0xFFFF)
+            sprintf(s + strlen(s), "%3d | ", T55xx_Timing.m[i].write_0 / 8);
+        else
+            PRN_NA;
+
+        if (T55xx_Timing.m[i].write_1 != 0xFFFF)
+            sprintf(s + strlen(s), "%3d | ", T55xx_Timing.m[i].write_1 / 8);
+        else
+            PRN_NA;
+
+        if (T55xx_Timing.m[i].read_gap != 0xFFFF)
+            sprintf(s + strlen(s), "%3d | ", T55xx_Timing.m[i].read_gap / 8);
+        else
+            PRN_NA;
+
+        if (T55xx_Timing.m[i].write_2 != 0xFFFF && i == T55XX_DLMODE_1OF4)
+            sprintf(s + strlen(s), "%3d | ", T55xx_Timing.m[i].write_2 / 8);
+        else
+            PRN_NA
+
+            if (T55xx_Timing.m[i].write_3 != 0xFFFF && i == T55XX_DLMODE_1OF4)
+                sprintf(s + strlen(s), "%3d | ", T55xx_Timing.m[i].write_3 / 8);
+            else
+                PRN_NA;
+
+        s[strlen(s)] = 0;
+        DbpString(s);
+    }
+    DbpString("");
 }
 
-void setT55xxConfig(uint8_t arg0, t55xx_config *c) {
+void setT55xxConfig(uint8_t arg0, t55xx_configurations_t *c) {
+    for (uint8_t i = 0; i < 4; i++) {
+        if (c->m[i].start_gap != 0)
+            T55xx_Timing.m[i].start_gap = c->m[i].start_gap;
 
-    if (c->start_gap != 0) t_config.start_gap = c->start_gap;
-    if (c->write_gap != 0) t_config.write_gap = c->write_gap;
-    if (c->write_0   != 0) t_config.write_0 = c->write_0;
-    if (c->write_1   != 0) t_config.write_1 = c->write_1;
-    if (c->read_gap  != 0) t_config.read_gap = c->read_gap;
+        if (c->m[i].write_gap != 0)
+            T55xx_Timing.m[i].write_gap = c->m[i].write_gap;
+
+        if (c->m[i].write_0 != 0)
+            T55xx_Timing.m[i].write_0 = c->m[i].write_0;
+
+        if (c->m[i].write_1 != 0)
+            T55xx_Timing.m[i].write_1 = c->m[i].write_1;
+
+        if (i == T55XX_DLMODE_1OF4) {
+            if (c->m[i].write_2 != 0)
+                T55xx_Timing.m[i].write_2 = c->m[i].write_2;
+
+            if (c->m[i].write_3 != 0)
+                T55xx_Timing.m[i].write_3 = c->m[i].write_3;
+
+        } else {
+            T55xx_Timing.m[i].write_2 = 0x00;
+            T55xx_Timing.m[i].write_3 = 0x00;
+        }
+        if (c->m[i].read_gap != 0)
+            T55xx_Timing.m[i].read_gap = c->m[i].read_gap;
+    }
 
     printT55xxConfig();
 
@@ -93,27 +277,31 @@ void setT55xxConfig(uint8_t arg0, t55xx_config *c) {
         return;
     }
 
-    memcpy(buf, &t_config, T55XX_CONFIG_LEN);
+    memcpy(buf, &T55xx_Timing, T55XX_CONFIG_LEN);
 
+    // delete old configuration
     Flash_CheckBusy(BUSY_TIMEOUT);
     Flash_WriteEnable();
     Flash_Erase4k(3, 0xD);
+
+    // write new
     res = Flash_Write(T55XX_CONFIG_OFFSET, buf, T55XX_CONFIG_LEN);
 
     if (res == T55XX_CONFIG_LEN && DBGLEVEL > 1) {
-        DbpString("T55XX Config save success");
+        DbpString("T55XX Config save " _GREEN_("success"));
     }
 
     BigBuf_free();
 #endif
 }
 
-t55xx_config *getT55xxConfig(void) {
-    return &t_config;
+t55xx_configurations_t *getT55xxConfig(void) {
+    return &T55xx_Timing;//_FixedBit;
 }
 
 void loadT55xxConfig(void) {
 #ifdef WITH_FLASH
+
     if (!FlashInit()) {
         return;
     }
@@ -135,7 +323,8 @@ void loadT55xxConfig(void) {
         return;
     }
 
-    memcpy((uint8_t *)&t_config, buf, T55XX_CONFIG_LEN);
+    if (buf[0] != 0xFF) // if not set for clear
+        memcpy((uint8_t *)&T55xx_Timing, buf, T55XX_CONFIG_LEN);
 
     if (isok == T55XX_CONFIG_LEN) {
         if (DBGLEVEL > 1) DbpString("T55XX Config load success");
@@ -243,7 +432,7 @@ void ModThenAcquireRawAdcSamples125k(uint32_t delay_off, uint32_t period_0, uint
     // Turn off antenna
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     // tell client we are done
-    reply_ng(CMD_MOD_THEN_ACQUIRE_RAW_ADC_SAMPLES_125K, PM3_SUCCESS, NULL, 0);
+    reply_ng(CMD_LF_MOD_THEN_ACQ_RAW_ADC, PM3_SUCCESS, NULL, 0);
 }
 
 /* blank r/w tag data stream
@@ -825,7 +1014,7 @@ void CmdHIDsimTAGEx(uint32_t hi, uint32_t lo, bool ledcontrol, int numcycles) {
 
 void CmdHIDsimTAG(uint32_t hi, uint32_t lo, bool ledcontrol) {
     CmdHIDsimTAGEx(hi, lo, ledcontrol, -1);
-    reply_ng(CMD_HID_SIM_TAG, PM3_EOPABORTED, NULL, 0);
+    reply_ng(CMD_LF_HID_SIMULATE, PM3_EOPABORTED, NULL, 0);
 }
 
 // prepare a waveform pattern in the buffer based on the ID given then
@@ -863,7 +1052,7 @@ void CmdFSKsimTAG(uint8_t fchigh, uint8_t fclow, uint8_t separator, uint8_t clk,
     if (ledcontrol) LED_A_ON();
     SimulateTagLowFrequency(n, 0, ledcontrol);
     if (ledcontrol) LED_A_OFF();
-    reply_ng(CMD_FSK_SIM_TAG, PM3_EOPABORTED, NULL, 0);
+    reply_ng(CMD_LF_FSK_SIMULATE, PM3_EOPABORTED, NULL, 0);
 }
 
 // compose ask waveform for one bit(ASK)
@@ -952,7 +1141,7 @@ void CmdASKsimTAG(uint8_t encoding, uint8_t invert, uint8_t separator, uint8_t c
     if (ledcontrol) LED_A_ON();
     SimulateTagLowFrequency(n, 0, ledcontrol);
     if (ledcontrol) LED_A_OFF();
-    reply_ng(CMD_ASK_SIM_TAG, PM3_EOPABORTED, NULL, 0);
+    reply_ng(CMD_LF_ASK_SIMULATE, PM3_EOPABORTED, NULL, 0);
 }
 
 //carrier can be 2,4 or 8
@@ -999,7 +1188,7 @@ void CmdPSKsimTag(uint8_t carrier, uint8_t invert, uint8_t clk, uint16_t size, u
     if (ledcontrol) LED_A_ON();
     SimulateTagLowFrequency(n, 0, ledcontrol);
     if (ledcontrol) LED_A_OFF();
-    reply_ng(CMD_PSK_SIM_TAG, PM3_EOPABORTED, NULL, 0);
+    reply_ng(CMD_LF_PSK_SIMULATE, PM3_EOPABORTED, NULL, 0);
 }
 
 // loop to get raw HID waveform then FSK demodulate the TAG ID from it
@@ -1356,36 +1545,199 @@ void TurnReadLF_off(uint32_t delay) {
     WaitUS(delay);
 }
 
-// Write one bit to card
-void T55xxWriteBit(int bit) {
-    if (!bit)
-        TurnReadLFOn(t_config.write_0);
-    else
-        TurnReadLFOn(t_config.write_1);
+// Macro for code readability
+#define BITSTREAM_BYTE(x) ((x) >> 3)   // iceman note:  isn't this NIBBLE???
+#define BITSTREAM_BIT(x)  ((x) &  7)
+
+#define T55_LLR_REF       (136 * 8)
+
+// Write one bit to chip
+void T55xxWriteBit(uint8_t bit, uint8_t downlink_idx) {
+
+    switch (bit) {
+        case 0 :
+            // send bit 0/00
+            TurnReadLFOn(T55xx_Timing.m[downlink_idx].write_0);
+            break;
+        case 1 :
+            // send bit 1/01
+            TurnReadLFOn(T55xx_Timing.m[downlink_idx].write_1);
+            break;
+        case 2 :
+            // send bits 10 (1 of 4)
+            TurnReadLFOn(T55xx_Timing.m[downlink_idx].write_2);
+            break;
+        case 3 :
+            // send bits 11 (1 of 4)
+            TurnReadLFOn(T55xx_Timing.m[downlink_idx].write_3);
+            break;
+        case 4 :
+            // send Long Leading Reference
+            TurnReadLFOn(T55xx_Timing.m[downlink_idx].write_0 + T55_LLR_REF);
+            break;
+    }
+
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    WaitUS(t_config.write_gap);
+    WaitUS(T55xx_Timing.m[downlink_idx].write_gap);
 }
 
-// Send T5577 reset command then read stream (see if we can identify the start of the stream)
-void T55xxResetRead(void) {
-    LED_A_ON();
-    //clear buffer now so it does not interfere with timing later
-    BigBuf_Clear_keep_EM();
+// Function to abstract an Arbitrary length byte array to store bit pattern.
+// bit_array    - Array to hold data/bit pattern
+// start_offset - bit location to start storing new bits.
+// data         - upto 32 bits of data to store
+// num_bits     - how many bits (low x bits of data)  Max 32 bits at a time
+// max_len      - how many bytes can the bit_array hold (ensure no buffer overflow)
+// returns "Next" bit offset / bits stored (for next store)
+uint8_t T55xx_SetBits(uint8_t *bs, uint8_t start_offset, uint32_t data, uint8_t num_bits, uint8_t max_len) {
+    int8_t offset;
+    int8_t next_offset = start_offset;
 
+    // Check if data will fit.
+    if ((start_offset + num_bits) <= (max_len * 8)) {
+        // Loop through the data and store
+        for (offset = (num_bits - 1); offset >= 0; offset--) {
+
+            if ((data >> offset) & 1)
+                bs[BITSTREAM_BYTE(next_offset)] |= (1 << BITSTREAM_BIT(next_offset));  // Set 1
+            else
+                bs[BITSTREAM_BYTE(next_offset)] &= (0xff ^ (1 << BITSTREAM_BIT(next_offset))); // Set 0
+
+            next_offset++;
+        }
+    } else {
+        // Note: This should never happen unless some code changes cause it.
+        // So short message for coders when testing.
+        Dbprintf(_RED_("T55 too many bits"));
+    }
+    return next_offset;
+}
+
+// Send one downlink command to the card
+void T55xx_SendCMD(uint32_t data, uint32_t pwd, uint16_t arg) {
+
+    /*
+    arg bits
+    xxxx xxxxxxx1 0x001 password mode (Y/N)
+    xxxx xxxxxx1x 0x002 page  (0|1)
+    xxxx xxxxx1xx 0x004 test mode  (Y/N)
+    xxxx xxx11xxx 0x018 selected downlink mode  (0|1|2|3|)
+    xxxx xx1xxxxx 0x020 !reg_readmode  (ICEMAN ?? Why use negative in the bool ??)
+    xxxx x1xxxxxx 0x040 called for a read, so no data packet  (Y/N)
+    xxxx 1xxxxxxx 0x080 reset (Y/N)
+    xxx1 xxxxxxxx 0x100 brute force (Y/N)
+    111x xxxxxxxx 0xE00 block to write (0-7)
+    */
+    bool t55_send_pwdmode     = (arg & 0x1);
+    bool t55_send_page        = ((arg >> 1) & 0x1);
+    bool t55_send_testmode    = ((arg >> 2) & 0x1);
+    bool t55_send_regreadmode = ((arg >> 5) & 0x1);
+    bool t55_send_readcmd     = ((arg >> 6) & 0x1);
+    bool t55_send_reset       = ((arg >> 7) & 0x1);
+    bool t55_brute_mem        = ((arg >> 8) & 0x1);
+
+    uint8_t downlink_mode     = (arg >> 3) & 0x03;
+    uint8_t block_no          = (arg >> 9) & 0x07;
+
+    // no startup delay when in bruteforce command
+    uint8_t start_wait = (t55_brute_mem) ? 0 : 4;
+
+    // Max Downlink Command size ~74 bits, so 10 bytes (80 bits)
+    uint8_t bs[10];
+    memset(bs, 0x00, sizeof(bs));
+
+    uint8_t len = 0;
+
+    // build bit stream to send.
+
+    // add Leading 0
+    if (downlink_mode == T55XX_DLMODE_LEADING_ZERO)
+        len = T55xx_SetBits(bs, len, 0, 1, sizeof(bs));
+
+    // add 1 of 4 reference bit
+    if (downlink_mode == T55XX_DLMODE_1OF4) {
+        len = T55xx_SetBits(bs, len, 0, 1, sizeof(bs));
+        // add extra zero
+        len = T55xx_SetBits(bs, len, 0, 1, sizeof(bs));
+    }
+
+    // add Opcode
+    if (t55_send_reset) {
+        //  reset : r*) 00
+        len = T55xx_SetBits(bs, len, 0, 2, sizeof(bs));
+    } else {
+
+        if (t55_send_testmode)
+            Dbprintf(_YELLOW_("Using Test Mode"));
+
+        len = T55xx_SetBits(bs, len, t55_send_testmode ? 0 : 1, 1, sizeof(bs));
+
+        len = T55xx_SetBits(bs, len, t55_send_testmode ? 1 : t55_send_page, 1, sizeof(bs));
+
+        if (t55_send_pwdmode) {
+            // Leading 0 and 1 of 4 00 fixed bits if passsword used
+            if ((downlink_mode == T55XX_DLMODE_LEADING_ZERO) || (downlink_mode == T55XX_DLMODE_1OF4)) {
+                len = T55xx_SetBits(bs, len, 0, 2, sizeof(bs));
+            }
+            len = T55xx_SetBits(bs, len, pwd, 32, sizeof(bs));
+        }
+
+        // Add Lock bit 0
+        if (t55_send_regreadmode == false)
+            len = T55xx_SetBits(bs, len, 0, 1, sizeof(bs));
+
+        // Add Data if a write command
+        if (t55_send_readcmd == false)
+            len = T55xx_SetBits(bs, len, data, 32, sizeof(bs));
+
+        // Add Address
+        if (t55_send_regreadmode == false)
+            len = T55xx_SetBits(bs, len, block_no, 3, sizeof(bs));
+    }
+
+    // Send Bits to T55xx
     // Set up FPGA, 125kHz
     LFSetupFPGAForADC(95, true);
+
     // make sure tag is fully powered up...
-    WaitMS(4);
+    WaitMS(start_wait);
 
     // Trigger T55x7 in mode.
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    WaitUS(t_config.start_gap);
+    WaitUS(T55xx_Timing.m[downlink_mode].start_gap);
 
-    // reset tag - op code 00
-    T55xxWriteBit(0);
-    T55xxWriteBit(0);
+    // If long leading 0 send long reference pulse
+    if (downlink_mode == T55XX_DLMODE_LLR)
+        T55xxWriteBit(T55XX_LONGLEADINGREFERENCE, downlink_mode);//Timing); // Send Long Leading Start Reference
 
-    TurnReadLFOn(t_config.read_gap);
+    uint8_t sendbits;
+    if ((downlink_mode == T55XX_DLMODE_1OF4) && (len > 0)) { // 1 of 4 need to send 2 bits at a time
+        for (uint8_t i = 0; i < len - 1; i += 2) {
+            sendbits  = (bs[BITSTREAM_BYTE(i)] >> (BITSTREAM_BIT(i)) & 1) << 1;       // Bit i
+            sendbits += (bs[BITSTREAM_BYTE(i + 1)] >> (BITSTREAM_BIT(i + 1)) & 1);    // Bit i+1;
+            T55xxWriteBit(sendbits & 3, downlink_mode);
+        }
+    } else {
+        for (uint8_t i = 0; i < len; i++) {
+            sendbits = (bs[BITSTREAM_BYTE(i)] >> BITSTREAM_BIT(i));
+            T55xxWriteBit(sendbits & 1, downlink_mode);
+        }
+    }
+}
+
+// Send T5577 reset command then read stream (see if we can identify the start of the stream)
+void T55xxResetRead(uint8_t flags) {
+
+    uint8_t downlink_mode = ((flags >> 3) & 3);
+    uint8_t arg           = 0x80 | downlink_mode;
+
+    LED_A_ON();
+
+    //clear buffer now so it does not interfere with timing later
+    BigBuf_Clear_keep_EM();
+
+    T55xx_SendCMD(0, 0, arg);
+
+    TurnReadLFOn(T55xx_Timing.m[downlink_mode].read_gap);
 
     // Acquisition
     DoPartialAcquisition(0, true, BigBuf_max_traceLen(), 0);
@@ -1393,54 +1745,34 @@ void T55xxResetRead(void) {
     // Turn the field off
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF); // field off
     reply_mix(CMD_ACK, 0, 0, 0, 0, 0);
+
     LED_A_OFF();
 }
 
 // Write one card block in page 0, no lock
-void T55xxWriteBlockExt(uint32_t data, uint8_t blockno, uint32_t pwd, uint8_t flags) {
+//void T55xxWriteBlockExt(uint32_t data, uint8_t blockno, uint32_t pwd, uint8_t flags) {
+void T55xxWriteBlock(uint8_t *data) {
+
+    /*
+    flag bits
+    xxxxxxx1 0x01 PwdMode
+    xxxxxx1x 0x02 Page
+    xxxxx1xx 0x04 testMode
+    xxx11xxx 0x18 downlink mode
+    xx1xxxxx 0x20 !reg_readmode
+    x1xxxxxx 0x40 called for a read, so no data packet
+    1xxxxxxx 0x80 reset
+    */
+
+    t55xx_write_block_t *c = (t55xx_write_block_t *)data;
+    // c->data, c->blockno, c->pwd, c->flags
+
+    bool testMode = ((c->flags & 0x04) == 0x04);
+
+    c->flags &= (0xff ^ 0x40); // Called for a write, so ensure it is clear/0
+
     LED_A_ON();
-    bool pwd_mode = (flags & 0x1);
-    uint8_t page = (flags & 0x2) >> 1;
-    bool test_mode = (flags & 0x4) >> 2;
-    uint32_t i = 0;
-
-    // Set up FPGA, 125kHz
-    LFSetupFPGAForADC(95, true);
-
-    // make sure tag is fully powered up...
-    WaitMS(4);
-
-    // Trigger T55x7 in mode.
-    FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    WaitUS(t_config.start_gap);
-
-    if (test_mode) {
-        Dbprintf("T55xx writing with %s", _YELLOW_("test mode enabled"));
-        // undocmented testmode opcode 01
-        T55xxWriteBit(0);
-        T55xxWriteBit(1);
-    } else {
-        // std opcode 10 == page 0
-        // std opcode 11 == page 1
-        T55xxWriteBit(1);
-        T55xxWriteBit(page);
-    }
-
-    if (pwd_mode) {
-        // Send pwd
-        for (i = 0x80000000; i != 0; i >>= 1)
-            T55xxWriteBit(pwd & i);
-    }
-    // Send lock bit
-    T55xxWriteBit(0);
-
-    // Send data
-    for (i = 0x80000000; i != 0; i >>= 1)
-        T55xxWriteBit(data & i);
-
-    // Send block number
-    for (i = 0x04; i != 0; i >>= 1)
-        T55xxWriteBit(blockno & i);
+    T55xx_SendCMD(c->data, c->pwd, c->flags | (c->blockno << 9)) ; //, false);
 
     // Perform write (nominal is 5.6 ms for T55x7 and 18ms for E5550,
     // so wait a little more)
@@ -1449,7 +1781,7 @@ void T55xxWriteBlockExt(uint32_t data, uint8_t blockno, uint32_t pwd, uint8_t fl
     //  - programming takes ~5.6ms for t5577 ~18ms for E5550 or t5567
     //  so we should wait 1 clock + 5.6ms then read response?
     //  but we need to know we are dealing with t5577 vs t5567 vs e5550 (or q5) marshmellow...
-    if (test_mode) {
+    if (testMode) {
         //TESTMODE TIMING TESTS:
         // <566us does nothing
         // 566-568 switches between wiping to 0s and doing nothing
@@ -1459,7 +1791,6 @@ void T55xxWriteBlockExt(uint32_t data, uint8_t blockno, uint32_t pwd, uint8_t fl
 
     } else {
         TurnReadLFOn(20 * 1000);
-
         //could attempt to do a read to confirm write took
         // as the tag should repeat back the new block
         // until it is reset, but to confirm it we would
@@ -1470,69 +1801,63 @@ void T55xxWriteBlockExt(uint32_t data, uint8_t blockno, uint32_t pwd, uint8_t fl
 
         //DoPartialAcquisition(20, true, 12000);
     }
-
     // turn field off
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
+
+    // cmd_send(CMD_ACK,0,0,0,0,0);
+    reply_ng(CMD_LF_T55XX_WRITEBL, PM3_SUCCESS, NULL, 0);
     LED_A_OFF();
 }
 
-// Write one card block in page 0, no lock
+/*
 // uses NG format
 void T55xxWriteBlock(uint8_t *data) {
     t55xx_write_block_t *c = (t55xx_write_block_t *)data;
     T55xxWriteBlockExt(c->data, c->blockno, c->pwd, c->flags);
-    reply_ng(CMD_T55XX_WRITE_BLOCK, PM3_SUCCESS, NULL, 0);
+    // reply_ng(CMD_LF_T55XX_WRITEBL, PM3_SUCCESS, NULL, 0);
 }
-
+*/
+/*
 // Read one card block in page [page]
-void T55xxReadBlock(uint8_t page, bool pwd_mode, bool brute_mem, uint8_t block, uint32_t pwd) {
-    LED_A_ON();
-    bool regular_readmode = (block == 0xFF);
-    uint8_t start_wait = 4;
+void T55xxReadBlockExt(uint16_t flags, uint8_t block, uint32_t pwd) {
+    / *
+    flag bits
+    xxxx xxxxxxx1 0x0001 PwdMode
+    xxxx xxxxxx1x 0x0002 Page
+    xxxx xxxxx1xx 0x0004 testMode
+    xxxx xxx11xxx 0x0018 downlink mode
+    xxxx xx1xxxxx 0x0020 !reg_readmode
+    xxxx x1xxxxxx 0x0040 called for a read, so no data packet
+    xxxx 1xxxxxxx 0x0080 reset
+    xxx1 xxxxxxxx 0x0100 brute / leave field on
+    * /
     size_t samples = 12000;
-    uint32_t i;
+bool brute_mem = (flags & 0x0100) >> 8;
 
-    if (brute_mem) {
-        start_wait = 0;
-        samples = 1024;
-    }
+    LED_A_ON();
 
-    //clear buffer now so it does not interfere with timing later
-    BigBuf_Clear_keep_EM();
+    if (brute_mem) samples = 1024;
+
+    // Set Read Flag to ensure SendCMD does not add "data" to the packet
+    flags |= 0x40;
+
+    // RegRead Mode true block = 0xff, so read without an address
+    if (block == 0xff) flags |= 0x20;
 
     //make sure block is at max 7
     block &= 0x7;
 
-    // Set up FPGA, 125kHz to power up the tag
-    LFSetupFPGAForADC(95, true);
-    // make sure tag is fully powered up...
-    WaitMS(start_wait);
+    //clear buffer now so it does not interfere with timing later
+    BigBuf_Clear_keep_EM();
 
-    // Trigger T55x7 Direct Access Mode with start gap
-    FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    WaitUS(t_config.start_gap);
-
-    // Opcode 1[page]
-    T55xxWriteBit(1);
-    T55xxWriteBit(page); //Page 0
-
-    if (pwd_mode) {
-        // Send Pwd
-        for (i = 0x80000000; i != 0; i >>= 1)
-            T55xxWriteBit(pwd & i);
-    }
-    // Send a zero bit separation
-    T55xxWriteBit(0);
-
-    // Send Block number (if direct access mode)
-    if (!regular_readmode)
-        for (i = 0x04; i != 0; i >>= 1)
-            T55xxWriteBit(block & i);
+    T55xx_SendCMD(0,  pwd, flags | (block << 9));  //, true);
 
     // Turn field on to read the response
     // 137*8 seems to get to the start of data pretty well...
-    // but we want to go past the start and let the repeating data settle in...
-    TurnReadLFOn(150 * 8);
+    //  but we want to go past the start and let the repeating data settle in...
+
+    // TurnReadLFOn(210*8); // issues with block 1 reads so dropping down seemed to help
+    TurnReadLFOn(137 * 8);
 
     // Acquisition
     // Now do the acquisition
@@ -1541,29 +1866,88 @@ void T55xxReadBlock(uint8_t page, bool pwd_mode, bool brute_mem, uint8_t block, 
     // Turn the field off
     if (!brute_mem) {
         FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-        reply_ng(CMD_T55XX_READ_BLOCK, PM3_SUCCESS, NULL, 0);
+        reply_ng(CMD_LF_T55XX_READBL, PM3_SUCCESS, NULL, 0);
         LED_A_OFF();
     }
 }
+*/
+// Read one card block in page [page]
+void T55xxReadBlock(uint8_t page, bool pwd_mode, bool brute_mem, uint8_t block, uint32_t pwd, uint8_t downlink_mode) {
+    /*
+    flag bits
+    xxxx xxxxxxx1 0x0001 PwdMode
+    xxxx xxxxxx1x 0x0002 Page
+    xxxx xxxxx1xx 0x0004 testMode
+    xxxx xxx11xxx 0x0018 downlink mode
+    xxxx xx1xxxxx 0x0020 !reg_readmode
+    xxxx x1xxxxxx 0x0040 called for a read, so no data packet
+    xxxx 1xxxxxxx 0x0080 reset
+    xxx1 xxxxxxxx 0x0100 brute / leave field on
+    */
+    uint16_t flags        = 0x0040; // read packet
+    if (pwd_mode)  flags |= 0x0001;
+    if (page)      flags |= 0x0002;
+    flags                |= (downlink_mode & 3) << 3;
+    if (brute_mem) flags |= 0x0100;
 
-void T55xx_ChkPwds() {
+//    T55xxReadBlockExt (flags,block,pwd);
+    size_t samples = 12000;
+    // bool brute_mem = (flags & 0x0100) >> 8;
+
+    LED_A_ON();
+
+    if (brute_mem) samples = 1024;
+
+    //-- Set Read Flag to ensure SendCMD does not add "data" to the packet
+    //-- flags |= 0x40;
+
+    // RegRead Mode true block = 0xff, so read without an address
+    if (block == 0xff) flags |= 0x20;
+
+    //make sure block is at max 7
+    block &= 0x7;
+
+    //clear buffer now so it does not interfere with timing later
+    BigBuf_Clear_keep_EM();
+
+    T55xx_SendCMD(0,  pwd, flags | (block << 9));  //, true);
+
+    // Turn field on to read the response
+    // 137*8 seems to get to the start of data pretty well...
+    //  but we want to go past the start and let the repeating data settle in...
+
+    // TurnReadLFOn(210*8); // issues with block 1 reads so dropping down seemed to help
+    TurnReadLFOn(137 * 8);
+
+    // Acquisition
+    // Now do the acquisition
+    DoPartialAcquisition(0, true, samples, 0);
+
+    // Turn the field off
+    if (!brute_mem) {
+        FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
+        reply_ng(CMD_LF_T55XX_READBL, PM3_SUCCESS, NULL, 0);
+        LED_A_OFF();
+    }
+
+}
+
+void T55xx_ChkPwds(uint8_t flags) {
 
     DbpString("[+] T55XX Check pwds using flashmemory starting");
 
     uint8_t ret = 0;
     // First get baseline and setup LF mode.
     // tends to mess up BigBuf
-    uint8_t *buf = BigBuf_get_addr();
-
-    uint32_t b1, baseline = 0;
+    uint8_t  *buf           = BigBuf_get_addr();
+    uint32_t b1, baseline   = 0;
+    uint8_t  downlink_mode  = (flags >> 3) & 0x03;
 
     // collect baseline for failed attempt
     uint8_t x = 32;
     while (x--) {
         b1 = 0;
-
-//        T55xxReadBlock(uint8_t page, bool pwd_mode, bool brute_mem, uint8_t block, uint32_t pwd)
-        T55xxReadBlock(0, 0, true, 1, 0);
+        T55xxReadBlock(0, 0, true, 1, 0, downlink_mode);
         for (uint16_t j = 0; j < 1024; ++j)
             b1 += buf[j];
 
@@ -1578,8 +1962,8 @@ void T55xx_ChkPwds() {
     uint8_t *pwds = BigBuf_get_EM_addr();
     uint16_t pwdCount = 0;
     uint32_t candidate = 0;
-
 #ifdef WITH_FLASH
+
     BigBuf_Clear_EM();
     uint16_t isok = 0;
     uint8_t counter[2] = {0x00, 0x00};
@@ -1608,7 +1992,7 @@ void T55xx_ChkPwds() {
 
         pwd = bytes_to_num(pwds + i * 4, 4);
 
-        T55xxReadBlock(0, true, true, 0, pwd);
+        T55xxReadBlock(0, true, true, 0, pwd, downlink_mode);
 
         // calc mean of BigBuf 1024 samples.
         uint32_t sum = 0;
@@ -1625,8 +2009,6 @@ void T55xx_ChkPwds() {
         Dbprintf("[=] Pwd %08X  | ABS %u", pwd, curr);
 
         if (curr > prev) {
-
-
             Dbprintf("[=]  --> ABS %u  Candidate %08X <--", curr, pwd);
             candidate = pwd;
             prev = curr;
@@ -1642,36 +2024,31 @@ OUT:
     LEDsoff();
 }
 
-void T55xxWakeUp(uint32_t Pwd) {
+void T55xxWakeUp(uint32_t pwd, uint8_t flags) {
+
+    flags |= 0x01 | 0x40 | 0x20; //Password | Read Call (no data) | reg_read no block
     LED_B_ON();
-    uint32_t i = 0;
 
-    // Set up FPGA, 125kHz
-    LFSetupFPGAForADC(95, true);
-    // make sure tag is fully powered up...
-    WaitMS(4);
+    T55xx_SendCMD(0, pwd, flags);
 
-    // Trigger T55x7 Direct Access Mode
-    FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    WaitUS(t_config.start_gap);
-
-    // Opcode 10
-    T55xxWriteBit(1);
-    T55xxWriteBit(0); //Page 0
-
-    // Send Pwd
-    for (i = 0x80000000; i != 0; i >>= 1)
-        T55xxWriteBit(Pwd & i);
-
-    // Turn and leave field on to let the begin repeating transmission
+    //-- Turn and leave field on to let the begin repeating transmission
     TurnReadLFOn(20 * 1000);
 }
 
+
 /*-------------- Cloning routines -----------*/
 void WriteT55xx(uint32_t *blockdata, uint8_t startblock, uint8_t numblocks) {
-    // write last block first and config block last (if included)
-    for (uint8_t i = numblocks + startblock; i > startblock; i--)
-        T55xxWriteBlockExt(blockdata[i - 1], i - 1, 0, 0);
+
+    t55xx_write_block_t cmd;
+    cmd.pwd     = 0;
+    cmd.flags   = 0;
+
+    for (uint8_t i = numblocks + startblock; i > startblock; i--) {
+        cmd.data    = blockdata[i - 1];
+        cmd.blockno = i - 1;
+        T55xxWriteBlock((uint8_t *)&cmd);
+    }
+
 }
 
 // Copy HID id to card and setup block 0 config
@@ -2037,7 +2414,7 @@ void EM4xReadWord(uint8_t addr, uint32_t pwd, uint8_t usepwd) {
     DoPartialAcquisition(20, true, 6000, 1000);
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    reply_ng(CMD_EM4X_READ_WORD, PM3_SUCCESS, NULL, 0);
+    reply_ng(CMD_LF_EM4X_READWORD, PM3_SUCCESS, NULL, 0);
     LED_A_OFF();
 }
 
@@ -2070,7 +2447,7 @@ void EM4xWriteWord(uint8_t addr, uint32_t data, uint32_t pwd, uint8_t usepwd) {
     DoPartialAcquisition(20, true, 6000, 1000);
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    reply_ng(CMD_EM4X_WRITE_WORD, PM3_SUCCESS, NULL, 0);
+    reply_ng(CMD_LF_EM4X_WRITEWORD, PM3_SUCCESS, NULL, 0);
     LED_A_OFF();
 }
 

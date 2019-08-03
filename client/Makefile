@@ -130,7 +130,7 @@ CORESRCS =  uart_posix.c \
             crc16.c \
             comms.c
 
-CMDSRCS =    crapto1/crapto1.c \
+CMDSRCS =   crapto1/crapto1.c \
             crapto1/crypto1.c \
             mifare/mfkey.c \
             tea.c \
@@ -199,6 +199,7 @@ CMDSRCS =    crapto1/crapto1.c \
             cmdhftopaz.c \
             cmdhffido.c \
             cmdhffelica.c \
+            cmdhfthinfilm.c \
             cmdhw.c \
             cmdlf.c \
             cmdlfawid.c \
@@ -227,6 +228,7 @@ CMDSRCS =    crapto1/crapto1.c \
             cmdlfvisa2000.c \
             cmdtrace.c \
             cmdflashmem.c \
+            cmdflashmemspiffs.c \
             cmdsmartcard.c \
             cmdusart.c \
             cmdparser.c \

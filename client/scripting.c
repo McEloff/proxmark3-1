@@ -66,7 +66,7 @@ static int l_fast_push_mode(lua_State *L) {
  * @return
  */
 static int l_SendCommandOLD(lua_State *L) {
-//  SendCommandMIX(CMD_HF_SNIFFER, skippairs, skiptriggers, 0, NULL, 0);
+//  SendCommandMIX(CMD_HF_SNIFF, skippairs, skiptriggers, 0, NULL, 0);
 // (uint64_t cmd, uint64_t arg0, uint64_t arg1, uint64_t arg2, void *data, size_t len)
 
     uint64_t cmd, arg0, arg1, arg2;
@@ -223,7 +223,7 @@ static int l_GetFromBigBuf(lua_State *L) {
         return returnToLuaWithError(L, "Allocating memory failed");
     }
 
-    if (!GetFromDevice(BIG_BUF, data, len, startindex, NULL, 2500, false)) {
+    if (!GetFromDevice(BIG_BUF, data, len, startindex, NULL, 0, NULL, 2500, false)) {
         free(data);
         return returnToLuaWithError(L, "command execution time out");
     }
@@ -263,7 +263,7 @@ static int l_GetFromFlashMem(lua_State *L) {
         if (!data)
             return returnToLuaWithError(L, "Allocating memory failed");
 
-        if (!GetFromDevice(FLASH_MEM, data, len, startindex, NULL, -1, false)) {
+        if (!GetFromDevice(FLASH_MEM, data, len, startindex, NULL, 0, NULL, -1, false)) {
             free(data);
             return returnToLuaWithError(L, "command execution time out");
         }
@@ -395,7 +395,7 @@ static int l_foobar(lua_State *L) {
     printf("Arguments discarded, stack now contains %d elements", lua_gettop(L));
 
     // todo: this is not used, where was it intended for?
-    // PacketCommandOLD response =  {CMD_MIFARE_READBL, {1337, 1338, 1339}, {{0}}};
+    // PacketCommandOLD response =  {CMD_HF_MIFARE_READBL, {1337, 1338, 1339}, {{0}}};
 
     printf("Now returning a uint64_t as a string");
     uint64_t x = 0xDEADC0DE;
@@ -903,7 +903,7 @@ static int l_T55xx_readblock(lua_State *L) {
         // try reading the config block and verify that PWD bit is set before doing this!
         if (!override) {
 
-            if (!AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, false, 0)) {
+            if (!AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, false, 0, 0)) {
                 return returnToLuaWithError(L, "Failed to read config block");
             }
 
@@ -920,7 +920,7 @@ static int l_T55xx_readblock(lua_State *L) {
         }
     }
 
-    if (!AquireData(usepage1, block, usepwd, password)) {
+    if (!AquireData(usepage1, block, usepwd, password, 0)) {
         return returnToLuaWithError(L, "Failed to aquire data from card");
     }
 
@@ -977,7 +977,7 @@ static int l_T55xx_detect(lua_State *L) {
 
     if (!useGB) {
 
-        isok = AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password);
+        isok = AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password, 0);
         if (isok == false) {
             return returnToLuaWithError(L, "Failed to aquire LF signal data");
         }

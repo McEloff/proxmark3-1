@@ -24,6 +24,7 @@
 #include "util_posix.h"         // msclock
 #include "loclass/fileutils.h"  //saveFile
 #include "comms.h"              //getfromdevice
+#include "cmdflashmemspiffs.h" // spiffs commands
 
 typedef enum {
     DICTIONARY_NONE = 0,

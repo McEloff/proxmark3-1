@@ -42,7 +42,7 @@ static int CmdHFMFPInfo(const char *cmd) {
     infoHF14A(false, false);
 
     // Mifare Plus info
-    SendCommandMIX(CMD_READER_ISO_14443a, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
+    SendCommandMIX(CMD_HF_ISO14443A_READER, ISO14A_CONNECT | ISO14A_NO_DISCONNECT, 0, 0, NULL, 0);
 
     PacketResponseNG resp;
     WaitForResponse(CMD_ACK, &resp);
@@ -227,7 +227,7 @@ static int CmdHFMFPInitPerso(const char *cmd) {
     }
 
     mfpSetVerboseMode(verbose);
-    for (int i = 0; i < sizeof(CardAddresses) / 2; i++) {
+    for (int i = 0; i < ARRAYLEN(CardAddresses); i++) {
         keyNum[0] = CardAddresses[i] >> 8;
         keyNum[1] = CardAddresses[i] & 0xff;
         res = MFPWritePerso(keyNum, key, false, true, data, sizeof(data), &datalen);

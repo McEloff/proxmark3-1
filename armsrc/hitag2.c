@@ -27,8 +27,11 @@
 #include "string.h"
 #include "BigBuf.h"
 
+// Successful crypto auth
 static bool bCrypto;
+// Is in auth stage
 static bool bAuthenticating;
+// Successful password auth
 static bool bPwd;
 static bool bSuccessful;
 
@@ -272,8 +275,8 @@ static void hitag2_handle_reader_command(uint8_t *rx, const size_t rxlen, uint8_
         break;
     }
 
-// LogTrace(rx, nbytes(rxlen), 0, 0, NULL, false);
-// LogTrace(tx, nbytes(txlen), 0, 0, NULL, true);
+    // LogTrace(rx, nbytes(rxlen), 0, 0, NULL, false);
+    // LogTrace(tx, nbytes(txlen), 0, 0, NULL, true);
 
     if (tag.crypto_active) {
         hitag2_cipher_transcrypt(&(tag.cs), tx, *txlen / 8, *txlen % 8);
@@ -377,7 +380,7 @@ static bool hitag2_password(uint8_t *rx, const size_t rxlen, uint8_t *tx, size_t
     // Reset the transmission frame length
     *txlen = 0;
 
-    if (bPwd && write) {
+    if (bPwd && !bAuthenticating && write) {
         if (!hitag2_write_page(rx, rxlen, tx, txlen)) {
             return false;
         }
@@ -398,22 +401,29 @@ static bool hitag2_password(uint8_t *rx, const size_t rxlen, uint8_t *tx, size_t
 
             // Received UID, tag password
             case 32: {
+                // stage 1, got UID
                 if (!bPwd) {
-                    *txlen = 32;
-                    memcpy(tx, password, 4);
                     bPwd = true;
-                    memcpy(tag.sectors[blocknr], rx, 4);
-                    blocknr++;
+                    bAuthenticating = true;
+                    memcpy(tx, password, 4);
+                    *txlen = 32;
                 } else {
-
-                    if (blocknr == 1) {
-                        //store password in block1, the TAG answers with Block3, but we need the password in memory
-                        memcpy(tag.sectors[blocknr], tx, 4);
-                    } else {
+                    // stage 2, got config byte+password TAG, discard as will read later
+                    if (bAuthenticating) {
+                        bAuthenticating = false;
+                        if (write) {
+                            if (!hitag2_write_page(rx, rxlen, tx, txlen)) {
+                                return false;
+                            }
+                            break;
+                        }
+                    }
+                    // stage 2+, got data block
+                    else {
                         memcpy(tag.sectors[blocknr], rx, 4);
+                        blocknr++;
                     }
 
-                    blocknr++;
                     if (blocknr > 7) {
                         DbpString("Read succesful!");
                         bSuccessful = true;
@@ -488,19 +498,22 @@ static bool hitag2_crypto(uint8_t *rx, const size_t rxlen, uint8_t *tx, size_t *
             }
             // Received UID, crypto tag answer
             case 32: {
+                // stage 1, got UID
                 if (!bCrypto) {
                     uint64_t ui64key = key[0] | ((uint64_t)key[1]) << 8 | ((uint64_t)key[2]) << 16 | ((uint64_t)key[3]) << 24 | ((uint64_t)key[4]) << 32 | ((uint64_t)key[5]) << 40;
                     uint32_t ui32uid = rx[0] | ((uint32_t)rx[1]) << 8 | ((uint32_t)rx[2]) << 16 | ((uint32_t)rx[3]) << 24;
                     Dbprintf("hitag2_crypto: key=0x%x%x uid=0x%x", (uint32_t)((REV64(ui64key)) >> 32), (uint32_t)((REV64(ui64key)) & 0xffffffff), REV32(ui32uid));
                     cipher_state = _hitag2_init(REV64(ui64key), REV32(ui32uid), 0);
+                    // PRN
                     memset(tx, 0x00, 4);
+                    // Secret data
                     memset(tx + 4, 0xff, 4);
                     hitag2_cipher_transcrypt(&cipher_state, tx + 4, 4, 0);
                     *txlen = 64;
                     bCrypto = true;
                     bAuthenticating = true;
                 } else {
-                    // Check if we received answer tag (at)
+                    // stage 2, got config byte+password TAG, discard as will read later
                     if (bAuthenticating) {
                         bAuthenticating = false;
                         if (write) {
@@ -509,7 +522,9 @@ static bool hitag2_crypto(uint8_t *rx, const size_t rxlen, uint8_t *tx, size_t *
                             }
                             break;
                         }
-                    } else {
+                    }
+                    // stage 2+, got data block
+                    else {
                         // Store the received block
                         memcpy(tag.sectors[blocknr], rx, 4);
                         blocknr++;
@@ -692,7 +707,7 @@ void SniffHitag(void) {
 
     StopTicks();
 
-//    int frame_count;
+    // int frame_count;
     int response;
     int overflow;
     bool rising_edge;
@@ -750,7 +765,7 @@ void SniffHitag(void) {
 
     // Reset the received frame, frame count and timing info
     memset(rx, 0x00, sizeof(rx));
-//    frame_count = 0;
+    // frame_count = 0;
     response = 0;
     overflow = 0;
     reader_frame = false;
@@ -857,7 +872,7 @@ void SniffHitag(void) {
 
         // Check if frame was captured
         if (rxlen > 0) {
-//            frame_count++;
+            // frame_count++;
             LogTrace(rx, nbytes(rxlen), response, 0, NULL, reader_frame);
 
             // Check if we recognize a valid authentication attempt
@@ -907,7 +922,7 @@ void SimulateHitagTag(bool tag_mem_supplied, uint8_t *data) {
 
     StopTicks();
 
-//    int frame_count = 0;
+    // int frame_count = 0;
     int response = 0, overflow = 0;
     uint8_t rx[HITAG_FRAME_LEN];
     size_t rxlen = 0;
@@ -1025,7 +1040,7 @@ void SimulateHitagTag(bool tag_mem_supplied, uint8_t *data) {
 
         // Check if frame was captured
         if (rxlen > 4) {
-//            frame_count++;
+            // frame_count++;
             LogTrace(rx, nbytes(rxlen), response, response, NULL, true);
 
             // Disable timer 1 with external trigger to avoid triggers during our own modulation
@@ -1081,7 +1096,7 @@ void ReaderHitag(hitag_function htf, hitag_data *htd) {
 
     StopTicks();
 
-//    int frame_count = 0;
+    // int frame_count = 0;
     int response = 0;
     uint8_t rx[HITAG_FRAME_LEN];
     size_t rxlen = 0;
@@ -1104,6 +1119,7 @@ void ReaderHitag(hitag_function htf, hitag_data *htd) {
             memcpy(password, htd->pwd.password, 4);
             blocknr = 0;
             bPwd = false;
+            bAuthenticating = false;
             break;
         }
         case RHT2F_AUTHENTICATE: {
@@ -1216,7 +1232,7 @@ void ReaderHitag(hitag_function htf, hitag_data *htd) {
 
         // Check if frame was captured and store it
         if (rxlen > 0) {
-//            frame_count++;
+            // frame_count++;
             LogTrace(rx, nbytes(rxlen), response, response, NULL, false);
         }
 
@@ -1272,7 +1288,7 @@ void ReaderHitag(hitag_function htf, hitag_data *htd) {
 
         // Add transmitted frame to total count
         if (txlen > 0) {
-//            frame_count++;
+            // frame_count++;
             LogTrace(tx, nbytes(txlen), HITAG_T_WAIT_2, HITAG_T_WAIT_2, NULL, true);
         }
 
@@ -1366,7 +1382,7 @@ void WriterHitag(hitag_function htf, hitag_data *htd, int page) {
 
     StopTicks();
 
-//    int frame_count = 0;
+    // int frame_count = 0;
     int response = 0;
     uint8_t rx[HITAG_FRAME_LEN];
     size_t rxlen = 0;
@@ -1405,6 +1421,7 @@ void WriterHitag(hitag_function htf, hitag_data *htd, int page) {
             Dbhexdump(4, password, false);
             blocknr = page;
             bPwd = false;
+            bAuthenticating = false;
             writestate = WRITE_STATE_START;
         }
         break;
@@ -1486,7 +1503,7 @@ void WriterHitag(hitag_function htf, hitag_data *htd, int page) {
 
         // Check if frame was captured and store it
         if (rxlen > 0) {
-//            frame_count++;
+            // frame_count++;
             LogTrace(rx, nbytes(rxlen), response, response, NULL, false);
         }
 
@@ -1527,7 +1544,7 @@ void WriterHitag(hitag_function htf, hitag_data *htd, int page) {
 
         // Add transmitted frame to total count
         if (txlen > 0) {
-//            frame_count++;
+            // frame_count++;
             LogTrace(tx, nbytes(txlen), HITAG_T_WAIT_2, HITAG_T_WAIT_2, NULL, true);
         }
 
