@@ -98,7 +98,7 @@ void WorkWithHF() {
                     emlSetMem(block1, b, 1);
             }
             // start simulation
-            Mifare1ksim(FLAG_UID_IN_EMUL, 0, 0, data);
+            Mifare1ksim(FLAG_UID_IN_EMUL, 0, 0, data, 0, 0);
         } else if (step == 2) {
             // simulate EV1/NTAG 41 pages
             mfu_dump_t ntag = {

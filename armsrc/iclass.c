@@ -884,8 +884,16 @@ void RAMFUNC SniffIClass(void) {
     //     contains LOW nibble = tag data
     // so two bytes are needed in order to get 1byte of either reader or tag data.  (ie 2 sample bytes)
     // since reader data is manchester encoded,  we need 2bytes of data in order to get one demoded byte.  (ie:  4 sample bytes)
-    while (!BUTTON_PRESS()) {
+    uint16_t checked = 0;
+    for (;;) {
         WDT_HIT();
+
+        if (checked == 1000) {
+            if (BUTTON_PRESS() || data_available()) break;
+            checked = 0;
+        } else {
+            checked++;
+        }
 
         previous_data <<= 8;
         previous_data |= *data;
@@ -996,8 +1004,17 @@ static bool GetIClassCommandFromReader(uint8_t *received, int *len, int maxLen) 
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
     (void)b;
 
-    while (!BUTTON_PRESS()) {
+    uint16_t checked = 0;
+    for (;;) {
+
         WDT_HIT();
+
+        if (checked == 1000) {
+            if (BUTTON_PRESS() || data_available()) return false;
+            checked = 0;
+        } else {
+            checked++;
+        }
 
         // keep tx buffer in a defined state anyway.
         if (AT91C_BASE_SSC->SSC_SR & (AT91C_SSC_TXRDY))
@@ -1382,11 +1399,11 @@ int doIClassSimulation(int simulationMode, uint8_t *reader_mac_buf) {
 
     //This is used for responding to READ-block commands or other data which is dynamically generated
     //First the 'trace'-data, not encoded for FPGA
-    uint8_t *data_generic_trace = BigBuf_malloc(8 + 2);//8 bytes data + 2byte CRC is max tag answer
+    uint8_t *data_generic_trace = BigBuf_malloc((8 * 4) + 2);//8 bytes data + 2byte CRC is max tag answer
 
     //Then storage for the modulated data
     //Each bit is doubled when modulated for FPGA, and we also have SOF and EOF (2 bytes)
-    uint8_t *data_response = BigBuf_malloc((8 + 2) * 2 + 2);
+    uint8_t *data_response = BigBuf_malloc(((8 * 4) + 2) * 2 + 2);
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_ISO14443A | FPGA_HF_ISO14443A_TAGSIM_LISTEN);
     SpinDelay(100);
@@ -1544,12 +1561,25 @@ int doIClassSimulation(int simulationMode, uint8_t *reader_mac_buf) {
             goto send;
         } else if (simulationMode == MODE_FULLSIM && receivedCmd[0] == ICLASS_CMD_READ_OR_IDENTIFY && len == 4) { // 0x0C
             //Read block
-            uint16_t blk = receivedCmd[1];
+            uint8_t blk = receivedCmd[1];
             //Take the data...
             memcpy(data_generic_trace, emulator + (blk << 3), 8);
             AddCrc(data_generic_trace, 8);
             trace_data = data_generic_trace;
             trace_data_size = 10;
+            CodeIClassTagAnswer(trace_data, trace_data_size);
+            memcpy(data_response, ToSend, ToSendMax);
+            modulated_response = data_response;
+            modulated_response_size = ToSendMax;
+            goto send;
+        } else if (simulationMode == MODE_FULLSIM && receivedCmd[0] == ICLASS_CMD_READ4 && len == 4) {  // 0x06
+            //Read block
+            uint8_t blk = receivedCmd[1];
+            //Take the data...
+            memcpy(data_generic_trace, emulator + (blk << 3), 8 * 4);
+            AddCrc(data_generic_trace, 8 * 4);
+            trace_data = data_generic_trace;
+            trace_data_size = 34;
             CodeIClassTagAnswer(trace_data, trace_data_size);
             memcpy(data_response, ToSend, ToSendMax);
             modulated_response = data_response;
@@ -1632,8 +1662,15 @@ static int SendIClassAnswer(uint8_t *resp, int respLen, uint16_t delay) {
 
     AT91C_BASE_SSC->SSC_THR = 0x00;
 
-    while (!BUTTON_PRESS()) {
+    uint16_t checked = 0;
+    for (;;) {
 
+        if (checked == 1000) {
+            if (BUTTON_PRESS() || data_available()) return 0;
+            checked = 0;
+        } else {
+            checked++;
+        }
         // Prevent rx holding register from overflowing
         if ((AT91C_BASE_SSC->SSC_SR & AT91C_SSC_RXRDY)) {
             b = AT91C_BASE_SSC->SSC_RHR;
@@ -1800,8 +1837,17 @@ static int GetIClassAnswer(uint8_t *receivedResponse, int maxLen, int *samples, 
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
     (void)b;
 
-    while (!BUTTON_PRESS()) {
+    uint16_t checked = 0;
+
+    for (;;) {
         WDT_HIT();
+
+        if (checked == 1000) {
+            if (BUTTON_PRESS() || data_available()) return false;
+            checked = 0;
+        } else {
+            checked++;
+        }
 
         // keep tx buffer in a defined state anyway.
         if (AT91C_BASE_SSC->SSC_SR & (AT91C_SSC_TXRDY)) {
@@ -1993,6 +2039,7 @@ void ReaderIClass(uint8_t arg0) {
 
     setupIclassReader();
 
+    uint16_t checked = 0;
     bool userCancelled = BUTTON_PRESS() || data_available();
     while (!userCancelled) {
 
@@ -2092,7 +2139,13 @@ void ReaderIClass(uint8_t arg0) {
             }
         }
         LED_B_OFF();
-        userCancelled = BUTTON_PRESS() || data_available();
+
+        if (checked == 1000) {
+            userCancelled = BUTTON_PRESS() || data_available();
+            checked = 0;
+        } else {
+            checked++;
+        }
     }
 
     if (userCancelled) {
@@ -2286,11 +2339,17 @@ void iClass_Authentication_fast(uint64_t arg0, uint64_t arg1, uint8_t *datain) {
 
     setupIclassReader();
 
+    uint16_t checked = 0;
     int read_status = 0;
     uint8_t startup_limit = 10;
     while (read_status != 2) {
 
-        if (BUTTON_PRESS() && !data_available()) goto out;
+        if (checked == 1000) {
+            if (BUTTON_PRESS() || !data_available()) goto out;
+            checked = 0;
+        } else {
+            checked++;
+        }
 
         read_status = handshakeIclassTag_ext(card_data, use_credit_key);
         if (startup_limit-- == 0) {
@@ -2305,7 +2364,12 @@ void iClass_Authentication_fast(uint64_t arg0, uint64_t arg1, uint8_t *datain) {
     for (i = 0; i < keyCount; i++) {
 
         // Allow button press / usb cmd to interrupt device
-        if (BUTTON_PRESS() && !data_available()) break;
+        if (checked == 1000) {
+            if (BUTTON_PRESS() || !data_available()) goto out;
+            checked = 0;
+        } else {
+            checked++;
+        }
 
         WDT_HIT();
         LED_B_ON();

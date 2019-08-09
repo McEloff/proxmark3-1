@@ -178,6 +178,7 @@ typedef struct {
     bool compiled_with_felica          : 1;
     bool compiled_with_legicrf         : 1;
     bool compiled_with_iclass          : 1;
+    bool compiled_with_nfcbarcode      : 1;
     // misc
     bool compiled_with_lcd             : 1;
 
@@ -185,7 +186,7 @@ typedef struct {
     bool hw_available_flash            : 1;
     bool hw_available_smartcard        : 1;
 } PACKED capabilities_t;
-#define CAPABILITIES_VERSION 2
+#define CAPABILITIES_VERSION 3
 extern capabilities_t pm3_capabilities;
 
 // For CMD_LF_T55XX_WRITEBL
@@ -257,6 +258,7 @@ typedef struct {
 #define CMD_QUIT_SESSION                                                  0x0113
 #define CMD_SET_DBGMODE                                                   0x0114
 #define CMD_STANDALONE                                                    0x0115
+#define CMD_WTX                                                           0x0116
 
 // RDV40, Flash memory operations
 #define CMD_FLASHMEM_WRITE                                                0x0121
@@ -424,6 +426,7 @@ typedef struct {
 #define CMD_MEASURE_ANTENNA_TUNING                                        0x0400
 #define CMD_MEASURE_ANTENNA_TUNING_HF                                     0x0401
 #define CMD_LISTEN_READER_FIELD                                           0x0420
+#define CMD_HF_DROPFIELD                                                  0x0430
 
 // For direct FPGA control
 #define CMD_FPGA_MAJOR_MODE_OFF                                           0x0500
@@ -452,7 +455,6 @@ typedef struct {
 #define CMD_HF_MIFAREU_READCARD                                           0x0721
 #define CMD_HF_MIFARE_WRITEBL                                             0x0622
 #define CMD_HF_MIFAREU_WRITEBL                                            0x0722
-#define CMD_HF_MIFAREU_WRITEBL_COMPAT                                     0x0723
 
 #define CMD_HF_MIFARE_CHKKEYS                                             0x0623
 #define CMD_HF_MIFARE_SETMOD                                              0x0624
@@ -473,7 +475,6 @@ typedef struct {
 #define CMD_HF_DESFIRE_INFO                                               0x072d
 #define CMD_HF_DESFIRE_COMMAND                                            0x072e
 
-#define CMD_HF_MIFARE_COLLECT_NONCES                                      0x072f
 #define CMD_HF_MIFARE_NACK_DETECT                                         0x0730
 
 #define CMD_HF_SNIFF                                                      0x0800
@@ -499,6 +500,8 @@ typedef struct {
 #define FLAG_MF_1K              0x100
 #define FLAG_MF_2K              0x200
 #define FLAG_MF_4K              0x400
+#define FLAG_FORCED_ATQA        0x800
+#define FLAG_FORCED_SAK         0x1000
 
 //Iclass reader flags
 #define FLAG_ICLASS_READER_ONLY_ONCE   0x01
@@ -553,6 +556,8 @@ typedef struct {
 #define PM3_EINIT             -15
 // Expected a different answer error    client/pm3: error when expecting one answer and got another one
 #define PM3_EWRONGANSVER      -16
+// Memory out-of-bounds error           client/pm3: error when a read/write is outside the expected array
+#define PM3_EOUTOFBOUND       -17
 // No data                              pm3:        no data available, no host frame available (not really an error)
 #define PM3_ENODATA           -98
 // Quit program                         client:     reserved, order to quit the program

@@ -59,6 +59,7 @@ int ToSendMax = -1;
 static int ToSendBit;
 struct common_area common_area __attribute__((section(".commonarea")));
 int button_status = BUTTON_NO_CLICK;
+bool allow_send_wtx = false;
 
 void ToSendReset(void) {
     ToSendMax = -1;
@@ -117,6 +118,12 @@ void print_result(char *name, uint8_t *buf, size_t len) {
 //=============================================================================
 // Debug print functions, to go out over USB, to the usual PC-side client.
 //=============================================================================
+
+inline void send_wtx(uint16_t wtx) {
+    if (allow_send_wtx) {
+        reply_ng(CMD_WTX, PM3_SUCCESS, (uint8_t *)&wtx, sizeof(wtx));
+    }
+}
 
 void DbpStringEx(uint32_t flags, char *str) {
 #if DEBUG
@@ -267,9 +274,9 @@ void MeasureAntennaTuning(void) {
         SpinDelay(20);
         uint32_t adcval = ((MAX_ADC_LF_VOLTAGE * AvgAdc(ADC_CHAN_LF)) >> 10);
         if (i == 95)
-            v_lf125 = adcval; // voltage at 125Khz
+            v_lf125 = adcval; // voltage at 125kHz
         if (i == 89)
-            v_lf134 = adcval; // voltage at 134Khz
+            v_lf134 = adcval; // voltage at 134kHz
 
         LF_Results[i] = adcval >> 9; // scale int to fit in byte for graphing purposes
         if (LF_Results[i] > peak) {
@@ -431,6 +438,9 @@ void SendStatus(void) {
     Dbprintf("  ToSendMax...............%d", ToSendMax);
     Dbprintf("  ToSendBit...............%d", ToSendBit);
     Dbprintf("  ToSend BUFFERSIZE.......%d", TOSEND_BUFFER_SIZE);
+    while ((AT91C_BASE_PMC->PMC_MCFR & AT91C_CKGR_MAINRDY) == 0);       // Wait for MAINF value to become available...
+    uint16_t mainf = AT91C_BASE_PMC->PMC_MCFR & AT91C_CKGR_MAINF;       // Get # main clocks within 16 slow clocks
+    Dbprintf("  Slow clock..............%d Hz", (16 * MAINCK) / mainf);
     DbpString(_BLUE_("Installed StandAlone Mode"));
     ModInfo();
 
@@ -526,6 +536,11 @@ void SendCapabilities(void) {
     capabilities.compiled_with_iclass = true;
 #else
     capabilities.compiled_with_iclass = false;
+#endif
+#ifdef WITH_NFCBARCODE
+    capabilities.compiled_with_nfcbarcode = true;
+#else
+    capabilities.compiled_with_nfcbarcode = false;
 #endif
 #ifdef WITH_LCD
     capabilities.compiled_with_lcd = true;
@@ -1085,6 +1100,12 @@ static void PacketReceived(PacketCommandNG *packet) {
         }
 #endif
 
+// always available
+        case CMD_HF_DROPFIELD: {
+            hf_field_off();
+            break;
+        }
+
 #ifdef WITH_ISO14443a
         case CMD_HF_ISO14443A_SNIFF: {
             SniffIso14443a(packet->data.asBytes[0]);
@@ -1149,10 +1170,6 @@ static void PacketReceived(PacketCommandNG *packet) {
             MifareWriteBlock(packet->oldarg[0], packet->oldarg[1], packet->data.asBytes);
             break;
         }
-        //case CMD_HF_MIFAREU_WRITEBL_COMPAT: {
-        //MifareUWriteBlockCompat(packet->oldarg[0], packet->data.asBytes);
-        //break;
-        //}
         case CMD_HF_MIFAREU_WRITEBL: {
             MifareUWriteBlock(packet->oldarg[0], packet->oldarg[1], packet->data.asBytes);
             break;
@@ -1183,9 +1200,11 @@ static void PacketReceived(PacketCommandNG *packet) {
                uint8_t exitAfterReads;
                uint8_t exitAfterWrites;
                uint8_t uid[10];
+                uint16_t atqa;
+                uint8_t sak;
             } PACKED;
             struct p *payload = (struct p *) packet->data.asBytes;
-            Mifare1ksim(payload->flags, payload->exitAfterReads, payload->exitAfterWrites, payload->uid);
+            Mifare1ksim(payload->flags, payload->exitAfterReads, payload->exitAfterWrites, payload->uid, payload->atqa, payload->sak);
             break;
         }
         // emulator
@@ -1273,13 +1292,13 @@ static void PacketReceived(PacketCommandNG *packet) {
             MifareSendCommand(packet->oldarg[0], packet->oldarg[1], packet->data.asBytes);
             break;
         }
-        case CMD_HF_MIFARE_COLLECT_NONCES: {
-            break;
-        }
         case CMD_HF_MIFARE_NACK_DETECT: {
             DetectNACKbug();
             break;
         }
+#endif
+
+#ifdef WITH_NFCBARCODE
         case CMD_HF_THINFILM_READ: {
             ReadThinFilm();
             break;
@@ -1951,8 +1970,8 @@ void  __attribute__((noreturn)) AppMain(void) {
     AT91C_BASE_PIOA->PIO_BSR = GPIO_PCK0;
     AT91C_BASE_PIOA->PIO_PDR = GPIO_PCK0;
     AT91C_BASE_PMC->PMC_SCER |= AT91C_PMC_PCK0;
-    // PCK0 is PLL clock / 4 = 96Mhz / 4 = 24Mhz
-    AT91C_BASE_PMC->PMC_PCKR[0] = AT91C_PMC_CSS_PLL_CLK | AT91C_PMC_PRES_CLK_4; //  4 for 24Mhz pck0, 2 for 48 MHZ pck0
+    // PCK0 is PLL clock / 4 = 96MHz / 4 = 24MHz
+    AT91C_BASE_PMC->PMC_PCKR[0] = AT91C_PMC_CSS_PLL_CLK | AT91C_PMC_PRES_CLK_4; //  4 for 24MHz pck0, 2 for 48 MHZ pck0
     AT91C_BASE_PIOA->PIO_OER = GPIO_PCK0;
 
     // Reset SPI
@@ -1987,6 +2006,7 @@ void  __attribute__((noreturn)) AppMain(void) {
     // against device such as http://www.hobbytronics.co.uk/usb-host-board-v2
     usb_disable();
     usb_enable();
+    allow_send_wtx = true;
 
 #ifdef WITH_FLASH
     // If flash is not present, BUSY_TIMEOUT kicks in, let's do it after USB
@@ -2016,7 +2036,9 @@ void  __attribute__((noreturn)) AppMain(void) {
             * So this is the trigger to execute a standalone mod.  Generic entrypoint by following the standalone/standalone.h headerfile
             * All standalone mod "main loop" should be the RunMod() function.
             */
+            allow_send_wtx = false;
             RunMod();
+            allow_send_wtx = true;
         }
     }
 }

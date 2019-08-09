@@ -27,13 +27,14 @@ APP_CFLAGS = $(PLATFORM_DEFS) \
 
 SRC_LF = lfops.c lfsampling.c pcf7931.c lfdemod.c
 SRC_ISO15693 = iso15693.c iso15693tools.c
-SRC_ISO14443a = iso14443a.c mifareutil.c mifarecmd.c epa.c mifaresim.c thinfilm.c
+SRC_ISO14443a = iso14443a.c mifareutil.c mifarecmd.c epa.c mifaresim.c
 SRC_ISO14443b = iso14443b.c
 SRC_FELICA = felica.c
 SRC_CRAPTO1 = crypto1.c des.c desfire_key.c desfire_crypto.c mifaredesfire.c aes.c platform_util.c
 SRC_CRC = crc.c crc16.c crc32.c
 SRC_ICLASS = iclass.c optimized_cipher.c
 SRC_LEGIC = legicrf.c legicrfsim.c legic_prng.c
+SRC_NFCBARCODE = thinfilm.c
 
 #   SRC_BEE = bee.c
 
@@ -93,6 +94,7 @@ THUMBSRC = start.c \
     protocols.c \
     $(SRC_LCD) \
     $(SRC_ISO15693) \
+    $(SRC_NFCBARCODE) \
     $(SRC_LF) \
     $(SRC_ZLIB) \
     $(SRC_LEGIC) \
@@ -145,7 +147,7 @@ version.c: default_version.c $(OBJDIR)/fpga_version_info.o $(OBJDIR)/fpga_all.o 
 	$(info [-] GEN $@)
 	$(Q)perl ../tools/mkversion.pl .. > $@ || $(COPY) $^ $@
 
-fpga_version_info.c: $(FPGA_BITSTREAMS) $(FPGA_COMPRESSOR)
+fpga_version_info.c: $(FPGA_BITSTREAMS) | $(FPGA_COMPRESSOR)
 	$(info [-] GEN $@)
 	$(Q)$(FPGA_COMPRESSOR) -v $(filter %.bit,$^) $@
 
@@ -153,7 +155,7 @@ $(OBJDIR)/fpga_all.o: $(OBJDIR)/fpga_all.bit.z
 	$(info [-] GEN $@)
 	$(Q)$(OBJCOPY) -O elf32-littlearm -I binary -B arm --prefix-sections=fpga_all_bit $^ $@
 
-$(OBJDIR)/fpga_all.bit.z: $(FPGA_BITSTREAMS) $(FPGA_COMPRESSOR)
+$(OBJDIR)/fpga_all.bit.z: $(FPGA_BITSTREAMS) | $(FPGA_COMPRESSOR)
 	$(info [-] GEN $@)
 ifeq ($(Q),@)
 	@$(FPGA_COMPRESSOR) $(filter %.bit,$^) $@ >/dev/null
@@ -181,7 +183,7 @@ $(OBJDIR)/fullimage.data.bin: $(OBJDIR)/fullimage.stage1.elf
 	$(info [-] GEN $@)
 	$(Q)$(OBJCOPY) -O binary -I elf32-littlearm --only-section .data $^ $@
 
-$(OBJDIR)/fullimage.data.bin.z: $(OBJDIR)/fullimage.data.bin $(FPGA_COMPRESSOR)
+$(OBJDIR)/fullimage.data.bin.z: $(OBJDIR)/fullimage.data.bin | $(FPGA_COMPRESSOR)
 	$(info [-] GEN $@)
 ifeq ($(Q),@)
 	@$(FPGA_COMPRESSOR) $(filter %.bin,$^) $@ >/dev/null
@@ -202,6 +204,7 @@ tarbin: $(OBJS)
 	$(Q)$(TAR) $(TARFLAGS) ../proxmark3-$(platform)-bin.tar $(OBJS:%=armsrc/%) $(OBJS:%.s19=armsrc/%.elf)
 
 clean:
+	$(Q)$(DELETE) $(DEPENDENCY_FILES)
 	$(Q)$(DELETE) $(OBJDIR)$(PATHSEP)*.o
 	$(Q)$(DELETE) $(OBJDIR)$(PATHSEP)*.elf
 	$(Q)$(DELETE) $(OBJDIR)$(PATHSEP)*.s19

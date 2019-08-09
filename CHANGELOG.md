@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 This project uses the changelog in accordance with [keepchangelog](http://keepachangelog.com/). Please use this to write notable changes, which is not the same as git commit log...
 
 ## [unreleased][unreleased]
+ - Add 'lf nedap' - encoding / decoding  (anon)
+ - Add client option `-i` to stay in interactive mode after a script or command (@DidierStevens/@doegox)
  - Add VSCode tasks (@ViRb3)
  - Better warn user of hardcoded hitag info (@ViRb3)
  - Format and docs hitag (@ViRb3)
@@ -314,7 +316,7 @@ This project uses the changelog in accordance with [keepchangelog](http://keepac
  - Added to proxmark command line parameters `c` and `l` - execute command and lua script from command line (@merlokk)
  - Added to proxmark ability to execute commands from stdin (pipe) (@merlokk)
  - Added new standalone mode "HF Mifare ultra fast sniff/sim/clone - aka VIGIKPWN"  (@cjbrigato)
- - Added to `hf 14a apdu` - exchange apdu via iso1443-4 (@merlokk)
+ - Added to `hf 14a apdu` - exchange apdu via iso14443-4 (@merlokk)
  - Added to `hf 14a apdu` - apdu and tlv results parser (@merlokk)
  - Added `hf emv` commands  (@merlokk)
  - lots of bug fixes (many many)

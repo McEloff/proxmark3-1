@@ -14,7 +14,7 @@
 #define MAX_ISO14A_TIMEOUT 524288
 static uint32_t iso14a_timeout;
 // if iso14443a not active - transmit/receive dont try to execute
-static bool iso14443a_active = false;
+static bool hf_field_active = false;
 
 uint8_t colpos = 0;
 int rsamples = 0;
@@ -25,7 +25,7 @@ static uint8_t iso14_pcb_blocknum = 0;
 //
 // ISO14443 timing:
 //
-// minimum time between the start bits of consecutive transfers from reader to tag: 7000 carrier (13.56Mhz) cycles
+// minimum time between the start bits of consecutive transfers from reader to tag: 7000 carrier (13.56MHz) cycles
 #define REQUEST_GUARD_TIME (7000/16 + 1)
 // minimum time between last modulation of tag and next start bit from reader to tag: 1172 carrier cycles
 #define FRAME_DELAY_TIME_PICC_TO_PCD (1172/16 + 1)
@@ -1687,7 +1687,7 @@ void PrepareDelayedTransfer(uint16_t delay) {
 //-------------------------------------------------------------------------------------
 static void TransmitFor14443a(const uint8_t *cmd, uint16_t len, uint32_t *timing) {
 
-    if (!iso14443a_active)
+    if (!hf_field_active)
         return;
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_ISO14443A | FPGA_HF_ISO14443A_READER_MOD);
@@ -2072,7 +2072,7 @@ bool EmLogTrace(uint8_t *reader_data, uint16_t reader_len, uint32_t reader_Start
 //-----------------------------------------------------------------------------
 bool GetIso14443aAnswerFromTag_Thinfilm(uint8_t *receivedResponse,  uint8_t *received_len) {
 
-    if (!iso14443a_active)
+    if (!hf_field_active)
         return false;
 
     // Set FPGA mode to "reader listen mode", no modulation (listen
@@ -2121,7 +2121,7 @@ bool GetIso14443aAnswerFromTag_Thinfilm(uint8_t *receivedResponse,  uint8_t *rec
 static int GetIso14443aAnswerFromTag(uint8_t *receivedResponse, uint8_t *receivedResponsePar, uint16_t offset) {
     uint32_t c = 0;
 
-    if (!iso14443a_active)
+    if (!hf_field_active)
         return false;
 
     // Set FPGA mode to "reader listen mode", no modulation (listen
@@ -2568,14 +2568,14 @@ void iso14443a_setup(uint8_t fpga_minor_mode) {
     NextTransferTime = 2 * DELAY_ARM2AIR_AS_READER;
     iso14a_set_timeout(1060); // 106 * 10ms default
 
-    iso14443a_active = true;
+    hf_field_active = true;
 }
 
 
-void iso14443a_off(void) {
+void hf_field_off(void) {
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();
-    iso14443a_active = false;
+    hf_field_active = false;
 }
 
 /* Peter Fillmore 2015
@@ -2780,7 +2780,7 @@ void ReaderIso14443a(PacketCommandNG *c) {
         return;
 
 OUT:
-    iso14443a_off();
+    hf_field_off();
     set_tracing(false);
 }
 
@@ -3075,7 +3075,7 @@ void ReaderMifare(bool first_try, uint8_t block, uint8_t keytype) {
 
     reply_mix(CMD_ACK, isOK, 0, 0, buf, sizeof(buf));
 
-    iso14443a_off();
+    hf_field_off();
     set_tracing(false);
 }
 
@@ -3314,6 +3314,6 @@ void DetectNACKbug(void) {
 
     //reply_mix(CMD_ACK, isOK, num_nacks, i, 0, 0);
     BigBuf_free();
-    iso14443a_off();
+    hf_field_off();
     set_tracing(false);
 }
