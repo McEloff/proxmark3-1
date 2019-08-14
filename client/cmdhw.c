@@ -12,12 +12,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
+#include <ctype.h>
+
+#include "cmdparser.h"    // command_t
+#include "comms.h"
+#include "usart_defs.h"
 #include "ui.h"
-#include "proxmark3.h"
-#include "cmdparser.h"
 #include "cmdhw.h"
-#include "cmdmain.h"
+#include "cmdlf.h"
 #include "cmddata.h"
 
 static int CmdHelp(const char *Cmd);

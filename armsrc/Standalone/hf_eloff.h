@@ -13,12 +13,20 @@
 
 #include <stdbool.h>
 #include "standalone.h"
-#include "apps.h"
+#include "appmain.h"
 #include "mifaresim.h"
 #include "mifareutil.h"
 #include "mifare.h"
 #include "iso14443a.h"
 #include "BigBuf.h"
+#include "cmd.h"
+#include "dbprint.h"
+#include "fpgaloader.h"
+#include "lfsampling.h"
+#include "proxmark3_arm.h"
+#include "util.h"
+#include "string.h"
+#include "lfdemod.h"
 
 void StandaloneReplyStatus();
 

@@ -31,9 +31,9 @@ endif
 
 -include Makefile.platform
 -include .Makefile.options.cache
-include common/Makefile.hal
+include common_arm/Makefile.hal
 
-all clean: %: client/% bootrom/% armsrc/% recovery/% mfkey/% nonce2key/%
+all clean: %: client/% bootrom/% armsrc/% recovery/% mfkey/% nonce2key/% fpga_compress/%
 
 mfkey/%: FORCE
 	$(info [*] MAKE $@)
@@ -41,10 +41,13 @@ mfkey/%: FORCE
 nonce2key/%: FORCE
 	$(info [*] MAKE $@)
 	$(Q)$(MAKE) --no-print-directory -C tools/nonce2key $(patsubst nonce2key/%,%,$@)
+fpga_compress/%: FORCE
+	$(info [*] MAKE $@)
+	$(Q)$(MAKE) --no-print-directory -C tools/fpga_compress $(patsubst fpga_compress/%,%,$@)
 bootrom/%: FORCE cleanifplatformchanged
 	$(info [*] MAKE $@)
 	$(Q)$(MAKE) --no-print-directory -C bootrom $(patsubst bootrom/%,%,$@)
-armsrc/%: FORCE cleanifplatformchanged
+armsrc/%: FORCE cleanifplatformchanged fpga_compress/%
 	$(info [*] MAKE $@)
 	$(Q)$(MAKE) --no-print-directory -C armsrc $(patsubst armsrc/%,%,$@)
 client/%: FORCE
@@ -74,6 +77,7 @@ help:
 	@echo "+ client        - Make only the OS-specific host client"
 	@echo "+ mfkey         - Make tools/mfkey"
 	@echo "+ nonce2key     - Make tools/nonce2key"
+	@echo "+ fpga_compress - Make tools/fpga_compress"
 	@echo
 	@echo "+ style         - Apply some automated source code formatting rules"
 	@echo "+ checks        - Detect various encoding issues in source code"
@@ -92,6 +96,8 @@ recovery: recovery/all
 mfkey: mfkey/all
 
 nonce2key: nonce2key/all
+
+fpga_compress: fpga_compress/all
 
 flash-bootrom: bootrom/obj/bootrom.elf $(FLASH_TOOL)
 	$(FLASH_TOOL) $(FLASH_PORT) -b $(subst /,$(PATHSEP),$<)
@@ -158,11 +164,16 @@ style:
 
 # Detecting weird codepages and tabs.
 checks:
-	find . \( -name "*.[ch]" -or -name "*.cpp" -or -name "*.lua" -or -name "*.py" -or -name "*.pl" -or -name "Makefile" -or -name "*.v" \) \
+	@echo "Files with suspicious chars:"
+	@find . \( -name "*.[ch]" -or -name "*.cpp" -or -name "*.lua" -or -name "*.py" -or -name "*.pl" -or -name "Makefile" -or -name "*.v" \) \
 	      -exec sh -c "cat {} |recode utf8.. >/dev/null || echo {}" \;
-	find . \( -name "*.[ch]" -or \( -name "*.cpp" -and -not -name "*.moc.cpp" \) -or -name "*.lua" -or -name "*.py" -or -name "*.pl" -or -name "*.md" -or -name "*.txt" -or -name "*.awk" -or -name "*.v" \) \
-	      -exec grep -lP '\t' {} \;
+	@echo "Files with tabs:"
 # to remove tabs within lines, one can try with: vi $file -c ':set tabstop=4' -c ':set et|retab' -c ':wq'
+	@find . \( -name "*.[ch]" -or \( -name "*.cpp" -and -not -name "*.moc.cpp" \) -or -name "*.lua" -or -name "*.py" -or -name "*.pl" -or -name "*.md" -or -name "*.txt" -or -name "*.awk" -or -name "*.v" \) \
+	      -exec grep -lP '\t' {} \;
+#	@echo "Files with printf \\\\t:"
+#	@find . \( -name "*.[ch]" -or \( -name "*.cpp" -and -not -name "*.moc.cpp" \) -or -name "*.lua" -or -name "*.py" -or -name "*.pl" -or -name "*.md" -or -name "*.txt" -or -name "*.awk" -or -name "*.v" \) \
+#	      -exec grep -lP '\\t' {} \;
 
 # Dummy target to test for GNU make availability
 _test:

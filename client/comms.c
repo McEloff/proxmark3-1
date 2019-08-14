@@ -10,11 +10,16 @@
 //-----------------------------------------------------------------------------
 
 #include "comms.h"
+
+#include <inttypes.h>
+#include <string.h>
+#include <stdio.h>
+
+#include "uart.h"
+#include "ui.h"
 #include "crc16.h"
-#if defined(__linux__) || (__APPLE__)
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
+#include "util_posix.h" // msclock
+#include "util_darwin.h" // en/dis-ableNapp();
 
 //#define COMMS_DEBUG
 //#define COMMS_DEBUG_RAW

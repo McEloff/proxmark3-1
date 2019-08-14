@@ -9,9 +9,12 @@
 //-----------------------------------------------------------------------------
 #include "cmdflashmemspiffs.h"
 
-#include "mbedtls/base64.h"
-#include "mbedtls/rsa.h"
-#include "mbedtls/sha1.h"
+#include <ctype.h>
+
+#include "cmdparser.h"    // command_t
+#include "pmflash.h"
+#include "loclass/fileutils.h"  //saveFile
+#include "comms.h"              //getfromdevice
 
 static int CmdHelp(const char *Cmd);
 
@@ -33,6 +36,13 @@ static int CmdFlashMemSpiFFSTest(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
     clearCommandBuffer();
     SendCommandNG(CMD_SPIFFS_TEST, NULL, 0);
+    return PM3_SUCCESS;
+}
+
+static int CmdFlashMemSpiFFSCheck(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
+    clearCommandBuffer();
+    SendCommandNG(CMD_SPIFFS_CHECK, NULL, 0);
     return PM3_SUCCESS;
 }
 
@@ -278,7 +288,7 @@ static int CmdFlashMemSpiFFSDump(const char *Cmd) {
 
     uint8_t *dump = calloc(len, sizeof(uint8_t));
     if (!dump) {
-        PrintAndLogDevice(ERR, "error, cannot allocate memory ");
+        PrintAndLogEx(ERR, "error, cannot allocate memory ");
         return PM3_EMALLOC;
     }
 
@@ -358,7 +368,7 @@ static int CmdFlashMemSpiFFSLoad(const char *Cmd) {
     }
 
     if (datalen > FLASH_MEM_MAX_SIZE) {
-        PrintAndLogDevice(ERR, "error, filesize is larger than available memory");
+        PrintAndLogEx(ERR, "error, filesize is larger than available memory");
         free(data);
         return PM3_EOVFLOW;
     }
@@ -436,6 +446,7 @@ static command_t CommandTable[] = {
         "copy", CmdFlashMemSpiFFSCopy, IfPm3Flash,
         "Copy a file to another (destructively) in SPIFFS FileSystem in FlashMEM (spiffs)"
     },
+    {"check", CmdFlashMemSpiFFSCheck, IfPm3Flash, "Check/try to defrag faulty/fragmented Filesystem"},
     {"dump", CmdFlashMemSpiFFSDump, IfPm3Flash, "Dump a file from SPIFFS FileSystem in FlashMEM (spiffs)"},
     {"info", CmdFlashMemSpiFFSInfo, IfPm3Flash, "Print filesystem info and usage statistics (spiffs)"},
     {"load", CmdFlashMemSpiFFSLoad, IfPm3Flash, "Upload file into SPIFFS Filesystem (spiffs)"},
