@@ -25,7 +25,7 @@
 #include "cmddata.h"
 #include "lfdemod.h"
 #include "cmdhf14a.h"   // for getTagInfo
-#include "loclass/fileutils.h"  // loadDictionary
+#include "fileutils.h"  // loadDictionary
 #include "util_posix.h"
 
 
@@ -206,7 +206,7 @@ static int usage_t55xx_chk() {
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "       lf t55xx chk m");
-    PrintAndLogEx(NORMAL, "       lf t55xx chk i default_pwd.dic");
+    PrintAndLogEx(NORMAL, "       lf t55xx chk i t55xx_default_pwds");
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }

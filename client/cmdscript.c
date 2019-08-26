@@ -8,10 +8,6 @@
 // Some lua scripting glue to proxmark core.
 //-----------------------------------------------------------------------------
 
-// this define is needed for scandir/alphasort to work
-#define _GNU_SOURCE
-
-#include <dirent.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -26,35 +22,9 @@
 #include "lauxlib.h"
 #include "proxmark3.h"
 #include "ui.h"
-
-#ifdef _WIN32
-#include "scandir.h"
-#endif
+#include "fileutils.h"
 
 static int CmdHelp(const char *Cmd);
-
-static int str_ends_with(const char *str, const char *suffix) {
-
-    if (str == NULL || suffix == NULL)
-        return 0;
-
-    size_t str_len = strlen(str);
-    size_t suffix_len = strlen(suffix);
-
-    if (suffix_len > str_len)
-        return 0;
-
-    return 0 == strncmp(str + str_len - suffix_len, suffix, suffix_len);
-}
-
-/**
- * Utility to check the ending of a string (used to check file suffix)
- */
-static bool endsWith(const char *base, const char *str) {
-    int blen = strlen(base);
-    int slen = strlen(str);
-    return (blen >= slen) && (0 == strcmp(base + blen - slen, str));
-}
 
 /**
 * Generate a sorted list of available commands, what it does is
@@ -63,31 +33,7 @@ static bool endsWith(const char *base, const char *str) {
 */
 static int CmdScriptList(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
-
-    char const *exedir = get_my_executable_directory();
-    if (exedir == NULL)
-        return 0;
-    char script_directory_path[strlen(exedir) + strlen(LUA_SCRIPTS_DIRECTORY) + 1];
-    strcpy(script_directory_path, exedir);
-    strcpy(script_directory_path, get_my_executable_directory());
-    strcat(script_directory_path, LUA_SCRIPTS_DIRECTORY);
-
-    struct dirent **namelist;
-    int n;
-
-    n = scandir(script_directory_path, &namelist, NULL, alphasort);
-    if (n == -1) {
-        PrintAndLogEx(FAILED, "Couldn't open the scripts-directory");
-        return 1;
-    }
-
-    for (uint16_t i = 0; i < n; i++) {
-        if (str_ends_with(namelist[i]->d_name, ".lua"))
-            PrintAndLogEx(NORMAL, "%-21s", namelist[i]->d_name);
-        free(namelist[i]);
-    }
-    free(namelist);
-    return 0;
+    return searchAndList(LUA_SCRIPTS_SUBDIR, ".lua");
 }
 
 /**
@@ -113,28 +59,22 @@ static int CmdScriptRun(const char *Cmd) {
     //Add the 'bit' library
     set_bit_library(lua_state);
 
-    char script_name[128] = {0};
+    char preferredName[128] = {0};
     char arguments[256] = {0};
 
     int name_len = 0;
     int arg_len = 0;
-    sscanf(Cmd, "%127s%n %255[^\n\r]%n", script_name, &name_len, arguments, &arg_len);
+    sscanf(Cmd, "%127s%n %255[^\n\r]%n", preferredName, &name_len, arguments, &arg_len);
 
-    const char *suffix = "";
-    if (!endsWith(script_name, ".lua")) {
-        suffix = ".lua";
-    }
+    char *script_path;
+    int res = searchFile(&script_path, LUA_SCRIPTS_SUBDIR, preferredName, ".lua");
+    if (res != PM3_SUCCESS)
+        return res;
 
-    char script_path[strlen(get_my_executable_directory()) + strlen(LUA_SCRIPTS_DIRECTORY) + strlen(script_name) + strlen(suffix) + 1];
-    strcpy(script_path, get_my_executable_directory());
-    strcat(script_path, LUA_SCRIPTS_DIRECTORY);
-    strcat(script_path, script_name);
-    strcat(script_path, suffix);
-
-    PrintAndLogEx(SUCCESS, "Executing: %s%s, args '%s'\n", script_name, suffix, arguments);
-
-    // run the Lua script
-    int error = luaL_loadfile(lua_state, script_path);
+    int error;
+    PrintAndLogEx(SUCCESS, "Executing: %s, args '%s'\n", script_path, arguments);
+    error = luaL_loadfile(lua_state, script_path);
+    free(script_path);
     if (!error) {
         lua_pushstring(lua_state, arguments);
         lua_setglobal(lua_state, "args");
@@ -175,7 +115,7 @@ static command_t CommandTable[] = {
  */
 static int CmdHelp(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
-    PrintAndLogEx(NORMAL, "This is a feature to run Lua-scripts. You can place lua-scripts within the scripts/-folder. ");
+    PrintAndLogEx(NORMAL, "This is a feature to run Lua-scripts. You can place Lua-scripts within the luascripts/-folder. ");
     return 0;
 }
 

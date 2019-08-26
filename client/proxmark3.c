@@ -88,9 +88,9 @@ main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
     if (session.pm3_present) {
         // cache Version information now:
         if (execCommand || script_cmds_file || stdinOnPipe)
-            pm3_version(false);
+            pm3_version(false, false);
         else
-            pm3_version(true);
+            pm3_version(true, false);
         // todo: check valid version before to support operation
         pm3_get_standalone_done_status();
     }
@@ -286,6 +286,7 @@ static void show_help(bool showFullHelp, char *exec_name) {
         PrintAndLogEx(NORMAL, "      -l/--lua <lua script file>          execute lua script.");
         PrintAndLogEx(NORMAL, "      -s/--script-file <cmd_script_file>  script file with one Proxmark3 command per line");
         PrintAndLogEx(NORMAL, "      -i/--interactive                    enter interactive mode after executing the script or the command");
+        PrintAndLogEx(NORMAL, "      -v/--version                        print client version");
         PrintAndLogEx(NORMAL, "\nsamples:");
         PrintAndLogEx(NORMAL, "      %s -h\n", exec_name);
         PrintAndLogEx(NORMAL, "      %s -m\n", exec_name);
@@ -380,6 +381,12 @@ int main(int argc, char *argv[]) {
             dumpAllHelp(1);
             return 0;
         }
+        // pritn client version
+        if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0) {
+            pm3_version(true, true);
+            return 0;
+        }
+
 
         // flush output
         if (strcmp(argv[i], "-f") == 0 || strcmp(argv[i], "--flush") == 0) {
