@@ -1392,7 +1392,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data) {
         } else if (receivedCmd[0] == MIFARE_ULEV1_FASTREAD && len == 5) {    // Received a FAST READ (ranged read)
             uint8_t block1 = receivedCmd[1];
             uint8_t block2 = receivedCmd[2];
-            if (block1 < block2 || block2 > pages) {
+            if (block1 > block2 || block2 > pages) {
                 // send NACK 0x0 == invalid argument
                 EmSend4bit(CARD_NACK_IV);
             } else {
