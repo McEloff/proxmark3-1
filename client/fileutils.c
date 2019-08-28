@@ -287,7 +287,7 @@ int saveFileJSON(const char *preferredName, JSONFileType ftype, uint8_t *data, s
             memcpy(uid, data, 8);
             JsonSaveBufAsHexCompact(root, "$.Card.UID", uid, sizeof(uid));
 
-            for (size_t i = 0; i < (datalen / 8 ); i++) {
+            for (size_t i = 0; i < (datalen / 8); i++) {
                 char path[PATH_MAX_LENGTH] = {0};
                 sprintf(path, "$blocks.%zu", i);
                 JsonSaveBufAsHexCompact(root, path, data + (i * 8), 8);
@@ -311,7 +311,7 @@ out:
     return retval;
 }
 
-int createMfcKeyDump(uint8_t sectorsCnt, sector_t *e_sector, char* fptr) {
+int createMfcKeyDump(uint8_t sectorsCnt, sector_t *e_sector, char *fptr) {
     uint8_t tmpKey[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     int i;
 
@@ -568,8 +568,8 @@ int loadFileJSON(const char *preferredName, void *data, size_t maxdatalen, size_
 
             size_t len = 0;
             JsonLoadBufAsHex(root, path, &udata[sptr], 8, &len);
-            if (!len) 
-                 break;
+            if (!len)
+                break;
 
             sptr += len;
         }
@@ -649,6 +649,84 @@ out:
     return retval;
 }
 
+int loadFileDICTIONARY_safe(const char *preferredName, void **pdata, uint8_t keylen, uint16_t *keycnt) {
+
+    int block_size = 512;
+    int allocation_size = block_size;
+    size_t counter = 0;
+    int retval = PM3_SUCCESS;
+    char *path;
+    if (searchFile(&path, DICTIONARIES_SUBDIR, preferredName, ".dic") != PM3_SUCCESS)
+        return PM3_EFILE;
+
+    // t5577 == 4bytes
+    // mifare == 6 bytes
+    // iclass == 8 bytes
+    // default to 6 bytes.
+    if (keylen != 4 && keylen != 6 && keylen != 8) {
+        keylen = 6;
+    }
+
+    // double up since its chars
+    keylen <<= 1;
+
+    char line[255];
+
+    // allocate some space for the dictionary
+    *pdata = calloc(keylen * allocation_size, sizeof(uint8_t));
+    if (*pdata == NULL) return PM3_EFILE;
+
+    FILE *f = fopen(path, "r");
+    if (!f) {
+        PrintAndLogEx(WARNING, "file not found or locked. '" _YELLOW_("%s")"'", path);
+        retval = PM3_EFILE;
+        goto out;    }
+
+    // read file
+    while (fgets(line, sizeof(line), f)) {
+        // check if we have enough space (if not allocate more)
+        if ((*keycnt) >= allocation_size) {
+            allocation_size += block_size;
+            *pdata = realloc(*pdata, keylen * allocation_size * sizeof(uint8_t));
+            if (*pdata == NULL) {
+                return PM3_EFILE;
+            } else {
+                // zero the new memory (safety first)
+                memset(*pdata + allocation_size - block_size, 0, block_size);
+            }
+        }
+
+        // add null terminator
+        line[keylen] = 0;
+
+        // smaller keys than expected is skipped
+        if (strlen(line) < keylen)
+            continue;
+
+        // The line start with # is comment, skip
+        if (line[0] == '#')
+            continue;
+
+        if (!isxdigit(line[0])) {
+            PrintAndLogEx(FAILED, "file content error. '%s' must include " _BLUE_("%2d") "HEX symbols", line, keylen);
+            continue;
+        }
+
+        uint64_t key = strtoull(line, NULL, 16);
+
+        num_to_bytes(key, keylen >> 1, *pdata + counter);
+        (*keycnt)++;
+        memset(line, 0, sizeof(line));
+        counter += (keylen >> 1);
+    }
+    fclose(f);
+    PrintAndLogEx(SUCCESS, "loaded " _GREEN_("%2d") "keys from dictionary file " _YELLOW_("%s"), *keycnt, path);
+
+out:
+    free(path);
+    return retval;
+}
+
 int convertOldMfuDump(uint8_t **dump, size_t *dumplen) {
     if (!dump || !dumplen || *dumplen < OLD_MFU_DUMP_PREFIX_LENGTH)
         return 1;
@@ -694,7 +772,7 @@ static int filelist(const char *path, const char *ext, bool last) {
     PrintAndLogEx(NORMAL, "%s── %s", last ? "└" : "├", path);
     for (uint16_t i = 0; i < n; i++) {
         if (((ext == NULL) && (namelist[i]->d_name[0] != '.')) || (str_endswith(namelist[i]->d_name, ext))) {
-            PrintAndLogEx(NORMAL, "%s   %s── %-21s", last ? " ":"│", i == n-1 ? "└" : "├", namelist[i]->d_name);
+            PrintAndLogEx(NORMAL, "%s   %s── %-21s", last ? " " : "│", i == n - 1 ? "└" : "├", namelist[i]->d_name);
         }
         free(namelist[i]);
     }
@@ -727,19 +805,17 @@ int searchAndList(const char *pm3dir, const char *ext) {
 }
 
 static int searchFinalFile(char **foundpath, const char *pm3dir, const char *searchname) {
-    if ((foundpath == NULL)||(pm3dir == NULL)||(searchname == NULL)) return PM3_ESOFT;
+    if ((foundpath == NULL) || (pm3dir == NULL) || (searchname == NULL)) return PM3_ESOFT;
     // explicit absolute (/) or relative path (./) => try only to match it directly
     char *filename = calloc(strlen(searchname) + 1, sizeof(char));
     if (filename == NULL) return PM3_EMALLOC;
     strcpy(filename, searchname);
     if (((strlen(filename) > 1) && (filename[0] == '/')) ||
-        ((strlen(filename) > 2) && (filename[0] == '.') && (filename[1] == '/')))
-    {
+            ((strlen(filename) > 2) && (filename[0] == '.') && (filename[1] == '/'))) {
         if (fileExists(filename)) {
             *foundpath = filename;
             return PM3_SUCCESS;
-        }
-        else {
+        } else {
             goto out;
         }
     }
