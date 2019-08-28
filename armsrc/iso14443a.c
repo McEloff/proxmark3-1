@@ -1538,6 +1538,17 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data) {
             AddCrc14A(cmd, sizeof(cmd) - 2);
             EmSendCmd(cmd, sizeof(cmd));
             p_response = NULL;
+        } else if (receivedCmd[0] == 0x90 && receivedCmd[1] == 0xEE && len == MFU_DUMP_PREFIX_LENGTH + 4 && tagType == 7) {
+            // Backdoor command to reinitialize EV1/NTAG header data
+            if (receivedCmd[13] == 0)
+                receivedCmd[13] = pages; // save current pages count to reinitialization
+            else
+                pages = receivedCmd[13]; // save current pages count before reinitialization
+            // header area
+            emlSetMem_xt(&receivedCmd[2], 0, 1, MFU_DUMP_PREFIX_LENGTH);
+            reinit = true;
+            // send ACK
+            EmSend4bit(CARD_ACK);
         } else {
             // Check for ISO 14443A-4 compliant commands, look at left nibble
             switch (receivedCmd[0]) {
