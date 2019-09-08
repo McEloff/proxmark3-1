@@ -9,27 +9,13 @@
 # Add -DNOFORCE  to disable the -F switch
 # Add -DPRESETS  to compile with preset models (edit config.h)
 
-# Hide full compilation line:
-ifneq ($(V),1)
-  Q?=@
-endif
-# To see full command lines, use make V=1
-
-CC = gcc
-CXX = g++
-LD = g++
-TAR = tar
-TARFLAGS ?= -v --ignore-failed-read -r
-TARFLAGS += -C .. -f
-RM = rm -f
-RMDIR= rm -rf
-MKDIR = mkdir -p
-MV = mv
-TOUCH = touch
-FALSE = false
-
-platform = $(shell uname)
+# Must be called before any Makefile include
 ROOT_DIR:=$(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+
+include ../Makefile.defs
+
+INSTALLBIN = proxmark3 proxmark3-flasher
+INSTALLSHARE = cmdscripts lualibs luascripts resources dictionaries
 
 VPATH = ../common uart
 vpath %.dic dictionaries
@@ -54,6 +40,8 @@ CBORLIBPATH = ./tinycbor
 CBORLIB = $(CBORLIBPATH)/tinycbor.a
 REVENGPATH = ./reveng
 REVENGLIB = $(REVENGPATH)/libreveng.a
+AMIIBOLIBPATH = ./amiitool
+AMIIBOLIB = $(AMIIBOLIBPATH)/libamiibo.a
 
 # common libraries
 MBEDTLSLIBPATH = ../common/mbedtls
@@ -61,17 +49,12 @@ MBEDTLSLIB = $(OBJDIR)/libmbedtls.a
 ZLIBPATH = ../common/zlib
 ZLIB = $(OBJDIR)/libz.a
 
-LIBS = -I$(LUALIBPATH) -I$(MBEDTLSLIBPATH) -I$(JANSSONLIBPATH) -I$(CBORLIBPATH) -I$(ZLIBPATH) -I$(REVENGPATH)
+LIBS = -I$(LUALIBPATH) -I$(MBEDTLSLIBPATH) -I$(JANSSONLIBPATH) -I$(CBORLIBPATH) -I$(ZLIBPATH) -I$(REVENGPATH) -I$(AMIIBOLIBPATH)
 INCLUDES_CLIENT = -I. -I../include -I../common -Iuart $(LIBS)
 CFLAGS ?= -Wall -Werror -g -O3
 # We cannot just use CFLAGS+=... because it has impact on sub-makes if CFLAGS is defined in env:
 PM3CFLAGS = $(CFLAGS) -std=c99 -D_ISOC99_SOURCE $(INCLUDES_CLIENT)
-ifneq (,$(PM3_BIN_PATH))
-    PM3CFLAGS += -DPM3_BIN_PATH=\"$(PM3_BIN_PATH)\"
-endif
-ifneq (,$(PM3_SHARE_PATH))
-    PM3CFLAGS += -DPM3_SHARE_PATH=\"$(PM3_SHARE_PATH)\"
-endif
+PREFIX ?= /usr/local
 ifneq (,$(findstring MINGW,$(platform)))
     PM3CFLAGS += -mno-ms-bitfields -fexec-charset=cp850
 endif
@@ -90,7 +73,6 @@ else
     LIBS := -I/usr/local/opt/readline/include $(LIBS)
 else
     LUALIB +=  -ldl
-    LDLIBS +=  -ltermcap -lncurses
     LUAPLATFORM = linux
 endif
 endif
@@ -296,8 +278,10 @@ ifeq "$(SUPPORTS_AVX512)" "True"
     MULTIARCHOBJS +=  $(MULTIARCHSRCS:%.c=$(OBJDIR)/%_AVX512.o)
 endif
 
-BINS = proxmark3 flasher
+BINS = proxmark3 proxmark3-flasher
 CLEAN = $(BINS) *.moc.cpp ui/ui_overlays.h lualibs/pm3_cmd.lua lualibs/mfc_default_keys.lua
+# transition: make sure old flasher is gone too
+CLEAN += flasher
 
 # need to assign dependancies to build these first...
 all: $(BINS)
@@ -305,12 +289,12 @@ all: $(BINS)
 all-static: LDLIBS:=-static $(LDLIBS)
 all-static: $(BINS)
 
-proxmark3: LDLIBS+=$(LUALIB) $(JANSSONLIB) $(MBEDTLSLIB) $(CBORLIB) $(ZLIB) $(REVENGLIB) $(QTLDLIBS)
-proxmark3: $(OBJDIR)/proxmark3.o $(COREOBJS) $(CMDOBJS) $(OBJCOBJS) $(QTGUIOBJS) $(MULTIARCHOBJS) $(LUALIB) $(JANSSONLIB) $(CBORLIB) $(REVENGLIB) $(MBEDTLSLIB) $(ZLIB) lualibs/pm3_cmd.lua lualibs/mfc_default_keys.lua
+proxmark3: LDLIBS+=$(LUALIB) $(JANSSONLIB) $(MBEDTLSLIB) $(CBORLIB) $(ZLIB) $(REVENGLIB) $(AMIIBOLIB) $(QTLDLIBS)
+proxmark3: $(OBJDIR)/proxmark3.o $(COREOBJS) $(CMDOBJS) $(OBJCOBJS) $(QTGUIOBJS) $(MULTIARCHOBJS) $(LUALIB) $(JANSSONLIB) $(CBORLIB) $(REVENGLIB) $(MBEDTLSLIB) $(ZLIB) $(AMIIBOLIB) lualibs/pm3_cmd.lua lualibs/mfc_default_keys.lua
 	$(info [=] LD $@)
 	$(Q)$(LD) $(LDFLAGS) $(OBJDIR)/proxmark3.o $(COREOBJS) $(CMDOBJS) $(OBJCOBJS) $(QTGUIOBJS) $(MULTIARCHOBJS) $(LDLIBS)  -o $@
 
-flasher: $(OBJDIR)/flash.o $(OBJDIR)/flasher.o $(COREOBJS) $(OBJCOBJS)
+proxmark3-flasher: $(OBJDIR)/flash.o $(OBJDIR)/flasher.o $(COREOBJS) $(OBJCOBJS)
 	$(info [=] LD $@)
 	$(Q)$(LD) $(LDFLAGS) $^ $(LDLIBS) -o $@
 
@@ -339,6 +323,29 @@ clean:
 	$(Q)$(MAKE) --no-print-directory -C $(JANSSONLIBPATH) clean
 	$(Q)$(MAKE) --no-print-directory -C $(CBORLIBPATH) clean
 	$(Q)$(MAKE) --no-print-directory -C $(REVENGPATH) clean
+	$(Q)$(MAKE) --no-print-directory -C $(AMIIBOLIBPATH) clean
+
+install: all
+	$(info [@] Installing client to $(DESTDIR)$(PREFIX)...)
+ifneq (,$(INSTALLBIN))
+	    $(Q)$(MKDIR) $(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLBINRELPATH)
+	    $(Q)$(CP) $(INSTALLBIN) $(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLBINRELPATH)
+endif
+ifneq (,$(INSTALLSHARE))
+	    $(Q)$(MKDIR) $(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLSHARERELPATH)
+	    $(Q)$(CP) $(INSTALLSHARE) $(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLSHARERELPATH)
+endif
+	@true
+
+uninstall:
+	$(info [@] Uninstalling client from $(DESTDIR)$(PREFIX)...)
+ifneq (,$(INSTALLBIN))
+	    $(Q)$(RM) $(foreach tool,$(INSTALLBIN),$(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLBINRELPATH)$(PATHSEP)$(notdir $(tool)))
+endif
+ifneq (,$(INSTALLSHARE))
+	    $(Q)$(RMDIR) $(foreach tool,$(INSTALLSHARE),$(DESTDIR)$(PREFIX)$(PATHSEP)$(INSTALLSHARERELPATH)$(PATHSEP)$(notdir $(tool)))
+endif
+	@true
 
 tarbin: $(BINS)
 	$(info [=] TAR ../proxmark3-$(platform)-bin.tar)
@@ -361,6 +368,10 @@ $(REVENGLIB):
 	$(info [*] MAKE reveng)
 	$(Q)$(MAKE) --no-print-directory -C $(REVENGPATH) all
 
+$(AMIIBOLIB):
+	$(info [*] MAKE amiibo)
+	$(Q)$(MAKE) --no-print-directory -C $(AMIIBOLIBPATH) all
+
 # common libraries:
 $(MBEDTLSLIB):
 	$(info [*] MAKE mbedtls)
@@ -370,7 +381,7 @@ $(ZLIB):
 	$(info [*] MAKE zlib)
 	$(Q)$(MAKE) --no-print-directory -C $(ZLIBPATH) OBJDIR=$(ROOT_DIR)$(OBJDIR) BINDIR=$(ROOT_DIR)$(OBJDIR) all
 
-.PHONY: all clean
+.PHONY: all clean install uninstall
 
 # easy printing of MAKE VARIABLES
 print-%: ; @echo $* = $($*)
@@ -436,7 +447,7 @@ DEPENDENCY_FILES = $(patsubst %.c, $(OBJDIR)/%.d, $(CORESRCS) $(CMDSRCS) $(REVEN
 	$(patsubst %.o, %.d, $(MULTIARCHOBJS)) \
 	$(patsubst %.cpp, $(OBJDIR)/%.d, $(QTGUISRCS)) \
 	$(patsubst %.m, $(OBJDIR)/%.d, $(OBJCSRCS)) \
-	$(OBJDIR)/proxmark3.d $(OBJDIR)/flash.d $(OBJDIR)/flasher.d
+	$(OBJDIR)/proxmark3.d $(OBJDIR)/flash.d $(OBJDIR)/proxmark3-flasher.d $(OBJDIR)/flasher.d
 
 $(DEPENDENCY_FILES): ;
 .PRECIOUS: $(DEPENDENCY_FILES)

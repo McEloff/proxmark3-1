@@ -2128,10 +2128,12 @@ static int CmdT55xxChkPwds(const char *Cmd) {
     if (use_pwd_file) {
         uint16_t keycount = 0;
 
-        int res = loadFileDICTIONARY_safe(filename, (void**) &keyBlock, 4, &keycount);
-        if (res != PM3_SUCCESS || keycount <= 0 || keyBlock == NULL) {
+        int res = loadFileDICTIONARY_safe(filename, (void **) &keyBlock, 4, &keycount);
+        if (res != PM3_SUCCESS || keycount == 0 || keyBlock == NULL) {
             PrintAndLogEx(WARNING, "No keys found in file");
-            if (keyBlock != NULL) free(keyBlock);
+            if (keyBlock != NULL)
+                free(keyBlock);
+
             return PM3_ESOFT;
         }
 

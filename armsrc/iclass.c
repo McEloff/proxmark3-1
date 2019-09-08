@@ -55,7 +55,13 @@
 #include "protocols.h"
 #include "ticks.h"
 
-static int timeout = 4096;
+static int g_wait = 300;
+static int timeout = 2900;
+static uint32_t time_rdr = 0;
+static uint32_t time_delta = 0;
+static uint32_t time_delta_wait = 0;
+static uint32_t time_response = 0;
+
 static int SendIClassAnswer(uint8_t *resp, int respLen, uint16_t delay);
 int doIClassSimulation(int simulationMode, uint8_t *reader_mac_buf);
 
@@ -151,7 +157,7 @@ typedef struct {
 static tUartIc Uart;
 
 static void OnError(uint8_t reason) {
-    reply_old(CMD_ACK, 0, reason, 0, 0, 0);
+    reply_mix(CMD_ACK, 0, reason, 0, 0, 0);
     switch_off();
 }
 
@@ -160,10 +166,12 @@ static void uart_reset(void) {
     Uart.synced = false;
     Uart.frame = false;
 }
+
 static void uart_init(uint8_t *data) {
     Uart.buf = data;
     uart_reset();
 }
+
 static void uart_bit(uint8_t bit) {
     static uint8_t buf = 0xff;
     static uint8_t n_buf;
@@ -1427,7 +1435,6 @@ int doIClassSimulation(int simulationMode, uint8_t *reader_mac_buf) {
     uint32_t time_0 = GetCountSspClk();
     uint32_t t2r_stime = 0, t2r_etime = 0;
     uint32_t r2t_stime, r2t_etime = 0;
-
     LED_A_ON();
     bool buttonPressed = false;
 
@@ -1713,9 +1720,11 @@ static int SendIClassAnswer(uint8_t *resp, int respLen, uint16_t delay) {
 static void TransmitIClassCommand(const uint8_t *cmd, int len, int *samples, int *wait) {
 
     int c = 0;
-    volatile uint32_t b;
+//    volatile uint32_t b;
     bool firstpart = true;
     uint8_t sendbyte;
+
+    time_rdr = 0;
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_ISO14443A | FPGA_HF_ISO14443A_READER_MOD);
     AT91C_BASE_SSC->SSC_THR = 0x00;
@@ -1749,11 +1758,15 @@ static void TransmitIClassCommand(const uint8_t *cmd, int len, int *samples, int
         }
 
         // Prevent rx holding register from overflowing
+        /*
         if (AT91C_BASE_SSC->SSC_SR & (AT91C_SSC_RXRDY)) {
             b = AT91C_BASE_SSC->SSC_RHR;
             (void)b;
         }
+        */
     }
+
+    time_rdr = GetCountSspClk();
 
     if (samples) {
         if (wait)
@@ -1827,7 +1840,7 @@ void ReaderTransmitIClass(uint8_t *frame, int len) {
 //  If a response is captured return TRUE
 //  If it takes too long return FALSE
 //-----------------------------------------------------------------------------
-static int GetIClassAnswer(uint8_t *receivedResponse, int maxLen, int *samples, int *elapsed) {
+static int GetIClassAnswer(uint8_t *receivedResponse, int maxLen, int *samples, int *wait) {
     // buffer needs to be 512 bytes
     // maxLen is not used...
 
@@ -1837,13 +1850,16 @@ static int GetIClassAnswer(uint8_t *receivedResponse, int maxLen, int *samples, 
     // Setup UART/DEMOD to receive
     DemodIcInit(receivedResponse);
 
-    if (elapsed) *elapsed = 0;
-
     // Set FPGA mode to "reader listen mode", no modulation (listen
     // only, since we are receiving, not transmitting).
     FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_ISO14443A | FPGA_HF_ISO14443A_READER_LISTEN);
-    SpinDelayUs(320);  //310 Tout= 330us (iso15603-2)   (330/21.3) take consideration for clock increments.
 
+    time_delta =  GetCountSspClk() - time_rdr;
+
+    SpinDelayUs(g_wait);  //310 Tout= 330us (iso15603-2)   (330/21.3) take consideration for clock increments.
+    time_delta_wait = GetCountSspClk() - time_rdr - time_delta;
+
+    uint32_t foo = GetCountSspClk();
     // clear RXRDY:
     uint8_t b = (uint8_t)AT91C_BASE_SSC->SSC_RHR;
     (void)b;
@@ -1861,15 +1877,16 @@ static int GetIClassAnswer(uint8_t *receivedResponse, int maxLen, int *samples, 
         }
 
         // keep tx buffer in a defined state anyway.
-        if (AT91C_BASE_SSC->SSC_SR & (AT91C_SSC_TXRDY)) {
-            AT91C_BASE_SSC->SSC_THR = 0x00;
-            // To make use of exact timing of next command from reader!!
-            if (elapsed)(*elapsed)++;
-        }
-
+        /*
+                if (AT91C_BASE_SSC->SSC_SR & (AT91C_SSC_TXRDY)) {
+                    AT91C_BASE_SSC->SSC_THR = 0x00;
+                }
+        */
         // Wait for byte be become available in rx holding register
         if (AT91C_BASE_SSC->SSC_SR & (AT91C_SSC_RXRDY)) {
-            if (c >= timeout) return false;
+
+            if (GetCountSspClk() - foo > timeout) return false;
+//            if (c >= timeout) return false;
 
             c++;
 
@@ -1881,25 +1898,28 @@ static int GetIClassAnswer(uint8_t *receivedResponse, int maxLen, int *samples, 
             if (ManchesterDecoding_iclass(b & 0x0f)) {
                 if (samples)
                     *samples = c << 3;
+
+                time_response = GetCountSspClk() - foo;
                 return true;
             }
         }
     }
+
     return false;
 }
 
 int ReaderReceiveIClass(uint8_t *receivedAnswer) {
     int samples = 0;
 
-    if (!GetIClassAnswer(receivedAnswer, 0, &samples, NULL))
-        return false;
+    if (GetIClassAnswer(receivedAnswer, 0, &samples, NULL) == false)
+        return 0;
 
     rsamples += samples;
 
     LogTrace(receivedAnswer, Demod.len, rsamples, rsamples, NULL, false);
 
     if (samples == 0)
-        return false;
+        return 0;
 
     return Demod.len;
 }
@@ -1924,25 +1944,31 @@ void setupIclassReader() {
     // Now give it time to spin up.
     // Signal field is on with the appropriate LED
     FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_ISO14443A | FPGA_HF_ISO14443A_READER_MOD);
-    SpinDelay(300);
+    SpinDelay(500);
 
     StartCountSspClk();
 
     LED_A_ON();
 }
 
-bool sendCmdGetResponseWithRetries(uint8_t *command, size_t cmdsize, uint8_t *resp, uint8_t expected_size, uint8_t retries) {
+bool sendCmdGetResponseWithRetries(uint8_t *command, size_t cmdsize, uint8_t *resp, uint8_t expected_size, int8_t retries) {
     while (retries-- > 0) {
 
         ReaderTransmitIClass(command, cmdsize);
 
         //iceman - if received size is bigger than expected, we smash the stack here
         // since its called with fixed sized arrays
+
+        // update/write commadn takes 4ms to 15ms before responding
+        if (command[0] == ICLASS_CMD_UPDATE)
+            g_wait = 15000;
+
         uint8_t got_n = ReaderReceiveIClass(resp);
 
         // 0xBB is the internal debug separator byte..
         if (expected_size != got_n || (resp[0] == 0xBB || resp[7] == 0xBB || resp[2] == 0xBB)) {
             //try again
+            SpinDelayUs(360);
             continue;
         }
 
@@ -2396,8 +2422,6 @@ void iClass_Authentication_fast(uint64_t arg0, uint64_t arg1, uint8_t *datain) {
         if (isOK)
             goto out;
 
-        SpinDelayUs(400);  //iClass (iso15693-2) should timeout after 330us.
-
         // Auth Sequence MUST begin with reading e-purse. (block2)
         // Card selected, now read e-purse (cc) (block2) (only 8 bytes no CRC)
         ReaderTransmitIClass(readcheck_cc, sizeof(readcheck_cc));
@@ -2433,10 +2457,14 @@ bool iClass_ReadBlock(uint8_t blockno, uint8_t *data, uint8_t len) {
 // turn off afterwards
 // readblock 8 + 2.  only want 8.
 void iClass_ReadBlk(uint8_t blockno) {
-    uint8_t data[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    bool isOK = iClass_ReadBlock(blockno, data, sizeof(data));
-    reply_mix(CMD_ACK, isOK, 0, 0, data, sizeof(data));
+    struct p {
+        bool isOK; 
+        uint8_t blockdata[8];
+    } PACKED result;
+    
+    result.isOK = iClass_ReadBlock(blockno, result.blockdata, sizeof(result.blockdata));
     switch_off();
+    reply_ng(CMD_HF_ICLASS_READBL, PM3_SUCCESS, (uint8_t *)&result, sizeof(result));
 }
 
 // turn off afterwards

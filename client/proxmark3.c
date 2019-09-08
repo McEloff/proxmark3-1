@@ -8,18 +8,15 @@
 //-----------------------------------------------------------------------------
 // Main binary
 //-----------------------------------------------------------------------------
+
 #include "proxmark3.h"
-
 #include <limits.h>
-
 #include <stdio.h> // for Mingw readline
 #include <stdlib.h>
 #include <unistd.h>
 #include <readline/readline.h>
 #include <readline/history.h>
-
 #include "usart_defs.h"
-
 #include "util_posix.h"
 #include "proxgui.h"
 #include "cmdmain.h"
@@ -27,7 +24,8 @@
 #include "cmdhw.h"
 #include "whereami.h"
 #include "comms.h"
-//#include "usart.h"
+#include "fileutils.h"
+
 
 static void showBanner(void) {
     PrintAndLogEx(NORMAL, "\n");
@@ -46,7 +44,8 @@ static void showBanner(void) {
     PrintAndLogEx(NORMAL, "==.     ==. ... ==. ====..   https://github.com/rfidresearchgroup/proxmark3/");
     PrintAndLogEx(NORMAL, "...     ...     ... .....  pre-release v4.0");
 #endif
-    PrintAndLogEx(NORMAL, "\nSupport iceman on patreon,   https://www.patreon.com/iceman1001/");
+    PrintAndLogEx(NORMAL, "\nSupport iceman on patreon - https://www.patreon.com/iceman1001/");
+    PrintAndLogEx(NORMAL, "                 on paypal - https://www.paypal.me/iceman1001");
 //    printf("\nMonero: 43mNJLpgBVaTvyZmX9ajcohpvVkaRy1kbZPm8tqAb7itZgfuYecgkRF36rXrKFUkwEGeZedPsASRxgv4HPBHvJwyJdyvQuP");
     PrintAndLogEx(NORMAL, "\n");
     fflush(stdout);
@@ -97,15 +96,25 @@ main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
 
     if (script_cmds_file) {
 
-        sf = fopen(script_cmds_file, "r");
-        if (sf)
-            PrintAndLogEx(SUCCESS, "executing commands from file: %s\n", script_cmds_file);
-        else
-            PrintAndLogEx(ERR, "could not open " _YELLOW_("%s") "...", script_cmds_file);
+        char *path;
+        int res = searchFile(&path, CMD_SCRIPTS_SUBDIR, script_cmds_file, ".cmd", false);
+        if (res == PM3_SUCCESS) {
+            sf = fopen(path, "r");
+            if (sf)
+                PrintAndLogEx(SUCCESS, "executing commands from file: %s\n", path);
+            else
+                PrintAndLogEx(ERR, "could not open " _YELLOW_("%s") "...", path);
+            free(path);
+        }
     }
 
-    read_history(".history");
-
+    char *my_history_path = NULL;
+    if (searchHomeFilePath(&my_history_path, PROXHISTORY, true) != PM3_SUCCESS) {
+        PrintAndLogEx(ERR, "No history will be recorded");
+        my_history_path = NULL;
+    } else {
+        read_history(my_history_path);
+    }
     // loops every time enter is pressed...
     while (1) {
         bool printprompt = false;
@@ -222,8 +231,10 @@ main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
     if (sf)
         fclose(sf);
 
-    write_history(".history");
-
+    if (my_history_path) {
+        write_history(my_history_path);
+        free(my_history_path);
+    }
     if (cmd) {
         free(cmd);
         cmd = NULL;

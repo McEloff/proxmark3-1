@@ -38,6 +38,7 @@ client/ui/ui_overlays.h
 
 hardnested_stats.txt
 proxmark3
+proxmark3-flasher
 flasher
 !flasher/
 lua
@@ -76,3 +77,4 @@ client/lualibs/pm3_cmd.lua
 # recompiled
 fpga_version_info.c
 
+.proxmark3/*
