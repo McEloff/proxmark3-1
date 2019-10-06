@@ -25,6 +25,8 @@
 #include "lfdemod.h"    // parityTest, bitbytes_to_byte
 #include "cmddata.h"
 #include "cmdlf.h"      // lf_read
+#include "protocols.h"  // t55 defines
+#include "cmdlft55xx.h" // verifywrite
 
 static int CmdHelp(const char *Cmd);
 
@@ -96,7 +98,7 @@ static int CmdIndalaDemod(const char *Cmd) {
         else if (idx == -4)
             PrintAndLogEx(DEBUG, "DEBUG: Error - Indala: preamble not found");
         else if (idx == -5)
-            PrintAndLogEx(DEBUG, "DEBUG: Error - Indala: size not correct: %d", size);
+            PrintAndLogEx(DEBUG, "DEBUG: Error - Indala: size not correct: %zu", size);
         else
             PrintAndLogEx(DEBUG, "DEBUG: Error - Indala: error demoding psk idx: %d", idx);
         return PM3_ESOFT;
@@ -112,7 +114,7 @@ static int CmdIndalaDemod(const char *Cmd) {
     if (DemodBufferLen == 64) {
         PrintAndLogEx(
             SUCCESS
-            , "Indala Found - bitlength %d, Raw %x%08x"
+            , "Indala Found - bitlength %zu, Raw %x%08x"
             , DemodBufferLen
             , uid1
             , uid2
@@ -159,7 +161,7 @@ static int CmdIndalaDemod(const char *Cmd) {
         uint32_t uid7 = bytebits_to_byte(DemodBuffer + 192, 32);
         PrintAndLogEx(
             SUCCESS
-            , "Indala Found - bitlength %d, Raw 0x%x%08x%08x%08x%08x%08x%08x"
+            , "Indala Found - bitlength %zu, Raw 0x%x%08x%08x%08x%08x%08x%08x"
             , DemodBufferLen
             , uid1
             , uid2
@@ -235,7 +237,7 @@ static int CmdIndalaDemodAlt(const char *Cmd) {
     }
 
     if (rawbit > 0) {
-        PrintAndLogEx(INFO, "Recovered %d raw bits, expected: %d", rawbit, GraphTraceLen / 32);
+        PrintAndLogEx(INFO, "Recovered %d raw bits, expected: %zu", rawbit, GraphTraceLen / 32);
         PrintAndLogEx(INFO, "worst metric (0=best..7=worst): %d at pos %d", worst, worstPos);
     } else {
         return PM3_ESOFT;
@@ -439,10 +441,12 @@ static int CmdIndalaSim(const char *Cmd) {
     return PM3_SUCCESS;
 }
 
-// iceman - needs refactoring
 static int CmdIndalaClone(const char *Cmd) {
 
     bool isLongUid = false;
+    uint32_t blocks[8] = {0};
+    uint8_t max = 0;
+
     uint8_t data[7 * 4];
     int datalen = 0;
 
@@ -466,28 +470,42 @@ static int CmdIndalaClone(const char *Cmd) {
     CLIGetHexWithReturn(2, data, &datalen);
     CLIParserFree();
 
+    /*
+        //TODO add selection of chip for Q5 or T55x7
+
+        // data[0] =  T5555_SET_BITRATE(32 | T5555_MODULATION_PSK2 | 7 << T5555_MAXBLOCK_SHIFT;
+        //Alternative config for Indala (Extended mode;RF/32;PSK1 with RF/2;Maxblock=7;Inverse data)
+        // T5567WriteBlock(0x603E10E2,0);
+
+        // data[0] = T5555_SET_BITRATE(32 | T5555_MODULATION_PSK1 | 2 << T5555_MAXBLOCK_SHIFT;
+        //Alternative config for Indala (Extended mode;RF/32;PSK1 with RF/2;Maxblock=2;Inverse data)
+        // T5567WriteBlock(0x603E1042,0);
+    */
+
     if (isLongUid) {
+        // config for Indala (RF/32;PSK2 with RF/2;Maxblock=7)
         PrintAndLogEx(INFO, "Preparing to clone Indala 224bit tag with RawID %s", sprint_hex(data, datalen));
-        uint32_t datawords[7] = {0};
-        datawords[0] = bytes_to_num(data, 4);
-        datawords[1] = bytes_to_num(data +  4, 4);
-        datawords[2] = bytes_to_num(data +  8, 4);
-        datawords[3] = bytes_to_num(data + 12, 4);
-        datawords[4] = bytes_to_num(data + 16, 4);
-        datawords[5] = bytes_to_num(data + 20, 4);
-        datawords[6] = bytes_to_num(data + 24, 4);
-        clearCommandBuffer();
-        SendCommandOLD(CMD_LF_INDALA224_CLONE, 0, 0, 0, datawords, sizeof(datawords));
+        blocks[0] =  T55x7_BITRATE_RF_32 | T55x7_MODULATION_PSK2 | (7 << T55x7_MAXBLOCK_SHIFT);
+        blocks[1] = bytes_to_num(data, 4);
+        blocks[2] = bytes_to_num(data +  4, 4);
+        blocks[3] = bytes_to_num(data +  8, 4);
+        blocks[4] = bytes_to_num(data + 12, 4);
+        blocks[5] = bytes_to_num(data + 16, 4);
+        blocks[6] = bytes_to_num(data + 20, 4);
+        blocks[7] = bytes_to_num(data + 24, 4);
+        max = 8;
     } else {
+        // config for Indala 64 format (RF/32;PSK1 with RF/2;Maxblock=2)
         PrintAndLogEx(INFO, "Preparing to clone Indala 64bit tag with RawID %s", sprint_hex(data, datalen));
-        uint32_t datawords[2] = {0};
-        datawords[0] = bytes_to_num(data, 4);
-        datawords[1] = bytes_to_num(data + 4, 4);
-        clearCommandBuffer();
-        SendCommandOLD(CMD_LF_INDALA_CLONE, 0, 0, 0, datawords, sizeof(datawords));
+        blocks[0] =  T55x7_BITRATE_RF_32 | T55x7_MODULATION_PSK1 | (2 << T55x7_MAXBLOCK_SHIFT);
+        blocks[1] = bytes_to_num(data, 4);
+        blocks[2] = bytes_to_num(data + 4, 4);
+        max = 3;
     }
 
-    return PM3_SUCCESS;
+    print_blocks(blocks, max);
+
+    return clone_t55xx_tag(blocks, max);
 }
 
 static command_t CommandTable[] = {
@@ -611,7 +629,7 @@ out:
     //PrintAndLogEx(INFO, "DEBUG: detectindala RES = %d | %d | %d", res, found_size, idx);
 
     if (found_size != 224 && found_size != 64) {
-        PrintAndLogEx(INFO, "DEBUG: detectindala | %d", found_size);
+        PrintAndLogEx(INFO, "DEBUG: detectindala | %zu", found_size);
         return -5;
     }
 

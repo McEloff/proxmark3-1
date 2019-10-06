@@ -49,6 +49,7 @@ static int usage_thinfilm_sim(void) {
 //    https://github.com/nfc-tools/libnfc/blob/master/utils/nfc-barcode.c
 static int print_barcode(uint8_t *barcode, const size_t barcode_len, bool verbose) {
 
+    PrintAndLogEx(NORMAL, "");
     // remove start bit
     uint8_t mb = barcode[0] & ~0x80;
     PrintAndLogEx(SUCCESS, "    Manufacturer : "_YELLOW_("%s") "[0x%02X]",  getTagInfo(mb), mb);
@@ -60,10 +61,11 @@ static int print_barcode(uint8_t *barcode, const size_t barcode_len, bool verbos
             compute_crc(CRC_14443_A, barcode, barcode_len - 2, &b1, &b2);
             bool isok = (barcode[barcode_len - 1] == b1 && barcode[barcode_len - 2] == b2);
 
-            PrintAndLogEx(SUCCESS, "        checksum : "_YELLOW_("%02X %02X")"- %s", b2, b1, (isok) ? _GREEN_("OK") : _RED_("fail"));
+            PrintAndLogEx(SUCCESS, "        Checksum : "_YELLOW_("%02X %02X")"- %s", b2, b1, (isok) ? _GREEN_("OK") : _RED_("fail"));
         } else {
-            PrintAndLogEx(SUCCESS, "        checksum : "_YELLOW_("too few data for checksum")"- " _RED_("fail"));
+            PrintAndLogEx(SUCCESS, "        Checksum : "_YELLOW_("too few data for checksum")"- " _RED_("fail"));
         }
+        PrintAndLogEx(SUCCESS, " Data len (bits) : "_YELLOW_("%zu")"- %s", barcode_len * 8, (barcode_len == 16 || barcode_len == 32) ? _GREEN_("OK") : _YELLOW_("warning"));
         PrintAndLogEx(SUCCESS, "        Raw data : "_YELLOW_("%s"), sprint_hex(barcode, barcode_len));
         if (barcode_len < 4) // too few to go to next decoding stages
             return PM3_ESOFT;

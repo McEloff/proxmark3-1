@@ -28,6 +28,8 @@
 #define UTIL_BUFFER_SIZE_SPRINT 4097
 // global client debug variable
 uint8_t g_debugMode = 0;
+// global client disable logging variable
+uint8_t g_printAndLog = PRINTANDLOG_PRINT | PRINTANDLOG_LOG;
 
 #ifdef _WIN32
 #include <windows.h>
@@ -381,14 +383,14 @@ char *sprint_ascii(const uint8_t *data, const size_t len) {
 }
 
 void print_blocks(uint32_t *data, size_t len) {
-    PrintAndLogEx(NORMAL, "Blk | Data ");
-    PrintAndLogEx(NORMAL, "----+------------");
+    PrintAndLogEx(SUCCESS, "Blk | Data ");
+    PrintAndLogEx(SUCCESS, "----+------------");
 
     if (!data) {
         PrintAndLogEx(ERR, "..empty data");
     } else {
         for (uint8_t i = 0; i < len; i++)
-            PrintAndLogEx(NORMAL, "%02d | 0x%08X", i, data[i]);
+            PrintAndLogEx(SUCCESS, " %02d | %08X", i, data[i]);
     }
 }
 
@@ -875,4 +877,21 @@ char *strmcopy(const char *buf) {
         strcpy(str, buf);
     }
     return str;
+}
+
+/**
+ * Converts a hex string to component "hi2", "hi" and "lo" 32-bit integers, one nibble
+ * at a time.
+ *
+ * Returns the number of nibbles (4 bits) entered.
+ */
+int hexstring_to_u96(uint32_t *hi2, uint32_t *hi, uint32_t *lo, const char *str) {
+    int n = 0, i = 0;
+
+    while (sscanf(&str[i++], "%1x", &n) == 1) {
+        *hi2 = (*hi2 << 4) | (*hi >> 28);
+        *hi = (*hi << 4) | (*lo >> 28);
+        *lo = (*lo << 4) | (n & 0xf);
+    }
+    return i - 1;
 }

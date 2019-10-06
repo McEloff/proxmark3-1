@@ -32,6 +32,7 @@
 #include "cmdflashmem.h"  // rdv40 flashmem commands
 #include "cmdsmartcard.h" // rdv40 smart card ISO7816 commands
 #include "cmdusart.h"     // rdv40 FPC USART commands
+#include "cmdwiegand.h"   // wiegand commands
 #include "ui.h"
 #include "util_posix.h"
 
@@ -91,18 +92,20 @@ static command_t CommandTable[] = {
     {"help",    CmdHelp,      AlwaysAvailable,         "This help. Use '<command> help' for details of a particular command."},
     {"analyse", CmdAnalyse,   AlwaysAvailable,         "{ Analyse utils... }"},
     {"data",    CmdData,      AlwaysAvailable,         "{ Plot window / data buffer manipulation... }"},
-    {"emv",     CmdEMV,       AlwaysAvailable,         "{ EMV iso14443 and iso7816... }"},
-    {"hf",      CmdHF,        AlwaysAvailable,         "{ High Frequency commands... }"},
+    {"emv",     CmdEMV,       AlwaysAvailable,         "{ EMV ISO-14443 / ISO-7816... }"},
+    {"hf",      CmdHF,        AlwaysAvailable,         "{ High frequency commands... }"},
     {"hw",      CmdHW,        AlwaysAvailable,         "{ Hardware commands... }"},
-    {"lf",      CmdLF,        AlwaysAvailable,         "{ Low Frequency commands... }"},
+    {"lf",      CmdLF,        AlwaysAvailable,         "{ Low frequency commands... }"},
     {"mem",     CmdFlashMem,  IfPm3Flash,              "{ Flash Memory manipulation... }"},
-    {"msleep",  CmdMsleep,    AlwaysAvailable,         "Add a pause in milliseconds"},
-    {"rem",     CmdRem,       AlwaysAvailable,         "Add text to row in log file"},
-    {"reveng",  CmdRev,       AlwaysAvailable,         "{ Crc calculations from the RevEng software }"},
-    {"sc",      CmdSmartcard, IfPm3Smartcard,          "{ Smart card ISO7816 commands... }"},
+    {"reveng",  CmdRev,       AlwaysAvailable,         "{ CRC calculations from RevEng software }"},
+    {"sc",      CmdSmartcard, IfPm3Smartcard,          "{ Smart card ISO-7816 commands... }"},
     {"script",  CmdScript,    AlwaysAvailable,         "{ Scripting commands }"},
     {"trace",   CmdTrace,     AlwaysAvailable,         "{ Trace manipulation... }"},
     {"usart",   CmdUsart,     IfPm3FpcUsartFromUsb,    "{ USART commands... }"},
+    {"wiegand", CmdWiegand,   AlwaysAvailable,         "{ Wiegand format manipulation... }"},
+    {"",        CmdHelp,      AlwaysAvailable,         ""},
+    {"msleep",  CmdMsleep,    AlwaysAvailable,         "Add a pause in milliseconds"},
+    {"rem",     CmdRem,       AlwaysAvailable,         "Add a text line in log file"},
     {"quit",    CmdQuit,      AlwaysAvailable,         ""},
     {"exit",    CmdQuit,      AlwaysAvailable,         "Exit program"},
     {NULL, NULL, NULL, NULL}

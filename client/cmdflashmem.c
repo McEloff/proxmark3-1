@@ -117,7 +117,7 @@ static int CmdFlashmemSpiBaudrate(const char *Cmd) {
         usage_flashmem_spibaud();
         return PM3_EINVARG;
     }
-    SendCommandMIX(CMD_FLASHMEM_SET_SPIBAUDRATE, baudrate, 0, 0, NULL, 0);
+    SendCommandNG(CMD_FLASHMEM_SET_SPIBAUDRATE, (uint8_t*)&baudrate, sizeof(uint32_t));
     return PM3_SUCCESS;
 }
 
@@ -266,7 +266,7 @@ static int CmdFlashMemLoad(const char *Cmd) {
 
     conn.block_after_ACK = false;
     free(data);
-    PrintAndLogEx(SUCCESS, "Wrote "_GREEN_("%u")"bytes to offset "_GREEN_("%u"), datalen, start_index);
+    PrintAndLogEx(SUCCESS, "Wrote "_GREEN_("%zu")"bytes to offset "_GREEN_("%u"), datalen, start_index);
     return PM3_SUCCESS;
 }
 static int CmdFlashMemDump(const char *Cmd) {

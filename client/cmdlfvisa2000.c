@@ -14,7 +14,10 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdlib.h>
+#include <inttypes.h>
 
+#include "commonutil.h"     // ARRAYLEN
+#include "common.h"
 #include "cmdparser.h"    // command_t
 #include "comms.h"
 #include "ui.h"
@@ -23,6 +26,7 @@
 #include "cmdlf.h"
 #include "protocols.h"  // for T55xx config register definitions
 #include "lfdemod.h"    // parityTest
+#include "cmdlft55xx.h"    // write verify
 
 #define BL0CK1 0x56495332
 
@@ -116,7 +120,7 @@ static int CmdVisa2kDemod(const char *Cmd) {
         else if (ans == -2)
             PrintAndLogEx(DEBUG, "DEBUG: Error - Visa2k: preamble not found");
         else if (ans == -3)
-            PrintAndLogEx(DEBUG, "DEBUG: Error - Visa2k: Size not correct: %d", size);
+            PrintAndLogEx(DEBUG, "DEBUG: Error - Visa2k: Size not correct: %zu", size);
         else
             PrintAndLogEx(DEBUG, "DEBUG: Error - Visa2k: ans: %d", ans);
 
@@ -171,39 +175,16 @@ static int CmdVisa2kClone(const char *Cmd) {
     id = param_get32ex(Cmd, 0, 0, 10);
 
     //Q5
-    if (param_getchar(Cmd, 1) == 'Q' || param_getchar(Cmd, 1) == 'q')
+    if (tolower(param_getchar(Cmd, 1)) == 'q')
         blocks[0] = T5555_MODULATION_MANCHESTER | T5555_SET_BITRATE(64) | T5555_ST_TERMINATOR | 3 << T5555_MAXBLOCK_SHIFT;
 
     blocks[2] = id;
     blocks[3] = (visa_parity(id) << 4) | visa_chksum(id);
 
-    PrintAndLogEx(INFO, "Preparing to clone Visa2000 to T55x7 with CardId: %u", id);
-    print_blocks(blocks, 4);
+    PrintAndLogEx(INFO, "Preparing to clone Visa2000 to T55x7 with CardId: %"PRIu64, id);
+    print_blocks(blocks,  ARRAYLEN(blocks));
 
-    PacketResponseNG resp;
-
-    // fast push mode
-    conn.block_after_ACK = true;
-    for (uint8_t i = 0; i < 4; i++) {
-        if (i == 3) {
-            // Disable fast mode on last packet
-            conn.block_after_ACK = false;
-        }
-        clearCommandBuffer();
-        t55xx_write_block_t ng;
-        ng.data = blocks[i];
-        ng.pwd = 0;
-        ng.blockno = i;
-        ng.flags = 0;
-
-        SendCommandNG(CMD_LF_T55XX_WRITEBL, (uint8_t *)&ng, sizeof(ng));
-        if (!WaitForResponseTimeout(CMD_LF_T55XX_WRITEBL, &resp, T55XX_WRITE_TIMEOUT)) {
-
-            PrintAndLogEx(ERR, "Error occurred, device did not respond during write operation.");
-            return PM3_ETIMEOUT;
-        }
-    }
-    return PM3_SUCCESS;
+    return clone_t55xx_tag(blocks, ARRAYLEN(blocks));
 }
 
 static int CmdVisa2kSim(const char *Cmd) {

@@ -13,6 +13,7 @@
 #include "common.h"
 
 #define T55x7_CONFIGURATION_BLOCK 0x00
+#define T55x7_PWD_BLOCK 0x07
 #define T55x7_TRACE_BLOCK1 0x01
 #define T55x7_TRACE_BLOCK2 0x02
 #define T55x7_PAGE0 0x00
@@ -116,12 +117,22 @@ typedef struct {
     } bitrate;
     bool Q5;
     bool ST;
+    bool usepwd;
+    enum {
+        refFixedBit = 0x00,
+        refLongLeading = 0x01,
+        refLeading0 = 0x02,
+        ref1of4 = 0x03,
+    } downlink_mode;
 } t55xx_conf_block_t;
 
 t55xx_conf_block_t Get_t55xx_Config(void);
 void Set_t55xx_Config(t55xx_conf_block_t conf);
 
 int CmdLFT55XX(const char *Cmd);
+
+void SetConfigWithBlock0(uint32_t block0);
+void SetConfigWithBlock0Ex(uint32_t block0, uint8_t offset, bool Q5);
 
 char *GetPskCfStr(uint32_t id, bool q5);
 char *GetBitRateStr(uint32_t id, bool xmode);
@@ -130,14 +141,23 @@ char *GetQ5ModulationStr(uint32_t id);
 char *GetModulationStr(uint32_t id, bool xmode);
 char *GetModelStrFromCID(uint32_t cid);
 char *GetSelectedModulationStr(uint8_t id);
+char *GetDownlinkModeStr(uint8_t dlmode);
 void printT5xxHeader(uint8_t page);
 void printT55xxBlock(uint8_t blockNum);
 int  printConfiguration(t55xx_conf_block_t b);
 
-int  T55xxReadBlock(uint8_t block, bool page1, bool usepwd, uint8_t override, uint32_t password, uint8_t downlink_mode);
+bool t55xxAquireAndCompareBlock0(bool usepwd, uint32_t password, uint32_t known_block0, bool verbose);
+bool t55xxAquireAndDetect(bool usepwd, uint32_t password, uint32_t known_block0, bool verbose);
+bool t55xxVerifyWrite(uint8_t block, bool page1, bool usepwd, uint8_t override, uint32_t password, uint8_t downlink_mode, uint32_t data);
+int T55xxReadBlock(uint8_t block, bool page1, bool usepwd, uint8_t override, uint32_t password, uint8_t downlink_mode);
+int T55xxReadBlockEx(uint8_t block, bool page1, bool usepwd, uint8_t override, uint32_t password, uint8_t downlink_mode, bool verbose);
+
+int t55xxWrite(uint8_t block, bool page1, bool usepwd, bool testMode, uint32_t password, uint8_t downlink_mode, uint32_t data);
+
 bool GetT55xxBlockData(uint32_t *blockdata);
 bool DecodeT55xxBlock(void);
-bool tryDetectModulation(void);
+bool tryDetectModulation(uint8_t downlink_mode, bool print_config);
+bool tryDetectModulationEx(uint8_t downlink_mode, bool print_config, uint32_t wanted_conf);
 bool testKnownConfigBlock(uint32_t block0);
 
 bool tryDetectP1(bool getData);
@@ -149,4 +169,5 @@ uint8_t  tryOnePassword(uint32_t password, uint8_t downlink_mode);
 void printT55x7Trace(t55x7_tracedata_t data, uint8_t repeat);
 void printT5555Trace(t5555_tracedata_t data, uint8_t repeat);
 
+int clone_t55xx_tag(uint32_t *blockdata, uint8_t numblocks);
 #endif

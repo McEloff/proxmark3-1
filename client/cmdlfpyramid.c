@@ -8,12 +8,13 @@
 // FSK2a, rf/50, 128 bits (complete)
 //-----------------------------------------------------------------------------
 #include "cmdlfpyramid.h"
-
+#include "common.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <ctype.h>
 
+#include "commonutil.h"   // ARRAYLEN
 #include "cmdparser.h"    // command_t
 #include "comms.h"
 #include "ui.h"
@@ -23,6 +24,7 @@
 #include "protocols.h"  // for T55xx config register definitions
 #include "lfdemod.h"    // parityTest
 #include "crc.h"
+#include "cmdlft55xx.h" // verifywrite
 
 static int CmdHelp(const char *Cmd);
 
@@ -85,7 +87,7 @@ static int CmdPyramidDemod(const char *Cmd) {
         else if (idx == -4)
             PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: preamble not found");
         else if (idx == -5)
-            PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: size not correct: %d", size);
+            PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: size not correct: %zu", size);
         else
             PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: error demoding fsk idx: %d", idx);
         return PM3_ESOFT;
@@ -135,7 +137,7 @@ static int CmdPyramidDemod(const char *Cmd) {
         if (size == 0)
             PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: parity check failed - IDX: %d, hi3: %08X", idx, rawHi3);
         else
-            PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: at parity check - tag size does not match Pyramid format, SIZE: %d, IDX: %d, hi3: %08X", size, idx, rawHi3);
+            PrintAndLogEx(DEBUG, "DEBUG: Error - Pyramid: at parity check - tag size does not match Pyramid format, SIZE: %zu, IDX: %d, hi3: %08X", size, idx, rawHi3);
         return PM3_ESOFT;
     }
 
@@ -215,13 +217,13 @@ static int CmdPyramidClone(const char *Cmd) {
 
     char cmdp = tolower(param_getchar(Cmd, 0));
     if (strlen(Cmd) == 0 || cmdp == 'h') return usage_lf_pyramid_clone();
-
     uint32_t facilitycode = 0, cardnumber = 0, fc = 0, cn = 0;
-    uint32_t blocks[5];
-    uint8_t bs[128];
-    memset(bs, 0x00, sizeof(bs));
-
     if (sscanf(Cmd, "%u %u", &fc, &cn) != 2) return usage_lf_pyramid_clone();
+    uint32_t blocks[5];
+    uint8_t *bs = calloc(128, sizeof(uint8_t));
+    if (bs == NULL) {
+        return PM3_EMALLOC;
+    }
 
     facilitycode = (fc & 0x000000FF);
     cardnumber = (cn & 0x0000FFFF);
@@ -243,32 +245,12 @@ static int CmdPyramidClone(const char *Cmd) {
     blocks[3] = bytebits_to_byte(bs + 64, 32);
     blocks[4] = bytebits_to_byte(bs + 96, 32);
 
+    free(bs);
+
     PrintAndLogEx(INFO, "Preparing to clone Farpointe/Pyramid to T55x7 with Facility Code: %u, Card Number: %u", facilitycode, cardnumber);
-    print_blocks(blocks, 5);
+    print_blocks(blocks,  ARRAYLEN(blocks));
 
-    PacketResponseNG resp;
-
-    // fast push mode
-    conn.block_after_ACK = true;
-    for (uint8_t i = 0; i < 5; i++) {
-        if (i == 4) {
-            // Disable fast mode on last packet
-            conn.block_after_ACK = false;
-        }
-        clearCommandBuffer();
-        t55xx_write_block_t ng;
-        ng.data = blocks[i];
-        ng.pwd = 0;
-        ng.blockno = i;
-        ng.flags = 0;
-
-        SendCommandNG(CMD_LF_T55XX_WRITEBL, (uint8_t *)&ng, sizeof(ng));
-        if (!WaitForResponseTimeout(CMD_LF_T55XX_WRITEBL, &resp, T55XX_WRITE_TIMEOUT)) {
-            PrintAndLogEx(ERR, "Error occurred, device did not respond during write operation.");
-            return PM3_ETIMEOUT;
-        }
-    }
-    return PM3_SUCCESS;
+    return clone_t55xx_tag(blocks, ARRAYLEN(blocks));
 }
 
 static int CmdPyramidSim(const char *Cmd) {

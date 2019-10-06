@@ -45,7 +45,7 @@ static int usage_analyse_checksum(void) {
     PrintAndLogEx(NORMAL, "Usage:  analyse chksum [h] [v] b <bytes> m <mask>");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "           h          This help");
-    PrintAndLogEx(NORMAL, "           v          supress header");
+    PrintAndLogEx(NORMAL, "           v          suppress header");
     PrintAndLogEx(NORMAL, "           b <bytes>  bytes to calc missing XOR in a LCR");
     PrintAndLogEx(NORMAL, "           m <mask>   bit mask to limit the outpuyt");
     PrintAndLogEx(NORMAL, "");
@@ -260,7 +260,7 @@ static int CmdAnalyseLCR(const char *Cmd) {
             PrintAndLogEx(WARNING, "Invalid HEX value.");
             return 1;
         case 2:
-            PrintAndLogEx(WARNING, "Too many bytes.  Max %d bytes", sizeof(data));
+            PrintAndLogEx(WARNING, "Too many bytes.  Max %zu bytes", sizeof(data));
             return 1;
         case 3:
             PrintAndLogEx(WARNING, "Hex must have even number of digits.");

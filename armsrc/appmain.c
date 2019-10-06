@@ -143,11 +143,25 @@ uint16_t AvgAdc(int ch) {
 
 void MeasureAntennaTuning(void) {
 
-    uint8_t LF_Results[256];
-    uint32_t i, peak = 0, peakv = 0, peakf = 0;
-    uint32_t v_lf125 = 0, v_lf134 = 0, v_hf = 0; // in mV
+    uint32_t peak = 0;
 
-    memset(LF_Results, 0, sizeof(LF_Results));
+    // in mVolt
+    struct p {
+        uint32_t v_lf134;
+        uint32_t v_lf125;
+        uint32_t v_lfconf;
+        uint32_t v_hf;
+        uint32_t peak_v;
+        uint32_t peak_f;
+        int divisor;
+        uint8_t results[256];
+    } PACKED payload;
+
+    memset(payload.results, 0, sizeof(payload.results));
+
+    sample_config *sc = getSamplingConfig();
+    payload.divisor = sc->divisor;
+
     LED_B_ON();
 
     /*
@@ -163,21 +177,26 @@ void MeasureAntennaTuning(void) {
     FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_ADC | FPGA_LF_ADC_READER_FIELD);
     SpinDelay(50);
 
-    for (i = 255; i >= 19; i--) {
+    for (uint8_t i = 255; i >= 19; i--) {
         WDT_HIT();
         FpgaSendCommand(FPGA_CMD_SET_DIVISOR, i);
         SpinDelay(20);
         uint32_t adcval = ((MAX_ADC_LF_VOLTAGE * AvgAdc(ADC_CHAN_LF)) >> 10);
-        if (i == 95)
-            v_lf125 = adcval; // voltage at 125kHz
-        if (i == 89)
-            v_lf134 = adcval; // voltage at 134kHz
+        if (i == LF_DIVISOR_125)
+            payload.v_lf125 = adcval; // voltage at 125kHz
 
-        LF_Results[i] = adcval >> 9; // scale int to fit in byte for graphing purposes
-        if (LF_Results[i] > peak) {
-            peakv = adcval;
-            peakf = i;
-            peak = LF_Results[i];
+        if (i == LF_DIVISOR_134)
+            payload.v_lf134 = adcval; // voltage at 134kHz
+
+        if (i == sc->divisor)
+            payload.v_lfconf = adcval; // voltage at `lf config q`
+
+        payload.results[i] = adcval >> 9; // scale int to fit in byte for graphing purposes
+
+        if (payload.results[i] > peak) {
+            payload.peak_v = adcval;
+            payload.peak_f = i;
+            peak = payload.results[i];
         }
     }
 
@@ -186,37 +205,36 @@ void MeasureAntennaTuning(void) {
     FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
     FpgaWriteConfWord(FPGA_MAJOR_MODE_HF_READER_RX_XCORR);
     SpinDelay(50);
-    v_hf = (MAX_ADC_HF_VOLTAGE * AvgAdc(ADC_CHAN_HF)) >> 10;
+
+    payload.v_hf = (MAX_ADC_HF_VOLTAGE * AvgAdc(ADC_CHAN_HF)) >> 10;
 
     // RDV40 will hit the roof, try other ADC channel used in that hardware revision.
-    if (v_hf > MAX_ADC_HF_VOLTAGE - 300) {
-        v_hf = (MAX_ADC_HF_VOLTAGE_RDV40 * AvgAdc(ADC_CHAN_HF_RDV40)) >> 10;
+    if (payload.v_hf > MAX_ADC_HF_VOLTAGE - 300) {
+        payload.v_hf = (MAX_ADC_HF_VOLTAGE_RDV40 * AvgAdc(ADC_CHAN_HF_RDV40)) >> 10;
     }
 
-    uint64_t arg0 = v_lf134;
-    arg0 <<= 32;
-    arg0 |= v_lf125;
-
-    uint64_t arg2 = peakv;
-    arg2 <<= 32;
-    arg2 |= peakf;
-
-    reply_mix(CMD_MEASURE_ANTENNA_TUNING, arg0, v_hf, arg2, LF_Results, 256);
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
+    reply_ng(CMD_MEASURE_ANTENNA_TUNING, PM3_SUCCESS, (uint8_t*)&payload, sizeof(payload));
     LEDsoff();
 }
 
+// Measure HF in milliVolt
 uint16_t MeasureAntennaTuningHfData(void) {
-    uint16_t volt = 0; // in mV
-    volt = (MAX_ADC_HF_VOLTAGE * AvgAdc(ADC_CHAN_HF)) >> 10;
+    uint16_t volt = 0;
+    uint16_t avg = AvgAdc(ADC_CHAN_HF);
+    volt = (MAX_ADC_HF_VOLTAGE * avg) >> 10;
     bool use_high = (volt > MAX_ADC_HF_VOLTAGE - 300);
 
-    if (!use_high) {
-        volt = (MAX_ADC_HF_VOLTAGE * AvgAdc(ADC_CHAN_HF)) >> 10;
-    } else {
+    if (use_high) {
         volt = (MAX_ADC_HF_VOLTAGE_RDV40 * AvgAdc(ADC_CHAN_HF_RDV40)) >> 10;
+//        volt = (MAX_ADC_HF_VOLTAGE * AvgAdc(ADC_CHAN_HF)) >> 10;
     }
     return volt;
+}
+
+// Measure LF in milliVolt
+uint32_t MeasureAntennaTuningLfData(void) {
+    return  (MAX_ADC_LF_VOLTAGE * AvgAdc(ADC_CHAN_LF)) >> 10;
 }
 
 void ReadMem(int addr) {
@@ -228,7 +246,7 @@ void ReadMem(int addr) {
 /* osimage version information is linked in */
 extern struct version_information version_information;
 /* bootrom version information is pointed to from _bootphase1_version_pointer */
-extern char *_bootphase1_version_pointer, _flash_start, _flash_end, _bootrom_start, _bootrom_end, __data_src_start__;
+extern char *_bootphase1_version_pointer, _flash_start, _flash_end, __data_src_start__;
 void SendVersion(void) {
     char temp[PM3_CMD_DATA_SIZE - 12]; /* Limited data payload in USB packets */
     char VersionString[PM3_CMD_DATA_SIZE - 12] = { '\0' };
@@ -343,7 +361,7 @@ void SendStatus(void) {
     Flashmem_print_info();
 #endif
 
-    reply_old(CMD_ACK, 1, 0, 0, 0, 0);
+    reply_ng(CMD_STATUS, PM3_SUCCESS, NULL, 0);
 }
 
 void SendCapabilities(void) {
@@ -447,15 +465,12 @@ void SendCapabilities(void) {
 
 // Show some leds in a pattern to identify StandAlone mod is running
 void StandAloneMode(void) {
-
-    DbpString("Stand-alone mode! No PC necessary.");
-
+    DbpString("Stand-alone mode, no computer necessary");
     SpinDown(50);
-    SpinOff(50);
+    SpinDelay(50);
     SpinUp(50);
-    SpinOff(50);
+    SpinDelay(50);
     SpinDown(50);
-    SpinDelay(500);
 }
 
 /*
@@ -670,6 +685,10 @@ static void PacketReceived(PacketCommandNG *packet) {
             setT55xxConfig(packet->oldarg[0], (t55xx_configurations_t *) packet->data.asBytes);
             break;
         }
+        case CMD_LF_SAMPLING_GET_CONFIG: {
+            printConfig();
+            break;
+        }
         case CMD_LF_SAMPLING_SET_CONFIG: {
             setSamplingConfig((sample_config *) packet->data.asBytes);
             break;
@@ -701,11 +720,12 @@ static void PacketReceived(PacketCommandNG *packet) {
         }
         case CMD_LF_HID_DEMOD: {
             uint32_t high, low;
-            CmdHIDdemodFSK(packet->oldarg[0], &high, &low, 1);
+            CmdHIDdemodFSK(0, &high, &low, 1);
             break;
         }
         case CMD_LF_HID_SIMULATE: {
-            CmdHIDsimTAG(packet->oldarg[0], packet->oldarg[1], 1);
+            lf_hidsim_t *payload = (lf_hidsim_t *)packet->data.asBytes;
+            CmdHIDsimTAG(payload->hi2, payload->hi, payload->lo, payload->longFMT, 1);
             break;
         }
         case CMD_LF_FSK_SIMULATE: {
@@ -729,11 +749,7 @@ static void PacketReceived(PacketCommandNG *packet) {
         }
         case CMD_LF_IO_DEMOD: {
             uint32_t high, low;
-            CmdIOdemodFSK(packet->oldarg[0], &high, &low, 1);
-            break;
-        }
-        case CMD_LF_IO_CLONE: {
-            CopyIOtoT55x7(packet->oldarg[0], packet->oldarg[1]);
+            CmdIOdemodFSK(0, &high, &low, 1);
             break;
         }
         case CMD_LF_EM410X_DEMOD: {
@@ -771,17 +787,6 @@ static void PacketReceived(PacketCommandNG *packet) {
             SimulateTagLowFrequencyBidir(packet->oldarg[0], packet->oldarg[1]);
             break;
         }
-        case CMD_LF_INDALA_CLONE: {
-            CopyIndala64toT55x7(packet->data.asDwords[0], packet->data.asDwords[1]);
-            break;
-        }
-        case CMD_LF_INDALA224_CLONE: {
-            CopyIndala224toT55x7(
-                packet->data.asDwords[0], packet->data.asDwords[1], packet->data.asDwords[2], packet->data.asDwords[3],
-                packet->data.asDwords[4], packet->data.asDwords[5], packet->data.asDwords[6]
-            );
-            break;
-        }
         case CMD_LF_T55XX_READBL: {
             struct p {
                 uint32_t password;
@@ -800,7 +805,12 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_LF_T55XX_WAKEUP: {
-            T55xxWakeUp(packet->oldarg[0], packet->oldarg[1]);
+            struct p {
+                uint32_t password;
+                uint8_t flags;
+            } PACKED;
+            struct p *payload = (struct p *) packet->data.asBytes;
+            T55xxWakeUp(payload->password, payload->flags);
             break;
         }
         case CMD_LF_T55XX_RESET_READ: {
@@ -850,11 +860,16 @@ static void PacketReceived(PacketCommandNG *packet) {
         case CMD_LF_AWID_DEMOD:  {
             uint32_t high, low;
             // Set realtime AWID demodulation
-            CmdAWIDdemodFSK(packet->oldarg[0], &high, &low, 1);
+            CmdAWIDdemodFSK(0, &high, &low, 1);
             break;
         }
         case CMD_LF_VIKING_CLONE: {
-            CopyVikingtoT55xx(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2]);
+            struct p {
+                bool Q5;
+                uint8_t blocks[8];
+            } PACKED;
+            struct p *payload = (struct p *)packet->data.asBytes;
+            CopyVikingtoT55xx(payload->blocks, payload->Q5);
             break;
         }
         case CMD_LF_COTAG_READ: {
@@ -1033,7 +1048,13 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_HF_MIFARE_READER: {
-            ReaderMifare(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2]);
+            struct p {
+                uint8_t first_run;
+                uint8_t blockno;
+                uint8_t key_type;
+            } PACKED;
+            struct p *payload = (struct p *) packet->data.asBytes;
+            ReaderMifare(payload->first_run, payload->blockno, payload->key_type);
             break;
         }
         case CMD_HF_MIFARE_READBL: {
@@ -1078,7 +1099,16 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_HF_MIFARE_NESTED: {
-            MifareNested(packet->oldarg[0], packet->oldarg[1], packet->oldarg[2], packet->data.asBytes);
+            struct p {
+                uint8_t block;
+                uint8_t keytype;
+                uint8_t target_block;
+                uint8_t target_keytype;
+                bool calibrate;
+                uint8_t key[6];
+            } PACKED;
+            struct p *payload = (struct p *) packet->data.asBytes;
+            MifareNested(payload->block, payload->keytype, payload->target_block, payload->target_keytype, payload->calibrate, payload->key);
             break;
         }
         case CMD_HF_MIFARE_CHKKEYS: {
@@ -1230,22 +1260,36 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_HF_ICLASS_WRITEBL: {
-            iClass_WriteBlock(packet->oldarg[0], packet->data.asBytes);
+            struct p {
+                uint8_t blockno;
+                uint8_t data[12];
+            } PACKED;
+            struct p *payload = (struct p *)packet->data.asBytes;
+            iClass_WriteBlock(payload->blockno, payload->data);
             break;
         }
+        // iceman2019, unused?
         case CMD_HF_ICLASS_READCHECK: { // auth step 1
             iClass_ReadCheck(packet->oldarg[0], packet->oldarg[1]);
             break;
         }
         case CMD_HF_ICLASS_READBL: {
-            struct p {
-                uint8_t blockno;
-            } PACKED;
-            struct p *payload = (struct p *)packet->data.asBytes;
-            iClass_ReadBlk( payload->blockno );
+            /*
+                        struct p {
+                            uint8_t blockno;
+                        } PACKED;
+                        struct p *payload = (struct p *)packet->data.asBytes;
+                        */
+            iClass_ReadBlk(packet->data.asBytes[0]);
             break;
         }
         case CMD_HF_ICLASS_AUTH: { //check
+            /*
+                        struct p {
+                            uint8_t mac[4];
+                        } PACKED;
+                        struct p *payload = (struct p *)packet->data.asBytes;
+            */
             iClass_Authentication(packet->data.asBytes);
             break;
         }
@@ -1258,7 +1302,13 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_HF_ICLASS_CLONE: {
-            iClass_Clone(packet->oldarg[0], packet->oldarg[1], packet->data.asBytes);
+            struct p {
+                uint8_t startblock;
+                uint8_t endblock;
+                uint8_t data[];
+            } PACKED;
+            struct p *payload = (struct p *)packet->data.asBytes;
+            iClass_Clone(payload->startblock, payload->endblock, payload->data);
             break;
         }
 #endif
@@ -1403,6 +1453,7 @@ static void PacketReceived(PacketCommandNG *packet) {
         case CMD_MEASURE_ANTENNA_TUNING_HF: {
             if (packet->length != 1)
                 reply_ng(CMD_MEASURE_ANTENNA_TUNING_HF, PM3_EINVARG, NULL, 0);
+
             switch (packet->data.asBytes[0]) {
                 case 1: // MEASURE_ANTENNA_TUNING_HF_START
                     // Let the FPGA drive the high-frequency antenna around 13.56 MHz.
@@ -1422,6 +1473,35 @@ static void PacketReceived(PacketCommandNG *packet) {
                     break;
                 default:
                     reply_ng(CMD_MEASURE_ANTENNA_TUNING_HF, PM3_EINVARG, NULL, 0);
+                    break;
+            }
+            break;
+        }
+        case CMD_MEASURE_ANTENNA_TUNING_LF: {
+            if (packet->length != 2)
+                reply_ng(CMD_MEASURE_ANTENNA_TUNING_LF, PM3_EINVARG, NULL, 0);
+
+            switch (packet->data.asBytes[0]) {
+                case 1: // MEASURE_ANTENNA_TUNING_LF_START
+                    // Let the FPGA drive the low-frequency antenna around 125kHz
+                    FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
+                    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_ADC | FPGA_LF_ADC_READER_FIELD);
+                    FpgaSendCommand(FPGA_CMD_SET_DIVISOR, packet->data.asBytes[1]);
+                    reply_ng(CMD_MEASURE_ANTENNA_TUNING_LF, PM3_SUCCESS, NULL, 0);
+                    break;
+                case 2:
+                    if (button_status == BUTTON_SINGLE_CLICK)
+                        reply_ng(CMD_MEASURE_ANTENNA_TUNING_LF, PM3_EOPABORTED, NULL, 0);
+
+                    uint32_t volt = MeasureAntennaTuningLfData();
+                    reply_ng(CMD_MEASURE_ANTENNA_TUNING_LF, PM3_SUCCESS, (uint8_t *)&volt, sizeof(volt));
+                    break;
+                case 3:
+                    FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
+                    reply_ng(CMD_MEASURE_ANTENNA_TUNING_LF, PM3_SUCCESS, NULL, 0);
+                    break;
+                default:
+                    reply_ng(CMD_MEASURE_ANTENNA_TUNING_LF, PM3_EINVARG, NULL, 0);
                     break;
             }
             break;
@@ -1653,7 +1733,9 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
         case CMD_FLASHMEM_SET_SPIBAUDRATE: {
-            FlashmemSetSpiBaudrate(packet->oldarg[0]);
+            if (packet->length != sizeof(uint32_t))
+                break;
+            FlashmemSetSpiBaudrate(packet->data.asDwords[0]);
             break;
         }
         case CMD_FLASHMEM_WRITE: {
@@ -1814,7 +1896,6 @@ static void PacketReceived(PacketCommandNG *packet) {
             break;
         }
 #endif
-        case CMD_SETUP_WRITE:
         case CMD_FINISH_WRITE:
         case CMD_HARDWARE_RESET: {
             usb_disable();

@@ -1008,7 +1008,7 @@ static int CmdHF14AMfDump(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "time: %" PRIu64 " seconds\n", (msclock() - t1) / 1000);
 
-    PrintAndLogEx(SUCCESS, "\nSucceded in dumping all blocks");
+    PrintAndLogEx(SUCCESS, "\nSucceeded in dumping all blocks");
 
     if (strlen(dataFilename) < 1) {
         fptr = GenerateFilename("hf-mf-", "-data");
@@ -1298,7 +1298,7 @@ static int CmdHF14AMfNested(const char *Cmd) {
         }
 
         uint64_t t2 = msclock() - t1;
-        PrintAndLogEx(SUCCESS, "Time to check %d known keys: %.0f seconds\n", ARRAYLEN(g_mifare_default_keys), (float)t2 / 1000.0);
+        PrintAndLogEx(SUCCESS, "Time to check %zu known keys: %.0f seconds\n", ARRAYLEN(g_mifare_default_keys), (float)t2 / 1000.0);
         PrintAndLogEx(SUCCESS, "enter nested attack");
 
         // nested sectors
@@ -1424,14 +1424,14 @@ jumptoend:
             }
 
             PrintAndLogEx(SUCCESS, "saving keys to binary file " _YELLOW_("%s"), fptr);
-            uint8_t standart[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+            uint8_t standard[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
             uint8_t tempkey[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
             for (int i = 0; i < SectorsCnt; i++) {
                 if (e_sector[i].foundKey[0]) {
                     num_to_bytes(e_sector[i].Key[0], 6, tempkey);
                     fwrite(tempkey, 1, 6, fkeys);
                 } else {
-                    fwrite(&standart, 1, 6, fkeys);
+                    fwrite(&standard, 1, 6, fkeys);
                 }
             }
             for (int i = 0; i < SectorsCnt; i++) {
@@ -1439,7 +1439,7 @@ jumptoend:
                     num_to_bytes(e_sector[i].Key[1], 6, tempkey);
                     fwrite(tempkey, 1, 6, fkeys);
                 } else {
-                    fwrite(&standart, 1, 6, fkeys);
+                    fwrite(&standard, 1, 6, fkeys);
                 }
             }
             fflush(fkeys);
@@ -1782,7 +1782,7 @@ static int CmdHF14AMfAutoPWN(const char *Cmd) {
 
     // card prng type (weak=1 / hard=0 / select/card comm error = negative value)
     prng_type = detect_classic_prng();
-    if (prng_type < 0){
+    if (prng_type < 0) {
         PrintAndLogEx(FAILED, "\nNo tag detected or other tag communication error");
         free(e_sector);
         return prng_type;
@@ -2609,7 +2609,10 @@ static int CmdHF14AMfChk(const char *Cmd) {
     if (param_getchar(Cmd, 0) == '*') {
         blockNo = 3;
         SectorsCnt = NumOfSectors(param_getchar(Cmd + 1, 0));
-        if (SectorsCnt == 0) return usage_hf14_chk();
+        if (SectorsCnt == 0) {
+            free(keyBlock);
+            return usage_hf14_chk();
+        }
     } else {
         blockNo = param_get8(Cmd, 0);
     }
@@ -4439,12 +4442,12 @@ static command_t CommandTable[] = {
     {"ecfill",      CmdHF14AMfECFill,       IfPm3Iso14443a,  "Fill simulator memory with help of keys from simulator"},
     {"ekeyprn",     CmdHF14AMfEKeyPrn,      IfPm3Iso14443a,  "Print keys from simulator memory"},
     {"-----------", CmdHelp,                IfPm3Iso14443a,  ""},
-    {"csetuid",     CmdHF14AMfCSetUID,      IfPm3Iso14443a,  "Set UID for magic Chinese card"},
-    {"csetblk",     CmdHF14AMfCSetBlk,      IfPm3Iso14443a,  "Write block - Magic Chinese card"},
-    {"cgetblk",     CmdHF14AMfCGetBlk,      IfPm3Iso14443a,  "Read block - Magic Chinese card"},
-    {"cgetsc",      CmdHF14AMfCGetSc,       IfPm3Iso14443a,  "Read sector - Magic Chinese card"},
-    {"cload",       CmdHF14AMfCLoad,        IfPm3Iso14443a,  "Load dump into magic Chinese card"},
-    {"csave",       CmdHF14AMfCSave,        IfPm3Iso14443a,  "Save dump from magic Chinese card into file or emulator"},
+    {"csetuid",     CmdHF14AMfCSetUID,      IfPm3Iso14443a,  "Set UID     (magic chinese card)"},
+    {"csetblk",     CmdHF14AMfCSetBlk,      IfPm3Iso14443a,  "Write block (magic chinese card)"},
+    {"cgetblk",     CmdHF14AMfCGetBlk,      IfPm3Iso14443a,  "Read block  (magic chinese card)"},
+    {"cgetsc",      CmdHF14AMfCGetSc,       IfPm3Iso14443a,  "Read sector (magic chinese card)"},
+    {"cload",       CmdHF14AMfCLoad,        IfPm3Iso14443a,  "Load dump   (magic chinese card)"},
+    {"csave",       CmdHF14AMfCSave,        IfPm3Iso14443a,  "Save dump from magic chinese card into file or emulator"},
     {"-----------", CmdHelp,                IfPm3Iso14443a,  ""},
     {"mad",         CmdHF14AMfMAD,          IfPm3Iso14443a,  "Checks and prints MAD"},
     {"ndef",        CmdHFMFNDEF,            IfPm3Iso14443a,  "Prints NDEF records from card"},

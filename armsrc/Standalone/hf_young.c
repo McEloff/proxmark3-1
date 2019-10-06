@@ -114,9 +114,9 @@ void RunMod() {
             Dbprintf("ATQA = %02X%02X", uids[selected].atqa[0], uids[selected].atqa[1]);
             Dbprintf("SAK = %02X", uids[selected].sak);
             LEDsoff();
-            LED(LED_B,  200);
+            LED(LED_B, 200);
             LED(LED_A, 200);
-            LED(LED_B,  200);
+            LED(LED_B, 200);
             LED(LED_A, 200);
 
             LEDsoff();
@@ -195,7 +195,7 @@ void RunMod() {
                 MifareCGetBlock(params, 0, testBlock0);
 
                 if (memcmp(testBlock0, newBlock0, 16) == 0) {
-                    DbpString("Cloned successfull!");
+                    DbpString("Cloned successful!");
                     cardRead[selected] = 0; // Only if the card was cloned successfully should we clear it
                     playing = 0;
                     iGotoRecord = 1;

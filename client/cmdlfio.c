@@ -4,7 +4,7 @@
 // at your option, any later version. See the LICENSE.txt file for the text of
 // the license.
 //-----------------------------------------------------------------------------
-// Low frequency ioProx commands
+// Low frequency Kantech ioProx commands
 // FSK2a, rf/64, 64 bits (complete)
 //-----------------------------------------------------------------------------
 
@@ -16,6 +16,7 @@
 
 #include <ctype.h>
 
+#include "commonutil.h"     //ARRAYLEN
 #include "cmdparser.h"    // command_t
 #include "comms.h"
 #include "graph.h"
@@ -24,25 +25,21 @@
 #include "lfdemod.h"    // parityTest, bitbytes_to_byte
 #include "protocols.h"  // for T55xx config register definitions
 #include "cmddata.h"
+#include "cmdlft55xx.h" // verifywrite
 
 static int CmdHelp(const char *Cmd);
-/*
-static int usage_lf_io_read(void) {
+
+static int usage_lf_io_watch(void) {
     PrintAndLogEx(NORMAL, "Enables IOProx compatible reader mode printing details of scanned tags.");
     PrintAndLogEx(NORMAL, "By default, values are printed and logged until the button is pressed or another USB command is issued.");
-    PrintAndLogEx(NORMAL, "If the [1] option is provided, reader mode is exited after reading a single card.");
     PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(NORMAL, "Usage:  lf io read [h] [1]");
-    PrintAndLogEx(NORMAL, "Options:");
-    PrintAndLogEx(NORMAL, "      h :  This help");
-    PrintAndLogEx(NORMAL, "      1 : (optional) stop after reading a single card");
+    PrintAndLogEx(NORMAL, "Usage:  lf io watch");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
-    PrintAndLogEx(NORMAL, "        lf io read");
-    PrintAndLogEx(NORMAL, "        lf io read 1");
+    PrintAndLogEx(NORMAL, "        lf io watch");
     return PM3_SUCCESS;
 }
-*/
+
 static int usage_lf_io_sim(void) {
     PrintAndLogEx(NORMAL, "Enables simulation of IOProx card with specified facility-code and card number.");
     PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
@@ -75,17 +72,17 @@ static int usage_lf_io_clone(void) {
     PrintAndLogEx(NORMAL, "       lf io clone 26 101 1337");
     return PM3_SUCCESS;
 }
-/*
+
 // this read loops on device side.
 // uses the demod in lfops.c
-static int CmdIOProxRead_device(const char *Cmd) {
-    if (Cmd[0] == 'h' || Cmd[0] == 'H') return usage_lf_io_read();
-    int findone = (Cmd[0] == '1') ? 1 : 0;
+static int CmdIOProxWatch(const char *Cmd) {
+    uint8_t ctmp = tolower(param_getchar(Cmd, 0));
+    if (ctmp == 'h') return usage_lf_io_watch();
     clearCommandBuffer();
-    SendCommandMIX(CMD_LF_IO_DEMOD, findone, 0, 0, NULL, 0);
+    SendCommandNG(CMD_LF_IO_DEMOD, NULL, 0);
     return PM3_SUCCESS;
 }
-*/
+
 //by marshmellow
 //IO-Prox demod - FSK RF/64 with preamble of 000000001
 //print ioprox ID and some format details
@@ -112,7 +109,7 @@ static int CmdIOProxDemod(const char *Cmd) {
             } else if (idx == -4) {
                 PrintAndLogEx(DEBUG, "DEBUG: Error - IO prox preamble not found");
             } else if (idx == -5) {
-                PrintAndLogEx(DEBUG, "DEBUG: Error - IO size not correct, size %d", size);
+                PrintAndLogEx(DEBUG, "DEBUG: Error - IO size not correct, size %zu", size);
             } else if (idx == -6) {
                 PrintAndLogEx(DEBUG, "DEBUG: Error - IO prox separator bits not found");
             } else {
@@ -126,7 +123,7 @@ static int CmdIOProxDemod(const char *Cmd) {
 
     if (idx == 0) {
         if (g_debugMode) {
-            PrintAndLogEx(DEBUG, "DEBUG: Error - IO prox data not found - FSK Bits: %d", size);
+            PrintAndLogEx(DEBUG, "DEBUG: Error - IO prox data not found - FSK Bits: %zu", size);
             if (size > 92) PrintAndLogEx(DEBUG, "%s", sprint_bin_break(bits, 92, 16));
         }
         return PM3_ESOFT;
@@ -179,7 +176,7 @@ static int CmdIOProxDemod(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "IO Prox XSF(%02d)%02x:%05d (%08x%08x) [crc %s]", version, facilitycode, number, code, code2, crcStr);
 
     if (g_debugMode) {
-        PrintAndLogEx(DEBUG, "DEBUG: IO prox idx: %d, Len: %d, Printing demod buffer:", idx, size);
+        PrintAndLogEx(DEBUG, "DEBUG: IO prox idx: %d, Len: %zu, Printing demod buffer:", idx, size);
         printDemodBuff();
     }
     return retval;
@@ -243,7 +240,6 @@ static int CmdIOProxSim(const char *Cmd) {
 
 static int CmdIOProxClone(const char *Cmd) {
 
-    uint32_t blocks[3] = {T55x7_MODULATION_FSK2a | T55x7_BITRATE_RF_64 | 2 << T55x7_MAXBLOCK_SHIFT, 0, 0};
     uint16_t cn = 0;
     uint8_t version = 0, fc = 0;
     uint8_t bits[64];
@@ -268,18 +264,18 @@ static int CmdIOProxClone(const char *Cmd) {
         return PM3_ESOFT;
     }
 
-    if (param_getchar(Cmd, 3) == 'Q' || param_getchar(Cmd, 3) == 'q')
+    uint32_t blocks[3] = {T55x7_MODULATION_FSK2a | T55x7_BITRATE_RF_64 | 2 << T55x7_MAXBLOCK_SHIFT, 0, 0};
+
+    if (tolower(param_getchar(Cmd, 3) == 'q'))
         blocks[0] = T5555_MODULATION_FSK2 | T5555_INVERT_OUTPUT | T5555_SET_BITRATE(64) | 2 << T5555_MAXBLOCK_SHIFT;
 
     blocks[1] = bytebits_to_byte(bits, 32);
     blocks[2] = bytebits_to_byte(bits + 32, 32);
 
     PrintAndLogEx(INFO, "Preparing to clone IOProx to T55x7 with Version: %u FC: %u, CN: %u", version, fc, cn);
-    print_blocks(blocks, 3);
+    print_blocks(blocks,  ARRAYLEN(blocks));
 
-    clearCommandBuffer();
-    SendCommandMIX(CMD_LF_IO_CLONE, blocks[1], blocks[2], 0, NULL, 0);
-    return PM3_SUCCESS;
+    return clone_t55xx_tag(blocks, ARRAYLEN(blocks));
 }
 
 static command_t CommandTable[] = {
@@ -288,6 +284,7 @@ static command_t CommandTable[] = {
     {"read",    CmdIOProxRead,  IfPm3Lf,         "attempt to read and extract tag data"},
     {"clone",   CmdIOProxClone, IfPm3Lf,         "clone IOProx to T55x7"},
     {"sim",     CmdIOProxSim,   IfPm3Lf,         "simulate IOProx tag"},
+    {"watch",   CmdIOProxWatch, IfPm3Lf,         "continuously watch for cards. Reader mode"}, 
     {NULL, NULL, NULL, NULL}
 };
 
@@ -311,7 +308,7 @@ int demodIOProx(void) {
 //|           |           |           |           |           |           |
 //01234567 8 90123456 7 89012345 6 78901234 5 67890123 4 56789012 3 45678901 23
 //-----------------------------------------------------------------------------
-//00000000 0 11110000 1 facility 1 version* 1 code*one 1 code*two 1 ???????? 11
+//00000000 0 11110000 1 facility 1 version* 1 code*one 1 code*two 1   crc    11
 //XSF(version)facility:codeone+codetwo (raw)
 int getIOProxBits(uint8_t version, uint8_t fc, uint16_t cn, uint8_t *bits) {
 #define SEPARATOR 1

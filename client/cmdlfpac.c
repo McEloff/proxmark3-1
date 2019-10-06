@@ -9,14 +9,33 @@
 //-----------------------------------------------------------------------------
 #include "cmdlfpac.h"
 
+#include <ctype.h>          //tolower
+
+#include "commonutil.h"     // ARRAYLEN
+#include "common.h"
 #include "cmdparser.h"    // command_t
 #include "comms.h"
 #include "ui.h"
 #include "cmddata.h"
 #include "cmdlf.h"
 #include "lfdemod.h"    // preamble test
+#include "protocols.h"  // t55xx defines
+#include "cmdlft55xx.h" // clone..
 
 static int CmdHelp(const char *Cmd);
+
+static int usage_lf_pac_clone(void) {
+    PrintAndLogEx(NORMAL, "clone a Stanley/PAC tag to a T55x7 tag.");
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(NORMAL, "Usage: lf pac clone [h] [b <raw hex>]");
+    PrintAndLogEx(NORMAL, "Options:");
+    PrintAndLogEx(NORMAL, "  h               : this help");
+    PrintAndLogEx(NORMAL, "  b <raw hex>     : raw hex data. 12 bytes max");
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(NORMAL, "Examples:");
+    PrintAndLogEx(NORMAL, "       lf pac clone b FF2049906D8511C593155B56D5B2649F ");
+    return PM3_SUCCESS;
+}
 
 //see NRZDemod for what args are accepted
 static int CmdPacDemod(const char *Cmd) {
@@ -34,7 +53,7 @@ static int CmdPacDemod(const char *Cmd) {
         else if (ans == -2)
             PrintAndLogEx(DEBUG, "DEBUG: Error - PAC: preamble not found");
         else if (ans == -3)
-            PrintAndLogEx(DEBUG, "DEBUG: Error - PAC: Size not correct: %d", size);
+            PrintAndLogEx(DEBUG, "DEBUG: Error - PAC: Size not correct: %zu", size);
         else
             PrintAndLogEx(DEBUG, "DEBUG: Error - PAC: ans: %d", ans);
 
@@ -53,8 +72,8 @@ static int CmdPacDemod(const char *Cmd) {
     // 11111111001000000 10 01001100 10 00001101 10 00001101 10 00001101 10 00001101 10 00001101 10 00001101 10 00001101 10 00001101 10 10001100 10 100000001
     // unknown checksum 9 bits at the end
 
-    PrintAndLogEx(NORMAL, "PAC/Stanley Tag Found -- Raw: %08X%08X%08X%08X", raw1, raw2, raw3, raw4);
-    PrintAndLogEx(NORMAL, "\nHow the Raw ID is translated by the reader is unknown");
+    PrintAndLogEx(SUCCESS, "PAC/Stanley Tag Found -- Raw: %08X%08X%08X%08X", raw1, raw2, raw3, raw4);
+    PrintAndLogEx(INFO, "How the Raw ID is translated by the reader is unknown. Share your trace file on forum");
     return PM3_SUCCESS;
 }
 
@@ -63,10 +82,61 @@ static int CmdPacRead(const char *Cmd) {
     return CmdPacDemod(Cmd);
 }
 
+static int CmdPacClone(const char *Cmd) {
+    
+    uint32_t blocks[5];
+    bool errors = false;
+    uint8_t cmdp = 0;
+    int datalen = 0;
+
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':
+                return usage_lf_pac_clone();
+            case 'b': {
+                // skip first block,  4*4 = 16 bytes left
+                uint8_t rawhex[16] = {0}; 
+                int res = param_gethex_to_eol(Cmd, cmdp + 1, rawhex, sizeof(rawhex), &datalen);
+                if ( res != 0 )
+                    errors = true;
+                
+                for(uint8_t i = 1; i < ARRAYLEN(blocks); i++) {
+                    blocks[i] = bytes_to_num(rawhex + ( (i - 1) * 4 ), sizeof(uint32_t));
+                }
+                cmdp += 2;
+                break;
+            }
+            default:
+                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
+                errors = true;
+                break;
+        }
+    }
+
+    if (errors || cmdp == 0) return usage_lf_pac_clone();
+
+    //Pac - compat mode, NRZ, data rate 40, 3 data blocks
+    blocks[0] = T55x7_MODULATION_DIRECT | T55x7_BITRATE_RF_40 | 4 << T55x7_MAXBLOCK_SHIFT;
+
+    PrintAndLogEx(INFO, "Preparing to clone Securakey to T55x7 with raw hex");
+    print_blocks(blocks,  ARRAYLEN(blocks));
+
+    return clone_t55xx_tag(blocks, ARRAYLEN(blocks));
+}
+
+static int CmdPacSim(const char *Cmd) {
+
+    // NRZ sim.
+    PrintAndLogEx(INFO, " To be implemented, feel free to contribute!");
+    return PM3_SUCCESS;
+}
+
 static command_t CommandTable[] = {
-    {"help",  CmdHelp,     AlwaysAvailable, "This help"},
-    {"demod", CmdPacDemod, AlwaysAvailable, "Demodulate an PAC tag from the GraphBuffer"},
-    {"read",  CmdPacRead,  IfPm3Lf,         "Attempt to read and extract tag data from the antenna"},
+    {"help",  CmdHelp,      AlwaysAvailable, "This help"},
+    {"demod", CmdPacDemod,  AlwaysAvailable, "Demodulate an PAC tag from the GraphBuffer"},
+    {"read",  CmdPacRead,   IfPm3Lf,         "Attempt to read and extract tag data from the antenna"},
+    {"clone", CmdPacClone,  IfPm3Lf,         "clone PAC tag"},
+    {"sim",   CmdPacSim,    IfPm3Lf,         "simulate PAC tag"},
     {NULL, NULL, NULL, NULL}
 };
 

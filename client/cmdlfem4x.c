@@ -16,9 +16,11 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#include "fileutils.h"
 #include "cmdparser.h"    // command_t
 #include "comms.h"
 #include "commonutil.h"
+#include "common.h"
 #include "util_posix.h"
 #include "protocols.h"
 #include "ui.h"
@@ -102,6 +104,14 @@ static int usage_lf_em410x_brute(void) {
 }
 
 //////////////// 4050 / 4450 commands
+static int usage_lf_em4x50_demod(void) {
+    PrintAndLogEx(NORMAL, "Usage:  lf em 4x50_demod [h]");
+    PrintAndLogEx(NORMAL, "Options:");
+    PrintAndLogEx(NORMAL, "       h         - this help");
+    PrintAndLogEx(NORMAL, "Examples:");
+    PrintAndLogEx(NORMAL, "      lf em 4x50_demod");
+    return PM3_SUCCESS;
+}
 static int usage_lf_em4x50_dump(void) {
     PrintAndLogEx(NORMAL, "Dump EM4x50/EM4x69.  Tag must be on antenna. ");
     PrintAndLogEx(NORMAL, "");
@@ -146,13 +156,29 @@ static int usage_lf_em4x50_write(void) {
 static int usage_lf_em4x05_dump(void) {
     PrintAndLogEx(NORMAL, "Dump EM4x05/EM4x69.  Tag must be on antenna. ");
     PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(NORMAL, "Usage:  lf em 4x05_dump [h] <pwd>");
+    PrintAndLogEx(NORMAL, "Usage:  lf em 4x05_dump [h] [f <filename prefix>] <pwd>");
     PrintAndLogEx(NORMAL, "Options:");
-    PrintAndLogEx(NORMAL, "       h         - this help");
-    PrintAndLogEx(NORMAL, "       pwd       - password (hex) (optional)");
+    PrintAndLogEx(NORMAL, "       h                     - this help");
+    PrintAndLogEx(NORMAL, "       f <filename prefix>   - overide filename prefix (optional).  Default is based on UID");
+    PrintAndLogEx(NORMAL, "       pwd                   - password (hex) (optional)");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf em 4x05_dump");
     PrintAndLogEx(NORMAL, "      lf em 4x05_dump 11223344");
+    PrintAndLogEx(NORMAL, "      lf em 4x50_dump f card1 11223344");
+    return PM3_SUCCESS;
+}
+static int usage_lf_em4x05_wipe(void) {
+    PrintAndLogEx(NORMAL, "Wipe EM4x05/EM4x69.  Tag must be on antenna. ");
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(NORMAL, "Usage:  lf em 4x05_wipe [h] <pwd>");
+    PrintAndLogEx(NORMAL, "Options:");
+    PrintAndLogEx(NORMAL, "       h     - this help");
+    PrintAndLogEx(NORMAL, "       c     - chip type : 0 em4205");
+    PrintAndLogEx(NORMAL, "                           1 em4305 (default)");
+    PrintAndLogEx(NORMAL, "       pwd   - password (hex) (optional)");
+    PrintAndLogEx(NORMAL, "Examples:");
+    PrintAndLogEx(NORMAL, "      lf em 4x05_wipe");
+    PrintAndLogEx(NORMAL, "      lf em 4x05_wipe 11223344");
     return PM3_SUCCESS;
 }
 static int usage_lf_em4x05_read(void) {
@@ -390,7 +416,7 @@ int AskEm410xDecode(bool verbose, uint32_t *hi, uint64_t *lo) {
     setDemodBuff(DemodBuffer, (size == 40) ? 64 : 128, idx + 1);
     setClockGrid(g_DemodClock, g_DemodStartIdx + ((idx + 1)*g_DemodClock));
 
-    PrintAndLogEx(DEBUG, "DEBUG: Em410x idx: %d, Len: %d, Printing Demod Buffer:", idx, size);
+    PrintAndLogEx(DEBUG, "DEBUG: Em410x idx: %zu, Len: %zu, Printing Demod Buffer:", idx, size);
     if (g_debugMode)
         printDemodBuff();
 
@@ -678,39 +704,43 @@ static int CmdEM410xWrite(const char *Cmd) {
 }
 
 //**************** Start of EM4x50 Code ************************
-static bool EM_EndParityTest(uint8_t *bs, size_t size, uint8_t rows, uint8_t cols, uint8_t pType) {
+
+// even parity COLUMN
+static bool EM_ColParityTest(uint8_t *bs, size_t size, uint8_t rows, uint8_t cols, uint8_t pType) {
     if (rows * cols > size) return false;
     uint8_t colP = 0;
-    //assume last col is a parity and do not test
-    for (uint8_t colNum = 0; colNum < cols - 1; colNum++) {
-        for (uint8_t rowNum = 0; rowNum < rows; rowNum++) {
-            colP ^= bs[(rowNum * cols) + colNum];
+
+    for (uint8_t c = 0; c < cols - 1; c++) {
+        for (uint8_t r = 0; r < rows; r++) {
+            colP ^= bs[(r * cols) + c];
         }
         if (colP != pType) return false;
+        colP = 0;
     }
     return true;
 }
 
-static bool EM_ByteParityTest(uint8_t *bs, size_t size, uint8_t rows, uint8_t cols, uint8_t pType) {
+// even parity ROW 
+static bool EM_RowParityTest(uint8_t *bs, size_t size, uint8_t rows, uint8_t cols, uint8_t pType) {
     if (rows * cols > size) return false;
-
     uint8_t rowP = 0;
-    //assume last row is a parity row and do not test
-    for (uint8_t rowNum = 0; rowNum < rows - 1; rowNum++) {
-        for (uint8_t colNum = 0; colNum < cols; colNum++) {
-            rowP ^= bs[(rowNum * cols) + colNum];
+
+    for (uint8_t r = 0; r < rows - 1; r++) {
+        for (uint8_t c = 0; c < cols; c++) {
+            rowP ^= bs[(r * cols) + c];
         }
         if (rowP != pType) return false;
+        rowP = 0;
     }
     return true;
 }
 
 // EM word parity test.
 // 9*5 = 45 bits in total
+// 012345678|r0
 // 012345678|r1
 // 012345678|r2
 // 012345678|r3
-// 012345678|r4
 // ------------
 //c012345678| 0
 //            |- must be zero
@@ -783,7 +813,7 @@ static uint32_t OutputEM4x50_Block(uint8_t *BitStream, size_t size, bool verbose
  *  XXXXXXXX [row parity bit (even)] <- 8 bits plus parity
  *  XXXXXXXX [row parity bit (even)] <- 8 bits plus parity
  *  XXXXXXXX [row parity bit (even)] <- 8 bits plus parity
- *  CCCCCCCC                         <- column parity bits
+ *  CCCCCCC0                         <- column parity bits
  *  0                                <- stop bit
  *  LW                               <- Listen Window
  *
@@ -797,9 +827,8 @@ static uint32_t OutputEM4x50_Block(uint8_t *BitStream, size_t size, bool verbose
  */
 //completed by Marshmellow
 int EM4x50Read(const char *Cmd, bool verbose) {
-    uint8_t fndClk[] = {8, 16, 32, 40, 50, 64, 128};
     int clk = 0, invert = 0, tol = 0, phaseoff;
-    int i = 0, j = 0, startblock, skip, block, start, end, low = 0, high = 0, minClk = 255;
+    int i = 0, j = 0, startblock, skip, block, start, end, low = 0, high = 0;
     uint32_t Code[6];
     char tmp[6];
     char tmp2[20];
@@ -813,18 +842,35 @@ int EM4x50Read(const char *Cmd, bool verbose) {
 
     uint8_t bits[MAX_GRAPH_TRACE_LEN] = {0};
     size_t size = getFromGraphBuf(bits);
+
+    if (size < 4000) {
+       if (verbose || g_debugMode) PrintAndLogEx(ERR, "Error: EM4x50 - Too little data in Graphbuffer");
+       return PM3_ESOFT;
+    }
+
     computeSignalProperties(bits, size);
 
-    signal_t *sp = getSignalProperties();
-    high = sp->high;
-    low = sp->low;
+    // get fuzzed HI / LOW limits in signal
+    getHiLo( &high, &low, 75, 75);
 
     // get to first full low to prime loop and skip incomplete first pulse
-    while ((i < size) && (bits[i] < high))
-        ++i;
-    while ((i < size) && (bits[i] > low))
-        ++i;
-    skip = i;
+    size_t offset = 0;
+    getNextHigh(bits, size, high, &offset);
+    getNextLow(bits, size, low, &offset);
+
+    i = (int)offset;
+    skip = offset;
+
+    // set clock
+    if (clk == 0) {
+        DetectASKClock(bits, size, &clk, 0);
+        if (clk == 0) {
+            if (verbose || g_debugMode) PrintAndLogEx(ERR, "Error: EM4x50 - didn't find a clock");
+                return PM3_ESOFT;
+        }
+    }
+    // tolerance
+    tol = clk / 8;
 
     // populate tmpbuff buffer with pulse lengths
     while (i < size) {
@@ -832,32 +878,18 @@ int EM4x50Read(const char *Cmd, bool verbose) {
         while ((i < size) && (bits[i] > low))
             ++i;
         start = i;
+
         while ((i < size) && (bits[i] < high))
             ++i;
+
         while ((i < size) && (bits[i] > low))
             ++i;
+
         if (j >= (MAX_GRAPH_TRACE_LEN / 64)) {
             break;
         }
         tmpbuff[j++] = i - start;
-        if (i - start < minClk && i < size) {
-            minClk = i - start;
-        }
     }
-    // set clock
-    if (!clk) {
-        for (uint8_t clkCnt = 0; clkCnt < 7; clkCnt++) {
-            tol = fndClk[clkCnt] / 8;
-            if (minClk >= fndClk[clkCnt] - tol && minClk <= fndClk[clkCnt] + 1) {
-                clk = fndClk[clkCnt];
-                break;
-            }
-        }
-        if (!clk) {
-            if (verbose || g_debugMode) PrintAndLogEx(ERR, "Error: EM4x50 - didn't find a clock");
-            return PM3_ESOFT;
-        }
-    } else tol = clk / 8;
 
     // look for data start - should be 2 pairs of LW (pulses of clk*3,clk*2)
     start = -1;
@@ -892,6 +924,7 @@ int EM4x50Read(const char *Cmd, bool verbose) {
                     }
     }
     end = i;
+
     // report back
     if (verbose || g_debugMode) {
         if (start >= 0) {
@@ -902,16 +935,23 @@ int EM4x50Read(const char *Cmd, bool verbose) {
             PrintAndLogEx(NORMAL, "  or after a " _YELLOW_("'data askedge'") " command to clean up the read");
             return PM3_ESOFT;
         }
-    } else if (start < 0) return PM3_ESOFT;
+    } else if (start < 0) {
+        return PM3_ESOFT;
+    }
 
     start = skip;
+
     snprintf(tmp2, sizeof(tmp2), "%d %d 1000 %d", clk, invert, clk * 47);
+
     // save GraphBuffer - to restore it later
     save_restoreGB(GRAPH_SAVE);
+
     // get rid of leading crap
     snprintf(tmp, sizeof(tmp), "%i", skip);
     CmdLtrim(tmp);
+
     bool AllPTest = true;
+
     // now work through remaining buffer printing out data blocks
     block = 0;
     i = startblock;
@@ -939,11 +979,12 @@ int EM4x50Read(const char *Cmd, bool verbose) {
             save_restoreGB(GRAPH_RESTORE);
             return PM3_ESOFT;
         }
+
         //set DemodBufferLen to just one block
         DemodBufferLen = skip / clk;
         //test parities
-        bool pTest = EM_ByteParityTest(DemodBuffer, DemodBufferLen, 5, 9, 0);
-        pTest &= EM_EndParityTest(DemodBuffer, DemodBufferLen, 5, 9, 0);
+        bool pTest = EM_RowParityTest(DemodBuffer, DemodBufferLen, 5, 9, 0);
+        pTest &= EM_ColParityTest(DemodBuffer, DemodBufferLen, 5, 9, 0);
         AllPTest &= pTest;
         //get output
         Code[block] = OutputEM4x50_Block(DemodBuffer, DemodBufferLen, verbose, pTest);
@@ -954,6 +995,7 @@ int EM4x50Read(const char *Cmd, bool verbose) {
         block++;
         if (i >= end) break; //in case chip doesn't output 6 blocks
     }
+
     //print full code:
     if (verbose || g_debugMode || AllPTest) {
         if (!complete) {
@@ -979,17 +1021,25 @@ int EM4x50Read(const char *Cmd, bool verbose) {
     return AllPTest ? PM3_SUCCESS : PM3_ESOFT;
 }
 
+static int CmdEM4x50Demod(const char *Cmd) {
+    uint8_t ctmp = tolower(param_getchar(Cmd, 0));
+    if (ctmp == 'h') return usage_lf_em4x50_demod();
+    return EM4x50Read(Cmd, true);
+}
+
 static int CmdEM4x50Read(const char *Cmd) {
     uint8_t ctmp = tolower(param_getchar(Cmd, 0));
     if (ctmp == 'h') return usage_lf_em4x50_read();
     return EM4x50Read(Cmd, true);
 }
+
 static int CmdEM4x50Write(const char *Cmd) {
     uint8_t ctmp = tolower(param_getchar(Cmd, 0));
     if (ctmp == 'h') return usage_lf_em4x50_write();
     PrintAndLogEx(NORMAL, "no implemented yet");
     return PM3_SUCCESS;
 }
+
 static int CmdEM4x50Dump(const char *Cmd) {
     uint8_t ctmp = tolower(param_getchar(Cmd, 0));
     if (ctmp == 'h') return usage_lf_em4x50_dump();
@@ -1035,7 +1085,7 @@ static bool doPreambleSearch(size_t *startIdx) {
     uint8_t preamble[EM_PREAMBLE_LEN] = {0, 0, 1, 0, 1, 0};
 
     if (!preambleSearchEx(DemodBuffer, preamble, EM_PREAMBLE_LEN, &size, startIdx, true)) {
-        PrintAndLogEx(DEBUG, "DEBUG: Error - EM4305 preamble not found :: %d", *startIdx);
+        PrintAndLogEx(DEBUG, "DEBUG: Error - EM4305 preamble not found :: %zu", *startIdx);
         return false;
     }
     return true;
@@ -1102,6 +1152,20 @@ static bool detectASK_BI() {
     }
     return true;
 }
+static bool detectNRZ() {
+    int ans = NRZrawDemod("0 0 1", false);
+    if (ans != PM3_SUCCESS) {
+        PrintAndLogEx(DEBUG, "DEBUG: Error - EM: NRZ normal demod failed");
+
+        ans = NRZrawDemod("0 1 1", false);
+        if (ans != PM3_SUCCESS) {
+            PrintAndLogEx(DEBUG, "DEBUG: Error - EM: NRZ inverted demod failed");
+            return false;
+        }
+    }
+
+    return true;
+}
 
 // param: idx - start index in demoded data.
 static int setDemodBufferEM(uint32_t *word, size_t idx) {
@@ -1109,7 +1173,7 @@ static int setDemodBufferEM(uint32_t *word, size_t idx) {
     //test for even parity bits.
     uint8_t parity[45] = {0};
     memcpy(parity, DemodBuffer, 45);
-    if (!EM_EndParityTest(DemodBuffer + idx + EM_PREAMBLE_LEN, 45, 5, 9, 0)) {
+    if (!EM_ColParityTest(DemodBuffer + idx + EM_PREAMBLE_LEN, 45, 5, 9, 0)) {
         PrintAndLogEx(DEBUG, "DEBUG: Error - End Parity check failed");
         return PM3_ESOFT;
     }
@@ -1124,7 +1188,7 @@ static int setDemodBufferEM(uint32_t *word, size_t idx) {
     return PM3_SUCCESS;
 }
 
-// FSK, PSK, ASK/MANCHESTER, ASK/BIPHASE, ASK/DIPHASE
+// FSK, PSK, ASK/MANCHESTER, ASK/BIPHASE, ASK/DIPHASE, NRZ
 // should cover 90% of known used configs
 // the rest will need to be manually demoded for now...
 static int demodEM4x05resp(uint32_t *word) {
@@ -1134,6 +1198,9 @@ static int demodEM4x05resp(uint32_t *word) {
         return setDemodBufferEM(word, idx);
 
     if (detectASK_BI() && doPreambleSearch(&idx))
+        return setDemodBufferEM(word, idx);
+
+    if (detectNRZ() && doPreambleSearch(&idx))
         return setDemodBufferEM(word, idx);
 
     if (detectFSK() && doPreambleSearch(&idx))
@@ -1177,36 +1244,112 @@ static int EM4x05ReadWord_ext(uint8_t addr, uint32_t pwd, bool usePwd, uint32_t 
     return demodEM4x05resp(word);
 }
 
+static int CmdEM4x05Demod(const char *Cmd) {
+//    uint8_t ctmp = tolower(param_getchar(Cmd, 0));
+ //   if (ctmp == 'h') return usage_lf_em4x05_demod();
+    uint32_t word = 0;
+    return demodEM4x05resp(&word);
+}
+
 static int CmdEM4x05Dump(const char *Cmd) {
     uint8_t addr = 0;
     uint32_t pwd = 0;
     bool usePwd = false;
-    uint8_t ctmp = tolower(param_getchar(Cmd, 0));
-    if (ctmp == 'h') return usage_lf_em4x05_dump();
+    uint8_t cmdp = 0;
+    uint8_t bytes[4] = {0};
+    uint32_t data[16];
+    char preferredName[FILE_PATH_SIZE] = {0};
+    char optchk[10];
 
-    // for now use default input of 1 as invalid (unlikely 1 will be a valid password...)
-    pwd = param_get32ex(Cmd, 0, 1, 16);
+    while (param_getchar(Cmd, cmdp) != 0x00) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':   return usage_lf_em4x05_dump();
+                        break;
+            case 'f':   // since f could match in password, lets confirm it is 1 character only for an option
+                        param_getstr(Cmd, cmdp,optchk,sizeof(optchk));
+                        if (strlen (optchk) == 1) {// Have a single character f so filename no password
+                            param_getstr(Cmd, cmdp + 1, preferredName, FILE_PATH_SIZE);
+                            cmdp+=2;
+                            break;
+                        } // if not a single 'f' dont break and flow onto default as should be password
 
-    if (pwd != 1)
-        usePwd = true;
+            default :   // for backwards-compatibility options should be > 'f' else assume its the hex password`
+                        // for now use default input of 1 as invalid (unlikely 1 will be a valid password...)
+                        pwd = param_get32ex(Cmd, cmdp, 1, 16);
+                        if (pwd != 1)
+                            usePwd = true;
+                        cmdp++;
+        };
+    }
 
     int success = PM3_SUCCESS;
+    int status;
+    uint32_t lock_bits = 0x00; // no blocks locked
+
     uint32_t word = 0;
-    PrintAndLogEx(NORMAL, "Addr | data   | ascii");
-    PrintAndLogEx(NORMAL, "-----+--------+------");
-    for (; addr < 16; addr++) {
+    PrintAndLogEx(NORMAL, "Addr | data     | ascii |lck| info");
+    PrintAndLogEx(NORMAL, "-----+----------+-------+---+-----");
+
+    // To flag any blocks locked we need to read blocks 14 and 15 first
+    // dont swap endin until we get block lock flags.
+    status = EM4x05ReadWord_ext(14, pwd, usePwd, &word);
+    if (status != PM3_SUCCESS)
+        success = PM3_ESOFT; // If any error ensure fail is set so not to save invalid data
+    if (word != 0x00)
+        lock_bits = word;
+    data[14] = word;
+
+    status = EM4x05ReadWord_ext(15, pwd, usePwd, &word);
+    if (status != PM3_SUCCESS)
+        success = PM3_ESOFT; // If any error ensure fail is set so not to save invalid data
+    if (word != 0x00) // assume block 15 is the current lock block
+        lock_bits = word;
+    data[15] = word;
+
+    // Now read blocks 0 - 13 as we have 14 and 15
+    for (; addr < 14; addr++) {
 
         if (addr == 2) {
             if (usePwd) {
-                PrintAndLogEx(NORMAL, " %02u | %08X", addr, pwd, word);
+                data[addr] = BSWAP_32(pwd);
+                num_to_bytes(pwd, 4, bytes);
+                PrintAndLogEx(NORMAL, "  %02u | %08X | %s  | %c | password", addr, pwd, sprint_ascii(bytes, 4),((lock_bits >> addr) & 1) ? 'x' : ' ');
             } else {
-                PrintAndLogEx(NORMAL, " 02 | " _RED_("cannot read"));
+                data[addr] = 0x00; // Unknown password, but not used to set to zeros
+                PrintAndLogEx(NORMAL, "  02 |          |       |   | " _RED_("cannot read"));
             }
         } else {
-            success &= EM4x05ReadWord_ext(addr, pwd, usePwd, &word);
+            // success &= EM4x05ReadWord_ext(addr, pwd, usePwd, &word);
+            status = EM4x05ReadWord_ext(addr, pwd, usePwd, &word); // Get status for single read
+            if (status != PM3_SUCCESS)
+                success = PM3_ESOFT; // If any error ensure fail is set so not to save invalid data
+            data[addr] = BSWAP_32(word);
+            if (status == PM3_SUCCESS) {
+                num_to_bytes(word, 4, bytes);
+                PrintAndLogEx(NORMAL, "  %02d | %08X | %s  | %c |", addr, word, sprint_ascii(bytes, 4),((lock_bits >> addr) & 1) ? 'x' : ' ');
+            }
+            else
+                PrintAndLogEx(NORMAL, "  %02d |          |       |   | " _RED_("Fail"), addr);
         }
     }
+    // Print blocks 14 and 15 
+    // Both lock bits are protected with bit idx 14 (special case)
+    PrintAndLogEx(NORMAL, "  %02d | %08X | %s  | %c | Lock", 14, data[14], sprint_ascii(bytes, 4),((lock_bits >> 14) & 1) ? 'x' : ' ');
+    PrintAndLogEx(NORMAL, "  %02d | %08X | %s  | %c | Lock", 15, data[15], sprint_ascii(bytes, 4),((lock_bits >> 14) & 1) ? 'x' : ' ');
+    // Update endian for files
+    data[14] = BSWAP_32(data[14]);
+    data[15] = BSWAP_32(data[15]);
 
+    if (success == PM3_SUCCESS) { // all ok save dump to file
+        // saveFileEML will add .eml extension to filename
+        // saveFile (binary) passes in the .bin extension.
+        if (strcmp (preferredName,"") == 0) // Set default filename, if not set by user
+            sprintf (preferredName,"lf-4x05-%08X-data",BSWAP_32(data[1]));
+
+        saveFileEML(preferredName, (uint8_t *)data, 16*sizeof(uint32_t), sizeof(uint32_t));
+        saveFile   (preferredName, ".bin", data, sizeof(data));
+    }
+    
     return success;
 }
 
@@ -1214,6 +1357,7 @@ static int CmdEM4x05Read(const char *Cmd) {
     uint8_t addr;
     uint32_t pwd;
     bool usePwd = false;
+
     uint8_t ctmp = tolower(param_getchar(Cmd, 0));
     if (strlen(Cmd) == 0 || ctmp == 'h') return usage_lf_em4x05_read();
 
@@ -1294,6 +1438,79 @@ static int CmdEM4x05Write(const char *Cmd) {
     else
         PrintAndLogEx(NORMAL, "Write could " _RED_("not") "be verified");
     return status;
+}
+static int CmdEM4x05Wipe(const char *Cmd) {
+    uint8_t addr = 0;
+    uint32_t pwd = 0;
+    uint8_t cmdp = 0;
+    uint8_t  chipType  = 1; // em4305 
+    uint32_t chipInfo  = 0x00040072; // Chip info/User Block normal 4305 Chip Type
+    uint32_t chipUID   = 0x614739AE; // UID normally readonly, but just in case
+    uint32_t blockData = 0x00000000; // UserBlock/Password (set to 0x00000000 for a wiped card1
+    uint32_t config    = 0x0001805F; // Default config (no password)
+    int success = PM3_SUCCESS;
+    char cmdStr [100];
+    char optchk[10];
+
+    while (param_getchar(Cmd, cmdp) != 0x00) {
+        // check if cmd is a 1 byte option
+         param_getstr(Cmd, cmdp,optchk,sizeof(optchk));
+         if (strlen (optchk) == 1) {// Have a single character so option not part of password 
+            switch (tolower(param_getchar(Cmd, cmdp))) {
+                case 'c':   // chip type
+                            if (param_getchar(Cmd, cmdp) != 0x00) 
+                                chipType = param_get8ex (Cmd,cmdp+1,0,10); 
+                            cmdp+=2;
+                            break;
+                case 'h':   // return usage_lf_em4x05_wipe();
+                default :   // Unknown or 'h' send help
+                            return usage_lf_em4x05_wipe();
+                            break;
+            };
+         } else { // Not a single character so assume password
+            pwd = param_get32ex(Cmd, cmdp, 1, 16);
+            cmdp++;
+         }
+    }
+
+    switch (chipType) {
+        case 0  : // em4205
+                  chipInfo  = 0x00040070; 
+                  config    = 0x0001805F;
+                  break;
+        case 1  : // em4305
+                  chipInfo  = 0x00040072;
+                  config    = 0x0001805F;
+                  break;
+        default : // Type 0/Default : EM4305
+                  chipInfo  = 0x00040072;
+                  config    = 0x0001805F;
+    }
+    
+    // block 0 : User Data or Chip Info
+    sprintf (cmdStr,"%d %08X %08X",0,chipInfo,pwd);
+    CmdEM4x05Write (cmdStr);
+    // block 1 : UID - this should be read only for EM4205 and EM4305 not sure about others
+    sprintf (cmdStr,"%d %08X %08X",1,chipUID,pwd);
+    CmdEM4x05Write (cmdStr);
+    // block 2 : password
+    sprintf (cmdStr,"%d %08X %08X",2,blockData,pwd);
+    CmdEM4x05Write (cmdStr);
+    pwd = blockData; // Password should now have changed, so use new password
+    // block 3 : user data
+    sprintf (cmdStr,"%d %08X %08X",3,blockData,pwd);
+    CmdEM4x05Write (cmdStr);
+    // block 4 : config
+    sprintf (cmdStr,"%d %08X %08X",4,config,pwd);
+    CmdEM4x05Write (cmdStr);
+
+    // Remainder of user/data blocks
+    for (addr = 5; addr < 14; addr++) {// Clear user data blocks
+        sprintf (cmdStr,"%d %08X %08X",addr,blockData,pwd);
+        CmdEM4x05Write (cmdStr);
+    }
+
+    return success;
 }
 
 static void printEM4x05config(uint32_t wordData) {
@@ -1527,10 +1744,15 @@ static command_t CommandTable[] = {
     {"410x_watch",  CmdEM410xWatch,       IfPm3Lf,         "watches for EM410x 125/134 kHz tags (option 'h' for 134)"},
     {"410x_spoof",  CmdEM410xWatchnSpoof, IfPm3Lf,         "watches for EM410x 125/134 kHz tags, and replays them. (option 'h' for 134)" },
     {"410x_write",  CmdEM410xWrite,       IfPm3Lf,         "write EM410x UID to T5555(Q5) or T55x7 tag"},
+
+    {"4x05_demod",  CmdEM4x05Demod,       AlwaysAvailable, "demodulate a EM4x05/EM4x69 tag from the GraphBuffer"},
     {"4x05_dump",   CmdEM4x05Dump,        IfPm3Lf,         "dump EM4x05/EM4x69 tag"},
+    {"4x05_wipe",   CmdEM4x05Wipe,        IfPm3Lf,         "wipe EM4x05/EM4x69 tag"},
     {"4x05_info",   CmdEM4x05Info,        IfPm3Lf,         "tag information EM4x05/EM4x69"},
     {"4x05_read",   CmdEM4x05Read,        IfPm3Lf,         "read word data from EM4x05/EM4x69"},
     {"4x05_write",  CmdEM4x05Write,       IfPm3Lf,         "write word data to EM4x05/EM4x69"},
+
+    {"4x50_demod",  CmdEM4x50Demod,       AlwaysAvailable, "demodulate a EM4x50 tag from the GraphBuffer"},
     {"4x50_dump",   CmdEM4x50Dump,        IfPm3Lf,         "dump EM4x50 tag"},
     {"4x50_read",   CmdEM4x50Read,        IfPm3Lf,         "read word data from EM4x50"},
     {"4x50_write",  CmdEM4x50Write,       IfPm3Lf,         "write word data to EM4x50"},

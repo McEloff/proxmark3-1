@@ -18,7 +18,7 @@ all clean install uninstall: %: client/% bootrom/% armsrc/% recovery/% mfkey/% n
 
 INSTALLTOOLS=pm3_eml2lower.sh pm3_eml2upper.sh pm3_mfdread.py pm3_mfd2eml.py pm3_eml2mfd.py findbits.py rfidtest.pl xorcheck.py
 INSTALLSIMFW=sim011.bin sim011.sha512.txt
-INSTALLSCRIPTS=pm3 pm3-flash-all pm3-flash-bootrom pm3-flash-fullimage
+INSTALLSCRIPTS=pm3 pm3-flash pm3-flash-all pm3-flash-bootrom pm3-flash-fullimage
 INSTALLSHARES=tools/jtag_openocd traces
 INSTALLDOCS=doc/*.md doc/md
 
@@ -112,7 +112,7 @@ help:
 	@echo "+ all             - Make all targets: bootrom, fullimage and OS-specific host tools"
 	@echo "+ clean           - Clean in all targets"
 	@echo "+ .../clean       - Clean in specified target and its deps, e.g. bootrom/clean"
-	@echo "+ (un)install     - Install/uninstall Proxmark files in the system, default to /usr/local/share,
+	@echo "+ (un)install     - Install/uninstall Proxmark files in the system, default to /usr/local/share,"
 	@echo "                    else provide a PREFIX. See Maintainers.md for more options"
 	@echo
 	@echo "+ bootrom         - Make bootrom"

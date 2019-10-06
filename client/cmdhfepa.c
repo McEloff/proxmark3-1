@@ -50,7 +50,7 @@ static int CmdHFEPACollectPACENonces(const char *Cmd) {
 
         // check if command failed
         if (resp.oldarg[0] != 0) {
-            PrintAndLogEx(FAILED, "Error in step %d, Return code: %d", resp.oldarg[0], (int)resp.oldarg[1]);
+            PrintAndLogEx(FAILED, "Error in step %" PRId64 ", Return code: %" PRId64, resp.oldarg[0], (int)resp.oldarg[1]);
         } else {
             size_t nonce_length = resp.oldarg[1];
             char *nonce = (char *) calloc(2 * nonce_length + 1, sizeof(uint8_t));
@@ -58,7 +58,7 @@ static int CmdHFEPACollectPACENonces(const char *Cmd) {
                 sprintf(nonce + (2 * j), "%02X", resp.data.asBytes[j]);
             }
             // print nonce
-            PrintAndLogEx(NORMAL, "Length: %d, Nonce: %s", nonce_length, nonce);
+            PrintAndLogEx(NORMAL, "Length: %zu, Nonce: %s", nonce_length, nonce);
             free(nonce);
         }
         if (i < n - 1) {
@@ -164,7 +164,7 @@ static int CmdHFEPAPACEReplay(const char *Cmd) {
         PrintAndLogEx(NORMAL, "GA Perform Key Agreement: %u us", resp.data.asDwords[3]);
         PrintAndLogEx(NORMAL, "GA Mutual Authenticate: %u us", resp.data.asDwords[4]);
     } else {
-        PrintAndLogEx(NORMAL, "PACE replay successfull!");
+        PrintAndLogEx(NORMAL, "PACE replay successful!");
         PrintAndLogEx(NORMAL, "MSE Set AT: %u us", resp.data.asDwords[0]);
         PrintAndLogEx(NORMAL, "GA Get Nonce: %u us", resp.data.asDwords[1]);
         PrintAndLogEx(NORMAL, "GA Map Nonce: %u us", resp.data.asDwords[2]);

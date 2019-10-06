@@ -930,7 +930,7 @@ static int l_T55xx_readblock(lua_State *L) {
                 return returnToLuaWithError(L, "Failed to read config block");
             }
 
-            if (!tryDetectModulation()) {
+            if (!tryDetectModulation(0, true)) { // Default to prev. behaviour (default dl mode and print config)
                 PrintAndLogEx(NORMAL, "Safety Check: Could not detect if PWD bit is set in config block. Exits.");
                 return 0;
             } else {
@@ -939,12 +939,12 @@ static int l_T55xx_readblock(lua_State *L) {
                 usepage1 = false;
             }
         } else {
-            PrintAndLogEx(NORMAL, "Safety Check Overriden - proceeding despite risk");
+            PrintAndLogEx(NORMAL, "Safety Check Overridden - proceeding despite risk");
         }
     }
 
     if (!AquireData(usepage1, block, usepwd, password, 0)) {
-        return returnToLuaWithError(L, "Failed to aquire data from card");
+        return returnToLuaWithError(L, "Failed to acquire data from card");
     }
 
     if (!DecodeT55xxBlock()) {
@@ -1002,11 +1002,11 @@ static int l_T55xx_detect(lua_State *L) {
 
         isok = AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password, 0);
         if (isok == false) {
-            return returnToLuaWithError(L, "Failed to aquire LF signal data");
+            return returnToLuaWithError(L, "Failed to acquire LF signal data");
         }
     }
 
-    isok = tryDetectModulation();
+    isok = tryDetectModulation(0, true); // Default to prev. behaviour (default dl mode and print config)
     if (isok == false) {
         return returnToLuaWithError(L, "Could not detect modulation automatically. Try setting it manually with \'lf t55xx config\'");
     }
@@ -1074,6 +1074,7 @@ static int l_searchfile(lua_State *L) {
     }
 
     lua_pushstring(L, path);
+    free(path);
     return 1;
 }
 
@@ -1173,7 +1174,7 @@ int set_pm3_libraries(lua_State *L) {
         strcat(libraries_path, LUA_LIBRARIES_WILDCARD);
         setLuaPath(L, libraries_path);
     }
-    char *user_path = getenv("HOME");
+    const char *user_path = get_my_user_directory();
     if (user_path != NULL) {
         // from the $HOME/.proxmark3/luascripts/ directory
         char scripts_path[strlen(user_path) + strlen(PM3_USER_DIRECTORY) + strlen(LUA_SCRIPTS_SUBDIR) + strlen(LUA_LIBRARIES_WILDCARD) + 1];

@@ -13,11 +13,10 @@
 
 #include <ctype.h>
 #include <stdlib.h>
-
 #include "cmdparser.h"    // command_t
 #include "comms.h"
 #include "crc16.h"
-#include "cmdlft55xx.h"
+#include "cmdlft55xx.h" // verifywrite
 #include "ui.h"
 #include "cmddata.h"
 #include "cmdlf.h"
@@ -125,7 +124,7 @@ static int CmdLFNedapDemod(const char *Cmd) {
 
     // sanity checks
     if ((size != 128) && (size != 64)) {
-        PrintAndLogEx(DEBUG, "DEBUG: Error - NEDAP: Size not correct: %d", size);
+        PrintAndLogEx(DEBUG, "DEBUG: Error - NEDAP: Size not correct: %zu", size);
         return PM3_ESOFT;
     }
 
@@ -445,7 +444,7 @@ int CmdLFNedapClone(const char *Cmd) {
         return PM3_ESOFT;
     }
 
-    CmdPrintDemodBuff("x");
+    //CmdPrintDemodBuff("x");
 
 // What we had before in commented code:
     //NEDAP - compat mode, ASK/DIphase, data rate 64, 4 data blocks
@@ -469,32 +468,14 @@ int CmdLFNedapClone(const char *Cmd) {
     PrintAndLogEx(SUCCESS, "Preparing to clone NEDAP to T55x7");
     print_blocks(blocks, max);
 
-    PacketResponseNG resp;
-
-    // fast push mode
-    conn.block_after_ACK = true;
-    for (uint8_t i = 0; i < max; i++) {
-        if (i == max - 1) {
-            // Disable fast mode on last packet
-            conn.block_after_ACK = false;
-        }
-        clearCommandBuffer();
-        t55xx_write_block_t ng;
-        ng.data = blocks[i];
-        ng.pwd = 0;
-        ng.blockno = i;
-        ng.flags = 0;
-
-        SendCommandNG(CMD_LF_T55XX_WRITEBL, (uint8_t *)&ng, sizeof(ng));
-        if (!WaitForResponseTimeout(CMD_LF_T55XX_WRITEBL, &resp, T55XX_WRITE_TIMEOUT)) {
-            PrintAndLogEx(ERR, "Error occurred, device did not respond during write operation.");
-            return PM3_ETIMEOUT;
-        }
+    int res = clone_t55xx_tag(blocks, max);
+    if (res == PM3_SUCCESS) {
+        PrintAndLogEx(INFO, "The block 0 was changed (eXtended) which can be hard to detect.");
+        PrintAndLogEx(INFO,  " Configure it manually " _YELLOW_("`lf t55xx config b 64 d BI i 1 o 32`"));
+    } else {
+        PrintAndLogEx(NORMAL, "");
     }
-    PrintAndLogEx(NORMAL, "\n");
-    PrintAndLogEx(INFO, "The block 0 was changed (eXtended) which can be hard to detect.");
-    PrintAndLogEx(INFO,  " Configure it manually " _YELLOW_("`lf t55xx config b 64 d BI i 1 o 32`"));
-    return PM3_SUCCESS;
+    return res;
 }
 
 static int CmdLFNedapSim(const char *Cmd) {

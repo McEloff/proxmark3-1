@@ -34,10 +34,25 @@
 #define T55XX_DLMODE_LLR           1 // Long Leading Reference
 #define T55XX_DLMODE_LEADING_ZERO  2 // Leading Zero
 #define T55XX_DLMODE_1OF4          3 // 1 of 4
-#define T55XX_LONGLEADINGREFERENCE 4 // Value to tell Write Bit to send long reference
+// #define T55XX_LONGLEADINGREFERENCE 4 // Value to tell Write Bit to send long reference
+#define T55XX_DLMODE_ALL           4 // Tell help to show 'r 4' for all dl modes
+#define T55XX_DLMODE_SINGLE        5 // Tell help file NOT to show 'r 4' (not available)
+
+#define T55XX_PrintConfig           true
+#define T55XX_DontPrintConfig       false
+
+//static uint8_t bit_rates[9] = {8, 16, 32, 40, 50, 64, 100, 128, 0};
 
 // Default configuration
-t55xx_conf_block_t config = { .modulation = DEMOD_ASK, .inverted = false, .offset = 0x00, .block0 = 0x00, .Q5 = false };
+t55xx_conf_block_t config = {
+    .modulation = DEMOD_ASK,
+    .inverted = false,
+    .offset = 0x00,
+    .block0 = 0x00,
+    .Q5 = false,
+    .usepwd = false,
+    .downlink_mode = refFixedBit
+};
 
 t55xx_conf_block_t Get_t55xx_Config() {
     return config;
@@ -46,24 +61,32 @@ void Set_t55xx_Config(t55xx_conf_block_t conf) {
     config = conf;
 }
 
-static void print_usage_t55xx_downloadlink(void) {
-    PrintAndLogEx(NORMAL, "     r <mode>     - downlink encoding 0|1|2|3");
-    PrintAndLogEx(NORMAL, "                       0 - fixed bit length (default)");
+static void print_usage_t55xx_downloadlink(uint8_t ShowAll) {
+    if (ShowAll == T55XX_DLMODE_ALL)
+        PrintAndLogEx(NORMAL, "     r <mode>     - downlink encoding 0|1|2|3|4");
+    else
+        PrintAndLogEx(NORMAL, "     r <mode>     - downlink encoding 0|1|2|3");
+    PrintAndLogEx(NORMAL, "                       0 - fixed bit length"); // default will be whats in config struct
     PrintAndLogEx(NORMAL, "                       1 - long leading reference");
     PrintAndLogEx(NORMAL, "                       2 - leading zero");
     PrintAndLogEx(NORMAL, "                       3 - 1 of 4 coding reference");
+    if (ShowAll == T55XX_DLMODE_ALL)
+        PrintAndLogEx(NORMAL, "                       4 - Try all downlink modes");
 }
 
 static int usage_t55xx_config() {
-    PrintAndLogEx(NORMAL, "Usage: lf t55xx config [d <demodulation>] [i [0/1]] [o <offset>] [Q5 [0/1]] [ST [0/1]]");
+    PrintAndLogEx(NORMAL, "Usage: lf t55xx config [c <blk0>] [d <demodulation>] [i [0/1]] [o <offset>] [Q5 [0/1]] [ST [0/1]]");
     PrintAndLogEx(NORMAL, "Options:");
-    PrintAndLogEx(NORMAL, "       h                                - This help");
-    PrintAndLogEx(NORMAL, "       b <8|16|32|40|50|64|100|128>     - Set bitrate");
-    PrintAndLogEx(NORMAL, "       d <FSK|FSK1|FSK1a|FSK2|FSK2a|ASK|PSK1|PSK2|NRZ|BI|BIa>  - Set demodulation FSK / ASK / PSK / NRZ / Biphase / Biphase A");
-    PrintAndLogEx(NORMAL, "       i [0/1]                          - Set/reset data signal inversion");
-    PrintAndLogEx(NORMAL, "       o [offset]                       - Set offset, where data should start decode in bitstream");
-    PrintAndLogEx(NORMAL, "       Q5 [0/1]                         - Set/reset as Q5(T5555) chip instead of T55x7");
-    PrintAndLogEx(NORMAL, "       ST [0/1]                         - Set/reset Sequence Terminator on");
+    PrintAndLogEx(NORMAL, "     h                                - This help");
+    PrintAndLogEx(NORMAL, "     c <block0>                       - set configuration from a block0");
+    PrintAndLogEx(NORMAL, "     b <8|16|32|40|50|64|100|128>     - Set bitrate");
+    PrintAndLogEx(NORMAL, "     d <FSK|FSK1|FSK1a|FSK2|FSK2a|ASK|PSK1|PSK2|NRZ|BI|BIa>  - Set demodulation FSK / ASK / PSK / NRZ / Biphase / Biphase A");
+    PrintAndLogEx(NORMAL, "     i [0/1]                          - Set/reset data signal inversion");
+    PrintAndLogEx(NORMAL, "     o [offset]                       - Set offset, where data should start decode in bitstream");
+    PrintAndLogEx(NORMAL, "     Q5 [0/1]                         - Set/reset as T5555 ( Q5 ) chip instead of T55x7");
+    PrintAndLogEx(NORMAL, "     ST [0/1]                         - Set/reset Sequence Terminator on");
+    PrintAndLogEx(NORMAL, ""); // layout is a little differnet, so seperate until a better fix
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_SINGLE);
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf t55xx config d FSK          - FSK demodulation");
@@ -73,16 +96,17 @@ static int usage_t55xx_config() {
     return PM3_SUCCESS;
 }
 static int usage_t55xx_read() {
-    PrintAndLogEx(NORMAL, "Usage:  lf t55xx read [r <mode>] b <block> [p <password>] <override_safety> <page1>");
+    PrintAndLogEx(NORMAL, "Usage:  lf t55xx read [r <mode>] b <block> [p <password>] [o] <page1>");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     b <block>    - block number to read. Between 0-7");
     PrintAndLogEx(NORMAL, "     p <password> - OPTIONAL password (8 hex characters)");
     PrintAndLogEx(NORMAL, "     o            - OPTIONAL override safety check");
     PrintAndLogEx(NORMAL, "     1            - OPTIONAL 0|1  read Page 1 instead of Page 0");
-    print_usage_t55xx_downloadlink();
-    PrintAndLogEx(NORMAL, "     ****WARNING****");
-    PrintAndLogEx(NORMAL, "     Use of read with password on a tag not configured for a pwd");
-    PrintAndLogEx(NORMAL, "     can damage the tag");
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_SINGLE);
+    PrintAndLogEx(NORMAL, "     " _RED_("**** WARNING ****"));
+    PrintAndLogEx(NORMAL, "     Use of read with password on a tag not configured");
+    PrintAndLogEx(NORMAL, "     for a password can damage the tag");
+    PrintAndLogEx(NORMAL, "     " _RED_("*****************"));
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf t55xx read b 0                 - read data from block 0");
@@ -91,63 +115,77 @@ static int usage_t55xx_read() {
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
+static int usage_t55xx_resetread() {
+    PrintAndLogEx(NORMAL, "Send Reset Cmd then lf read the stream to attempt to identify the start of it (needs a demod and/or plot after)");
+    PrintAndLogEx(NORMAL, "Usage:  lf t55xx resetread [r <mode>]");
+    PrintAndLogEx(NORMAL, "Options:");
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_SINGLE);
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(NORMAL, "Examples:");
+    PrintAndLogEx(NORMAL, "      lf t55xx resetread");
+    PrintAndLogEx(NORMAL, "");
+    return PM3_SUCCESS;
+}
 static int usage_t55xx_write() {
-    PrintAndLogEx(NORMAL, "Usage:  lf t55xx write [r <mode>] b <block> d <data> [p <password>] [1] [t]");
+    PrintAndLogEx(NORMAL, "Usage:  lf t55xx write [r <mode>] b <block> d <data> [p <password>] [1] [t] [v]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     b <block>    - block number to write. Between 0-7");
     PrintAndLogEx(NORMAL, "     d <data>     - 4 bytes of data to write (8 hex characters)");
     PrintAndLogEx(NORMAL, "     p <password> - OPTIONAL password 4bytes (8 hex characters)");
     PrintAndLogEx(NORMAL, "     1            - OPTIONAL write Page 1 instead of Page 0");
     PrintAndLogEx(NORMAL, "     t            - OPTIONAL test mode write - ****DANGER****");
-    print_usage_t55xx_downloadlink();
+    PrintAndLogEx(NORMAL, "     v            - OPTIONAL validate data afterwards");
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_SINGLE);
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf t55xx write b 3 d 11223344            - write 11223344 to block 3");
     PrintAndLogEx(NORMAL, "      lf t55xx write b 3 d 11223344 p feedbeef - write 11223344 to block 3 password feedbeef");
+    PrintAndLogEx(NORMAL, "      lf t55xx write b 3 d 11223344 v          - write 11223344 to block 3 and try to validate data");
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
 static int usage_t55xx_trace() {
-    PrintAndLogEx(NORMAL, "Usage:  lf t55xx trace [r mode]");
+    PrintAndLogEx(NORMAL, "Usage:  lf t55xx trace [1] [r mode]");
     PrintAndLogEx(NORMAL, "Options:");
-    print_usage_t55xx_downloadlink();
-    // Command did not seem to support the 1 option (yet) so have removed the help lines
-    // PrintAndLogEx(NORMAL, "     1            - if set, use Graphbuffer otherwise read data from tag.");
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_SINGLE);
+    PrintAndLogEx(NORMAL, "     1            - if set, use Graphbuffer otherwise read data from tag.");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf t55xx trace");
-    // PrintAndLogEx(NORMAL, "      lf t55xx trace 1");
+    PrintAndLogEx(NORMAL, "      lf t55xx trace 1");
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
 static int usage_t55xx_info() {
-    PrintAndLogEx(NORMAL, "Usage:  lf t55xx info [1] [r <mode>] [d <data> [q]]");
+    PrintAndLogEx(NORMAL, "Usage:  lf t55xx info [1] [r <mode>] [c <blk0> [q]]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     (default)    - read data from tag.");
+    PrintAndLogEx(NORMAL, "     p <password> - OPTIONAL password 4bytes (8 hex symbols)");
     PrintAndLogEx(NORMAL, "     1            - if set, use Graphbuffer instead of reading tag.");
-    PrintAndLogEx(NORMAL, "     d <data>     - 4 bytes of data (8 hex characters)");
+    PrintAndLogEx(NORMAL, "     c <block0>   - set configuration from a block0");
     PrintAndLogEx(NORMAL, "                    if set, use these data instead of reading tag.");
     PrintAndLogEx(NORMAL, "     q            - if set, provided data are interpreted as Q5 config.");
-    print_usage_t55xx_downloadlink();
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_SINGLE);
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf t55xx info");
     PrintAndLogEx(NORMAL, "      lf t55xx info 1");
     PrintAndLogEx(NORMAL, "      lf t55xx info d 00083040");
     PrintAndLogEx(NORMAL, "      lf t55xx info d 6001805A q");
+    PrintAndLogEx(NORMAL, "      lf t55xx info p 11223344");
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
 static int usage_t55xx_dump() {
-    PrintAndLogEx(NORMAL, "Usage:  lf t55xx dump [r <mode>] [<password> [o]]");
+    PrintAndLogEx(NORMAL, "Usage:  lf t55xx dump [r <mode>] [p <password> [o]]");
     PrintAndLogEx(NORMAL, "Options:");
-    PrintAndLogEx(NORMAL, "     <password>   - OPTIONAL password 4bytes (8 hex symbols)");
-    PrintAndLogEx(NORMAL, "     o            - OPTIONAL override, force pwd read despite danger to card");
-    print_usage_t55xx_downloadlink();
+    PrintAndLogEx(NORMAL, "     p <password>   - OPTIONAL password 4bytes (8 hex symbols)");
+    PrintAndLogEx(NORMAL, "     o              - OPTIONAL override, force pwd read despite danger to card");
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_SINGLE);
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf t55xx dump");
-    PrintAndLogEx(NORMAL, "      lf t55xx dump feedbeef o");
+    PrintAndLogEx(NORMAL, "      lf t55xx dump p feedbeef o");
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
@@ -156,7 +194,7 @@ static int usage_t55xx_detect() {
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     1            - if set, use Graphbuffer otherwise read data from tag.");
     PrintAndLogEx(NORMAL, "     p <password  - OPTIONAL password (8 hex characters)");
-    print_usage_t55xx_downloadlink();
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_ALL);
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf t55xx detect");
@@ -171,7 +209,7 @@ static int usage_t55xx_detectP1() {
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     1            - if set, use Graphbuffer otherwise read data from tag.");
     PrintAndLogEx(NORMAL, "     p <password> - OPTIONAL password (8 hex characters)");
-    print_usage_t55xx_downloadlink();
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_SINGLE); // Need to setup to try all modes
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf t55xx p1detect");
@@ -186,7 +224,7 @@ static int usage_t55xx_wakup() {
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     h            - this help");
     PrintAndLogEx(NORMAL, "     p <password> - password 4bytes (8 hex symbols)");
-    print_usage_t55xx_downloadlink();
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_SINGLE);
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "      lf t55xx wakeup p 11223344  - send wakeup password");
@@ -195,13 +233,13 @@ static int usage_t55xx_wakup() {
 static int usage_t55xx_chk() {
     PrintAndLogEx(NORMAL, "This command uses a dictionary attack");
     PrintAndLogEx(NORMAL, "press " _YELLOW_("'enter'") " to cancel the command");
-    PrintAndLogEx(NORMAL, "WARNING: this may brick non-password protected chips!");
+    PrintAndLogEx(NORMAL,  _RED_("WARNING:") " this may brick non-password protected chips!");
     PrintAndLogEx(NORMAL, "Try to reading block 7 before\n");
     PrintAndLogEx(NORMAL, "Usage: lf t55xx chk [h] [m] [r <mode>] [i <*.dic>]");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     h            - this help");
     PrintAndLogEx(NORMAL, "     m            - use dictionary from flashmemory\n");
-    print_usage_t55xx_downloadlink();
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_ALL);
     PrintAndLogEx(NORMAL, "     i <*.dic>    - loads a default keys dictionary file <*.dic>");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
@@ -213,53 +251,56 @@ static int usage_t55xx_chk() {
 static int usage_t55xx_bruteforce() {
     PrintAndLogEx(NORMAL, "This command uses bruteforce to scan a number range");
     PrintAndLogEx(NORMAL, "press " _YELLOW_("'enter'") " to cancel the command");
-    PrintAndLogEx(NORMAL, "WARNING: this may brick non-password protected chips!");
+    PrintAndLogEx(NORMAL, _RED_("WARNING:") " this may brick non-password protected chips!");
     PrintAndLogEx(NORMAL, "Try reading block 7 before\n");
-    PrintAndLogEx(NORMAL, "Usage: lf t55xx bruteforce [h] [r <mode>] <start password> <end password>");
+    PrintAndLogEx(NORMAL, "Usage: lf t55xx bruteforce [h] [r <mode>] [s <start password>] [e <end password>]");
     PrintAndLogEx(NORMAL, "       password must be 4 bytes (8 hex symbols)");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     h            - this help");
-    print_usage_t55xx_downloadlink();
-    PrintAndLogEx(NORMAL, "     <start_pwd>  - 4 byte hex value to start pwd search at");
-    PrintAndLogEx(NORMAL, "     <end_pwd>    - 4 byte hex value to end pwd search at");
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_ALL);
+    PrintAndLogEx(NORMAL, "     s <start_pwd>  - 4 byte hex value to start pwd search at");
+    PrintAndLogEx(NORMAL, "     e <end_pwd>    - 4 byte hex value to end pwd search at");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
-    PrintAndLogEx(NORMAL, "       lf t55xx bruteforce r 2 aaaaaa77 aaaaaa99");
+    PrintAndLogEx(NORMAL, "       lf t55xx bruteforce r 2 s aaaaaa77 e aaaaaa99");
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
 static int usage_t55xx_recoverpw() {
     PrintAndLogEx(NORMAL, "This command uses a few tricks to try to recover mangled password");
     PrintAndLogEx(NORMAL, "press " _YELLOW_("'enter'") " to cancel the command");
-    PrintAndLogEx(NORMAL, "WARNING: this may brick non-password protected chips!");
+    PrintAndLogEx(NORMAL, _RED_("WARNING:") " this may brick non-password protected chips!");
     PrintAndLogEx(NORMAL, "Try reading block 7 before\n");
-    PrintAndLogEx(NORMAL, "Usage: lf t55xx recoverpw [r <mode>] [password]");
+    PrintAndLogEx(NORMAL, "Usage: lf t55xx recoverpw [r <mode>] [p <password>]");
     PrintAndLogEx(NORMAL, "       password must be 4 bytes (8 hex symbols)");
     PrintAndLogEx(NORMAL, "       default password is 51243648, used by many cloners");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "     h            - this help");
-    print_usage_t55xx_downloadlink();
-    PrintAndLogEx(NORMAL, "     [password]   - 4 byte hex value of password written by cloner");
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_ALL);
+    PrintAndLogEx(NORMAL, "     p <password>   - 4 byte hex value of password written by cloner");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "       lf t55xx recoverpw");
-    PrintAndLogEx(NORMAL, "       lf t55xx r 3 recoverpw 51243648");
+    PrintAndLogEx(NORMAL, "       lf t55xx recoverpw p 51243648");
+    PrintAndLogEx(NORMAL, "       lf t55xx recoverpw r 3 p 51243648");
+
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
 static int usage_t55xx_wipe() {
-    PrintAndLogEx(NORMAL, "Usage:  lf t55xx wipe [h] [Q5]");
+    PrintAndLogEx(NORMAL, "Usage:  lf t55xx wipe [h] [Q5] [p <password>] [c <blk0>]");
     PrintAndLogEx(NORMAL, "This commands wipes a tag, fills blocks 1-7 with zeros and a default configuration block");
     PrintAndLogEx(NORMAL, "Options:");
-    PrintAndLogEx(NORMAL, "     h   - this help");
-    PrintAndLogEx(NORMAL, "     Q5  - indicates to use the T5555 (Q5) default configuration block");
+    PrintAndLogEx(NORMAL, "     h               - this help");
+    PrintAndLogEx(NORMAL, "     c <block0>      - set configuration from a block0");
+    PrintAndLogEx(NORMAL, "     q               - indicates to use T5555 ( Q5 ) default configuration block");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
-    PrintAndLogEx(NORMAL, "      lf t55xx wipe    -  wipes a t55x7 tag,    config block 0x000880E0");
-    PrintAndLogEx(NORMAL, "      lf t55xx wipe Q5 -  wipes a t5555 Q5 tag, config block 0x6001F004");
+    PrintAndLogEx(NORMAL, "      lf t55xx wipe      -  wipes a T55x7 tag,    config block 0x000880E0");
+    PrintAndLogEx(NORMAL, "      lf t55xx wipe q    -  wipes a T5555 ( Q5 ) tag, config block 0x6001F004");
     return PM3_SUCCESS;
 }
-static int usage_lf_deviceconfig() {
+static int usage_t55xx_deviceconfig() {
     PrintAndLogEx(NORMAL, "Sets t55x7 timings for direct commands. The timings are set here in Field Clocks (FC), \nwhich is converted to (US) on device");
     PrintAndLogEx(NORMAL, "Usage: lf t55xx deviceconfig [r <mode>] a <gap> b <gap> c <gap> d <gap> e <gap> f <gap> g <gap> [p]");
     PrintAndLogEx(NORMAL, "Options:");
@@ -272,7 +313,6 @@ static int usage_lf_deviceconfig() {
     PrintAndLogEx(NORMAL, "     f <8..255>   - Set write TWO gap (1 of 4 only)");
     PrintAndLogEx(NORMAL, "     g <8..255>   - Set write THREE gap (1 of 4 only)");
     PrintAndLogEx(NORMAL, "     p            - persist to flashmemory");
-    print_usage_t55xx_downloadlink();
     PrintAndLogEx(NORMAL, "     z            - Set default t55x7 timings (use p to save if required)");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
@@ -281,22 +321,304 @@ static int usage_lf_deviceconfig() {
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
+static int usage_t55xx_protect() {
+    PrintAndLogEx(NORMAL, "This command set or unsets the pwd bit on T5577.");
+    PrintAndLogEx(NORMAL, "Usage:  lf t55xx protect [r <mode>] [p <password>] [o] [n <new_password>]");
+    PrintAndLogEx(NORMAL, "Options:");
+    PrintAndLogEx(NORMAL, "     p <password>        - OPTIONAL password (8 hex characters)");
+    PrintAndLogEx(NORMAL, "     o                   - OPTIONAL override safety check");
+    PrintAndLogEx(NORMAL, "     n <new password>    - new password");
+    print_usage_t55xx_downloadlink(T55XX_DLMODE_SINGLE);
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(NORMAL, "Examples:");
+    PrintAndLogEx(NORMAL, "      lf t55xx protect n 01020304         - sets new password to 01020304");
+    PrintAndLogEx(NORMAL, "      lf t55xx protect p 11223344         - use pwd 11223344 to set newpwd to 00000000");
+    PrintAndLogEx(NORMAL, "");
+    return PM3_SUCCESS;
+}
 
 static int CmdHelp(const char *Cmd);
 
+int clone_t55xx_tag(uint32_t *blockdata, uint8_t numblocks) {
+    
+    if (blockdata == NULL) 
+        return PM3_EINVARG;
+    if (numblocks < 1 || numblocks > 7)
+        return PM3_EINVARG;
+
+    PacketResponseNG resp;
+
+    // fast push mode
+    conn.block_after_ACK = true;
+
+    for (int8_t i = 0; i < numblocks; i++) {
+
+        // Disable fast mode on last packet
+        if (i == numblocks - 1) {
+            conn.block_after_ACK = false;
+        }
+
+        clearCommandBuffer();
+
+        t55xx_write_block_t ng;
+        ng.data = blockdata[i];
+        ng.pwd = 0;
+        ng.blockno = i;
+        ng.flags = 0;
+
+        SendCommandNG(CMD_LF_T55XX_WRITEBL, (uint8_t *)&ng, sizeof(ng));
+        if (!WaitForResponseTimeout(CMD_LF_T55XX_WRITEBL, &resp, T55XX_WRITE_TIMEOUT)) {
+            PrintAndLogEx(ERR, "Error occurred, device did not respond during write operation.");
+            return PM3_ETIMEOUT;
+        }
+    }
+ 
+   uint8_t res = 0;
+    for (int8_t i = 0; i < numblocks; i++) {
+
+        if (i == 0) {
+            SetConfigWithBlock0(blockdata[0]);
+            if (t55xxAquireAndCompareBlock0(false, 0, blockdata[0], false))
+                continue;
+        }
+
+        if (t55xxVerifyWrite(i, 0, false, false, 0, 0xFF, blockdata[i]) == false)
+            res++;
+    }
+
+    if (res == 0)
+        PrintAndLogEx(SUCCESS, "Success writing to tag");
+    
+    return PM3_SUCCESS;
+}
+
+static bool t55xxProtect(bool lock, bool usepwd, uint8_t override, uint32_t password, uint8_t downlink_mode, uint32_t new_password) {
+
+    PrintAndLogEx(INFO, "Checking current configuration");
+
+    bool testmode = false;
+    uint32_t block0 = 0;
+
+    int res = T55xxReadBlockEx(T55x7_CONFIGURATION_BLOCK, T55x7_PAGE0, usepwd, override, password, downlink_mode, false);
+    if (res != PM3_SUCCESS) {
+        PrintAndLogEx(WARNING, "Failed to read block0, use `p` password parameter?");
+        return false;
+    }
+
+    if (GetT55xxBlockData(&block0) == false)
+        return false;
+
+    bool isPwdBitAlreadySet = (block0 >> (32 - 28) & 1);
+    if (isPwdBitAlreadySet) {
+        PrintAndLogEx(INFO, "PWD bit is already set");
+        usepwd = true;
+    }
+
+    // set / clear pwd bit
+    if (lock) {
+        block0 |= 1 << 4;
+    } else {
+        block0 &= ~(1 << 4);
+    }
+
+    // write new password
+    if (t55xxWrite(T55x7_PWD_BLOCK, T55x7_PAGE0, usepwd, testmode, password, downlink_mode, new_password) != PM3_SUCCESS) {
+        PrintAndLogEx(ERR, "Failed to write new password");
+        return false;
+    } else {
+        PrintAndLogEx(SUCCESS, "Wrote new password");
+    }
+
+    // validate new password
+    uint32_t curr_password = (isPwdBitAlreadySet) ? new_password : password;
+
+    if (t55xxVerifyWrite(T55x7_PWD_BLOCK, T55x7_PAGE0, usepwd, override, curr_password, downlink_mode, new_password) == false) {
+        PrintAndLogEx(WARNING, "Failed to validate the password write. aborting.");
+        return false;
+    } else {
+        PrintAndLogEx(SUCCESS, "Validated new password");
+    }
+
+    // write config
+    if (t55xxWrite(T55x7_CONFIGURATION_BLOCK, T55x7_PAGE0, usepwd, testmode, curr_password, downlink_mode, block0) != PM3_SUCCESS) {
+        PrintAndLogEx(ERR, "Failed to write modified configuration block %08X", block0);
+        return false;
+    } else {
+        PrintAndLogEx(SUCCESS, "Wrote modified configuration block");
+    }
+
+    // validate new config.  If all went well,  card should now demand pwd, hence override = 0.
+    override = 0;
+    if (t55xxVerifyWrite(T55x7_CONFIGURATION_BLOCK, T55x7_PAGE0, true, override, new_password, downlink_mode, block0) == false) {
+        PrintAndLogEx(WARNING, "Failed to validate pwd bit set on configuration block. aborting.");
+        return false;
+    } else {
+        PrintAndLogEx(SUCCESS, "New configuration block " _YELLOW_("%08X")"password " _YELLOW_("%08X"), block0, new_password);
+        PrintAndLogEx(SUCCESS, "Success, tag is locked");
+        return true;
+    }
+}
+
+bool t55xxAquireAndCompareBlock0(bool usepwd, uint32_t password, uint32_t known_block0, bool verbose) {
+
+    if (verbose)
+        PrintAndLogEx(INFO, "Block0 write detected, running `detect` to see if validation is possible");
+
+    for (uint8_t m = 0; m < 4; m++) {
+        if (AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password, m) == false) {
+            continue;
+        }
+
+        if (DecodeT55xxBlock() == false) {
+            continue;
+        }
+
+        for (uint16_t i = 0; DemodBufferLen - 32; i++) {
+            uint32_t tmp = PackBits(i, 32, DemodBuffer);
+            if (tmp == known_block0) {
+                config.offset = i;
+                config.downlink_mode = m;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool t55xxAquireAndDetect(bool usepwd, uint32_t password, uint32_t known_block0, bool verbose) {
+
+    if (verbose)
+        PrintAndLogEx(INFO, "Block0 write detected, running `detect` to see if validation is possible");
+
+    for (uint8_t m = 0; m < 4; m++) {
+        if (AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password, m) == false)
+            continue;
+
+        if (tryDetectModulationEx(m, verbose, known_block0) == false)
+            continue;
+
+        config.downlink_mode = m;
+        return true;
+    }
+    return false;
+}
+
+bool t55xxVerifyWrite(uint8_t block, bool page1, bool usepwd, uint8_t override, uint32_t password, uint8_t downlink_mode, uint32_t data) {
+
+    uint32_t read_data = 0;
+
+    if (downlink_mode == 0xFF)
+        downlink_mode = config.downlink_mode;
+
+    int res = T55xxReadBlockEx(block, page1, usepwd, override, password, downlink_mode, false);
+    if (res == PM3_SUCCESS) {
+
+        if (GetT55xxBlockData(&read_data) == false)
+            return false;
+
+    } else if (res == PM3_EWRONGANSVER) {
+
+        // could't decode.  Lets see if this was a block 0 write and try read/detect it auto.
+        // this messes up with ppls config..
+        if (block == 0 && page1 == false) {
+
+            if (t55xxAquireAndDetect(usepwd, password, data, true) == false)
+                return false;
+
+            return t55xxVerifyWrite(block, page1, usepwd, 2, password, config.downlink_mode, data);
+        }
+    }
+
+    return (read_data == data);
+}
+
+int t55xxWrite(uint8_t block, bool page1, bool usepwd, bool testMode, uint32_t password, uint8_t downlink_mode, uint32_t data) {
+
+    uint8_t flags;
+    flags  = (usepwd)   ? 0x1 : 0;
+    flags |= (page1)    ? 0x2 : 0;
+    flags |= (testMode) ? 0x4 : 0;
+    flags |= (downlink_mode << 3);
+
+    /*
+        OLD style
+       arg0 = data, (4 bytes)
+       arg1 = block (1 byte)
+       arg2 = password (4 bytes)
+       flags = data[0] (1 byte)
+
+       new style
+       uses struct in pm3_cmd.h
+    */
+    t55xx_write_block_t ng;
+    ng.data    = data;
+    ng.pwd     = password;
+    ng.blockno = block;
+    ng.flags   = flags;
+
+    PacketResponseNG resp;
+    clearCommandBuffer();
+    SendCommandNG(CMD_LF_T55XX_WRITEBL, (uint8_t *)&ng, sizeof(ng));
+    if (!WaitForResponseTimeout(CMD_LF_T55XX_WRITEBL, &resp, 2000)) {
+        PrintAndLogEx(ERR, "Error occurred, device did not ACK write operation.");
+        return PM3_ETIMEOUT;
+    }
+    return resp.status;
+}
+
 void printT5xxHeader(uint8_t page) {
-    PrintAndLogEx(NORMAL, "Reading Page %d:", page);
-    PrintAndLogEx(NORMAL, "blk | hex data | binary                           | ascii");
-    PrintAndLogEx(NORMAL, "----+----------+----------------------------------+-------");
+    PrintAndLogEx(SUCCESS, "Reading Page %d:", page);
+    PrintAndLogEx(SUCCESS, "blk | hex data | binary                           | ascii");
+    PrintAndLogEx(SUCCESS, "----+----------+----------------------------------+-------");
+}
+
+void SetConfigWithBlock0(uint32_t block0) {
+    SetConfigWithBlock0Ex(block0, 0, false);
+}
+void SetConfigWithBlock0Ex(uint32_t block0, uint8_t offset, bool Q5) {
+    // T55x7
+    uint32_t extend = (block0 >> (32 - 15)) & 0x01;
+    uint32_t dbr;
+    if (extend)
+        dbr = (block0 >> (32 - 14)) & 0x3F;
+    else
+        dbr = (block0 >> (32 - 14)) & 0x07;
+
+    uint32_t datamod  = (block0 >> (32 - 20)) & 0x1F;
+    bool pwd = (bool)((block0 >> (32 - 28)) & 0x01);
+    bool sst = (bool)((block0 >> (32 - 29)) & 0x01);
+    bool inv = (bool)((block0 >> (32 - 31)) & 0x01);
+
+    config.modulation = datamod;
+    config.bitrate = dbr;
+
+    // FSK1a, FSK2a
+    if (datamod == DEMOD_FSK1a || datamod == DEMOD_FSK2a || datamod ==  DEMOD_BIa)
+        config.inverted = 1;
+    else
+        config.inverted = inv;
+
+    config.Q5 = Q5;
+    config.ST = sst;
+    config.usepwd = pwd;
+    config.offset = offset;
+    config.block0 = block0;
 }
 
 static int CmdT55xxSetConfig(const char *Cmd) {
+
+    // No args
+    if (strlen(Cmd) == 0) return printConfiguration(config);
 
     uint8_t offset = 0, bitRate = 0;
     char modulation[6] = {0x00};
     uint8_t rates[9] = {8, 16, 32, 40, 50, 64, 100, 128, 0};
     uint8_t cmdp = 0;
+    uint8_t downlink_mode = 0;
     bool errors = false;
+    uint32_t block0 = 0;
+    bool gotconf = false;
+
     while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
         char tmp = tolower(param_getchar(Cmd, cmdp));
         switch (tmp) {
@@ -314,6 +636,11 @@ static int CmdT55xxSetConfig(const char *Cmd) {
                     }
                     if (i == 9) errors = true;
                 }
+                cmdp += 2;
+                break;
+            case 'c':
+                block0 = param_get32ex(Cmd, cmdp + 1, 0, 16);
+                gotconf = true;
                 cmdp += 2;
                 break;
             case 'd':
@@ -388,6 +715,14 @@ static int CmdT55xxSetConfig(const char *Cmd) {
                     cmdp += 1;
                 }
                 break;
+            case 'r':
+                errors = param_getdec(Cmd, cmdp + 1, &downlink_mode);
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
+                if (!errors)
+                    config.downlink_mode = downlink_mode;
+                cmdp += 2;
+                break;
             default:
                 PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
                 errors = true;
@@ -395,55 +730,65 @@ static int CmdT55xxSetConfig(const char *Cmd) {
         }
     }
 
-    // No args
-    if (cmdp == 0) return printConfiguration(config);
-
     //Validations
     if (errors) return usage_t55xx_config();
 
-    config.block0 = 0;
+    if (gotconf) {
+        SetConfigWithBlock0Ex(block0, config.offset, config.Q5);
+    } else {
+        config.block0 = 0;
+    }
+
     return printConfiguration(config);
 }
-
 int T55xxReadBlock(uint8_t block, bool page1, bool usepwd, uint8_t override, uint32_t password, uint8_t downlink_mode) {
+    return T55xxReadBlockEx(block, page1, usepwd, override, password, downlink_mode, true);
+}
+
+int T55xxReadBlockEx(uint8_t block, bool page1, bool usepwd, uint8_t override, uint32_t password, uint8_t downlink_mode, bool verbose) {
     //Password mode
     if (usepwd) {
         // try reading the config block and verify that PWD bit is set before doing this!
-        if (!override) {
-            if (!AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, false, 0, downlink_mode)) return PM3_ESOFT;
+        // override = 1 (override and display)
+        // override = 2 (override and no display)
+        if (override == 0) {
+            if (AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, false, 0, downlink_mode) == false)
+                return PM3_ERFTRANS;
 
-            if (!tryDetectModulation()) {
-                PrintAndLogEx(NORMAL, "Safety Check: Could not detect if PWD bit is set in config block. Exits.");
-                return 0;
+            if (tryDetectModulation(downlink_mode, false) == false) {
+                PrintAndLogEx(WARNING, "Safety check: Could not detect if PWD bit is set in config block. Exits.");
+                return PM3_EWRONGANSVER;
             } else {
-                PrintAndLogEx(NORMAL, "Safety Check: PWD bit is NOT set in config block. Reading without password...");
+                PrintAndLogEx(WARNING, "Safety check: PWD bit is NOT set in config block. Reading without password...");
                 usepwd = false;
-                page1 = false;
+                page1 = false; // ??
             }
-        } else {
-            // Show only if first for command i.e. override = 1 (override and display) override = 2 (override and dont display)
-            if ((override & 2) != 2)
-                PrintAndLogEx(NORMAL, "Safety Check Overriden - proceeding despite risk");
+        } else if (override == 1) {
+            PrintAndLogEx(INFO, "Safety check overridden - proceeding despite risk");
         }
     }
 
+    if (AquireData(page1, block, usepwd, password, downlink_mode) == false)
+        return PM3_ERFTRANS;
 
-    if (!AquireData(page1, block, usepwd, password, downlink_mode)) return PM3_ESOFT;
-    if (!DecodeT55xxBlock()) return PM3_ESOFT;
+    if (DecodeT55xxBlock() == false)
+        return PM3_EWRONGANSVER;
 
-    printT55xxBlock(block);
+    if (verbose)
+        printT55xxBlock(block);
+
     return PM3_SUCCESS;
 }
 
 static int CmdT55xxReadBlock(const char *Cmd) {
-    uint8_t  block         = REGULAR_READ_MODE_BLOCK;
-    uint32_t password      = 0; //default to blank Block 7
-    bool     usepwd        = false;
-    bool     override      = false;
-    bool     page1         = false;
-    bool     errors        = false;
-    uint8_t  cmdp          = 0;
-    uint8_t  downlink_mode = 0;
+    uint8_t block = REGULAR_READ_MODE_BLOCK;
+    uint8_t override = 0;
+    uint8_t cmdp = 0;
+    uint8_t downlink_mode = config.downlink_mode;
+    uint32_t password = 0; //default to blank Block 7
+    bool usepwd = false;
+    bool page1 = false;
+    bool errors = false;
 
     while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
         switch (tolower(param_getchar(Cmd, cmdp))) {
@@ -454,7 +799,7 @@ static int CmdT55xxReadBlock(const char *Cmd) {
                 cmdp += 2;
                 break;
             case 'o':
-                override = true;
+                override = 1;
                 cmdp++;
                 break;
             case 'p':
@@ -467,9 +812,10 @@ static int CmdT55xxReadBlock(const char *Cmd) {
                 cmdp++;
                 break;
             case 'r':
-            case 'R':
-                downlink_mode = param_getchar(Cmd, cmdp + 1) - '0';
-                if (downlink_mode > 3) downlink_mode = 0;
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
+
                 cmdp += 2;
                 break;
 
@@ -479,7 +825,7 @@ static int CmdT55xxReadBlock(const char *Cmd) {
                 break;
         }
     }
-    if (errors) return usage_t55xx_read();
+    if (errors || cmdp == 0) return usage_t55xx_read();
 
     if (block > 7 && block != REGULAR_READ_MODE_BLOCK) {
         PrintAndLogEx(NORMAL, "Block must be between 0 and 7");
@@ -590,18 +936,18 @@ void T55xx_Print_DownlinkMode(uint8_t downlink_mode) {
 
     PrintAndLogEx(NORMAL, msg);
 }
-//
+
+
 static int CmdT55xxDetect(const char *Cmd) {
 
-    bool     errors           = false;
-    bool     useGB            = false;
-    bool     usepwd           = false;
-    bool     try_all_dl_modes = false;
-    bool     found            = false;
-    uint32_t password         = 0;
-    uint8_t  cmdp             = 0;
-    uint8_t  downlink_mode    = 0;
-    uint8_t  dl_mode          = 0;
+    bool errors = false;
+    bool useGB = false;
+    bool usepwd = false;
+    bool try_all_dl_modes = true;
+    bool found = false;
+    uint32_t password = 0;
+    uint8_t cmdp = 0;
+    uint8_t downlink_mode = 0;
 
     while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
         switch (tolower(param_getchar(Cmd, cmdp))) {
@@ -613,12 +959,12 @@ static int CmdT55xxDetect(const char *Cmd) {
                 cmdp += 2;
                 break;
             case '1':
-                // use Graphbuffer data
                 useGB = true;
                 cmdp++;
                 break;
             case 'r':
-                downlink_mode = param_getchar(Cmd, cmdp + 1) - '0';
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode <= 3) try_all_dl_modes = false; // User selected ONLY 1 so honor.
                 if (downlink_mode == 4) try_all_dl_modes = true;
                 if (downlink_mode > 3) downlink_mode = 0;
                 cmdp += 2;
@@ -632,52 +978,46 @@ static int CmdT55xxDetect(const char *Cmd) {
     if (errors) return usage_t55xx_detect();
 
     // sanity check.
-    if (SanityOfflineCheck(useGB) != PM3_SUCCESS) return PM3_ENODATA;
+    if (SanityOfflineCheck(useGB) != PM3_SUCCESS)
+        return PM3_ESOFT;
 
-    if (!useGB) {
-        for (dl_mode = downlink_mode; dl_mode < 4; dl_mode++) {
-            found = AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password, dl_mode);
+    if (useGB == false) {
 
-            // found = false if password is supplied but wrong d/l mode
-            // so keep trying other modes (if requested)
-            /*
-            if (!found) {
-                printf ("Aquire not found");
-                return PM3_ENODATA;
-            }
-            */
-            if (tryDetectModulation()) {
-                T55xx_Print_DownlinkMode(dl_mode);
-                dl_mode = 4;
+        if (try_all_dl_modes) {
+
+            for (uint8_t m = downlink_mode; m < 4; m++) {
+                if (AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password, m) == false)
+                    continue;
+
+                if (tryDetectModulation(m, T55XX_PrintConfig) == false)
+                    continue;
+
                 found = true;
-            } else found = false;
+                break;
+            }
+        } else  {
 
-            if (!try_all_dl_modes) dl_mode = 4;
+            if (AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password, downlink_mode)) {
+                found = tryDetectModulation(downlink_mode, T55XX_PrintConfig);
+            }
         }
+
+    } else {
+        found = tryDetectModulation(downlink_mode, T55XX_PrintConfig);
     }
 
-
-    if (useGB) found = tryDetectModulation();
-
-    if (!found)
+    if (found == false)
         PrintAndLogEx(WARNING, "Could not detect modulation automatically. Try setting it manually with " _YELLOW_("\'lf t55xx config\'"));
-
-
-    /*
-    if (!useGB) {
-        if (!AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password,downlink_mode))
-            return PM3_ENODATA;
-    }
-    if (!tryDetectModulation())
-        PrintAndLogEx(WARNING, "Could not detect modulation automatically. Try setting it manually with " _YELLOW_("\'lf t55xx config\'"));
-    else
-        T55xx_Print_DownlinkMode (downlink_mode);
-    */
 
     return PM3_SUCCESS;
 }
+
 // detect configuration?
-bool tryDetectModulation(void) {
+bool tryDetectModulation(uint8_t downlink_mode, bool print_config) {
+    return tryDetectModulationEx(downlink_mode, print_config, 0);
+}
+
+bool tryDetectModulationEx(uint8_t downlink_mode, bool print_config, uint32_t wanted_conf) {
 
     t55xx_conf_block_t tests[15];
     int bitRate = 0, clk = 0, firstClockEdge = 0;
@@ -696,6 +1036,7 @@ bool tryDetectModulation(void) {
             tests[hits].inverted = false;
             tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
             tests[hits].ST = false;
+            tests[hits].downlink_mode = downlink_mode;
             ++hits;
         }
         if ((FSKrawDemod("0 1", false) == PM3_SUCCESS) && test(DEMOD_FSK, &tests[hits].offset, &bitRate, clk, &tests[hits].Q5)) {
@@ -708,6 +1049,7 @@ bool tryDetectModulation(void) {
             tests[hits].inverted = true;
             tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
             tests[hits].ST = false;
+            tests[hits].downlink_mode = downlink_mode;
             ++hits;
         }
     } else {
@@ -724,6 +1066,7 @@ bool tryDetectModulation(void) {
                 tests[hits].bitrate = bitRate;
                 tests[hits].inverted = false;
                 tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
+                tests[hits].downlink_mode = downlink_mode;
                 ++hits;
             }
             tests[hits].ST = true;
@@ -737,6 +1080,7 @@ bool tryDetectModulation(void) {
                 tests[hits].bitrate = bitRate;
                 tests[hits].inverted = true;
                 tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
+                tests[hits].downlink_mode = downlink_mode;
                 ++hits;
             }
             if ((ASKbiphaseDemod("0 0 0 2", false) == PM3_SUCCESS) && test(DEMOD_BI, &tests[hits].offset, &bitRate, clk, &tests[hits].Q5)) {
@@ -745,6 +1089,7 @@ bool tryDetectModulation(void) {
                 tests[hits].inverted = false;
                 tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
                 tests[hits].ST = false;
+                tests[hits].downlink_mode = downlink_mode;
                 ++hits;
             }
             if ((ASKbiphaseDemod("0 0 1 2", false) == PM3_SUCCESS) && test(DEMOD_BIa, &tests[hits].offset, &bitRate, clk, &tests[hits].Q5)) {
@@ -753,6 +1098,7 @@ bool tryDetectModulation(void) {
                 tests[hits].inverted = true;
                 tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
                 tests[hits].ST = false;
+                tests[hits].downlink_mode = downlink_mode;
                 ++hits;
             }
         }
@@ -764,6 +1110,7 @@ bool tryDetectModulation(void) {
                 tests[hits].inverted = false;
                 tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
                 tests[hits].ST = false;
+                tests[hits].downlink_mode = downlink_mode;
                 ++hits;
             }
 
@@ -773,6 +1120,7 @@ bool tryDetectModulation(void) {
                 tests[hits].inverted = true;
                 tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
                 tests[hits].ST = false;
+                tests[hits].downlink_mode = downlink_mode;
                 ++hits;
             }
         }
@@ -789,6 +1137,7 @@ bool tryDetectModulation(void) {
                 tests[hits].inverted = false;
                 tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
                 tests[hits].ST = false;
+                tests[hits].downlink_mode = downlink_mode;
                 ++hits;
             }
             if ((PSKDemod("0 1 6", false) == PM3_SUCCESS) && test(DEMOD_PSK1, &tests[hits].offset, &bitRate, clk, &tests[hits].Q5)) {
@@ -797,6 +1146,7 @@ bool tryDetectModulation(void) {
                 tests[hits].inverted = true;
                 tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
                 tests[hits].ST = false;
+                tests[hits].downlink_mode = downlink_mode;
                 ++hits;
             }
             //ICEMAN: are these PSKDemod calls needed?
@@ -809,6 +1159,7 @@ bool tryDetectModulation(void) {
                     tests[hits].inverted = false;
                     tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
                     tests[hits].ST = false;
+                    tests[hits].downlink_mode = downlink_mode;
                     ++hits;
                 }
             } // inverse waves does not affect this demod
@@ -821,6 +1172,7 @@ bool tryDetectModulation(void) {
                     tests[hits].inverted = false;
                     tests[hits].block0 = PackBits(tests[hits].offset, 32, DemodBuffer);
                     tests[hits].ST = false;
+                    tests[hits].downlink_mode = downlink_mode;
                     ++hits;
                 }
             } // inverse waves does not affect this demod
@@ -836,7 +1188,11 @@ bool tryDetectModulation(void) {
         config.block0 = tests[0].block0;
         config.Q5 = tests[0].Q5;
         config.ST = tests[0].ST;
-        printConfiguration(config);
+        config.downlink_mode = downlink_mode;
+
+        if (print_config)
+            printConfiguration(config);
+
         return true;
     }
 
@@ -844,8 +1200,13 @@ bool tryDetectModulation(void) {
     if (hits > 1) {
         PrintAndLogEx(SUCCESS, "Found [%d] possible matches for modulation.", hits);
         for (int i = 0; i < hits; ++i) {
+
+            bool wanted = false;
+            if (wanted_conf > 0)
+                wanted = (wanted_conf == tests[i].block0);
+
             retval = testKnownConfigBlock(tests[i].block0);
-            if (retval) {
+            if (retval || wanted) {
                 PrintAndLogEx(NORMAL, "--[%d]--------------- << selected this", i + 1);
                 config.modulation = tests[i].modulation;
                 config.bitrate = tests[i].bitrate;
@@ -854,10 +1215,13 @@ bool tryDetectModulation(void) {
                 config.block0 = tests[i].block0;
                 config.Q5 = tests[i].Q5;
                 config.ST = tests[i].ST;
+                config.downlink_mode = tests[i].downlink_mode;
             } else {
                 PrintAndLogEx(NORMAL, "--[%d]---------------", i + 1);
             }
-            printConfiguration(tests[i]);
+
+            if (print_config)
+                printConfiguration(tests[i]);
         }
     }
     return retval;
@@ -893,7 +1257,7 @@ bool GetT55xxBlockData(uint32_t *blockdata) {
     uint8_t idx = config.offset;
 
     if (idx + 32 > DemodBufferLen) {
-        PrintAndLogEx(WARNING, "The configured offset %d is too big. Possible offset: %d)", idx, DemodBufferLen - 32);
+        PrintAndLogEx(WARNING, "The configured offset %d is too big. Possible offset: %zu)", idx, DemodBufferLen - 32);
         return false;
     }
 
@@ -911,7 +1275,7 @@ void printT55xxBlock(uint8_t blockNum) {
 
     num_to_bytes(blockData, 4, bytes);
 
-    PrintAndLogEx(NORMAL, " %02d | %08X | %s | %s", blockNum, blockData, sprint_bin(DemodBuffer + config.offset, 32), sprint_ascii(bytes, 4));
+    PrintAndLogEx(SUCCESS, " %02d | %08X | %s | %s", blockNum, blockData, sprint_bin(DemodBuffer + config.offset, 32), sprint_ascii(bytes, 4));
 }
 
 static bool testModulation(uint8_t mode, uint8_t modread) {
@@ -1017,11 +1381,14 @@ static bool testQ5(uint8_t mode, uint8_t *offset, int *fndBitRate, uint8_t clk) 
         si += 3;
         //uint8_t ST        = PackBits(si, 1, DemodBuffer); si += 1;
         if (maxBlk == 0) continue;
+
         //test modulation
         if (!testQ5Modulation(mode, modread)) continue;
         if (bitRate != clk) continue;
+
         *fndBitRate = convertQ5bitRate(bitRate);
         if (*fndBitRate < 0) continue;
+
         *offset = idx;
 
         return true;
@@ -1107,24 +1474,24 @@ int special(const char *Cmd) {
 }
 
 int printConfiguration(t55xx_conf_block_t b) {
-    PrintAndLogEx(NORMAL, "Chip Type  : %s", (b.Q5) ? "T5555(Q5)" : "T55x7");
-    PrintAndLogEx(NORMAL, "Modulation : %s", GetSelectedModulationStr(b.modulation));
-    PrintAndLogEx(NORMAL, "Bit Rate   : %s", GetBitRateStr(b.bitrate, (b.block0 & T55x7_X_MODE && (b.block0 >> 28 == 6 || b.block0 >> 28 == 9))));
-    PrintAndLogEx(NORMAL, "Inverted   : %s", (b.inverted) ? _GREEN_("Yes") : "No");
-    PrintAndLogEx(NORMAL, "Offset     : %d", b.offset);
-    PrintAndLogEx(NORMAL, "Seq. Term. : %s", (b.ST) ? _GREEN_("Yes") : "No");
-    PrintAndLogEx(NORMAL, "Block0     : 0x%08X", b.block0);
+    PrintAndLogEx(NORMAL, "    Chip Type      : %s", (b.Q5) ? "T5555 ( Q5 )" : "T55x7");
+    PrintAndLogEx(NORMAL, "    Modulation     : %s", GetSelectedModulationStr(b.modulation));
+    PrintAndLogEx(NORMAL, "    Bit Rate       : %s", GetBitRateStr(b.bitrate, (b.block0 & T55x7_X_MODE && (b.block0 >> 28 == 6 || b.block0 >> 28 == 9))));
+    PrintAndLogEx(NORMAL, "    Inverted       : %s", (b.inverted) ? _GREEN_("Yes") : "No");
+    PrintAndLogEx(NORMAL, "    Offset         : %d", b.offset);
+    PrintAndLogEx(NORMAL, "    Seq. Term.     : %s", (b.ST) ? _GREEN_("Yes") : "No");
+    PrintAndLogEx(NORMAL, "    Block0         : 0x%08X", b.block0);
+    PrintAndLogEx(NORMAL, "    Downlink Mode  : %s", GetDownlinkModeStr(b.downlink_mode));
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
 
 static int CmdT55xxWakeUp(const char *Cmd) {
 
-    uint32_t password      = 0;
-    uint8_t  cmdp          = 0;
-    bool     errors        = false;
-    uint8_t  downlink_mode = 0;
-    uint8_t  flags         = 0;
+    uint32_t password = 0;
+    uint8_t cmdp = 0;
+    bool errors = false;
+    uint8_t downlink_mode = config.downlink_mode;;
 
     while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
         switch (tolower(param_getchar(Cmd, cmdp))) {
@@ -1133,11 +1500,12 @@ static int CmdT55xxWakeUp(const char *Cmd) {
             case 'p':
                 password = param_get32ex(Cmd, cmdp + 1, 0, 16);
                 cmdp += 2;
-                errors = false;
                 break;
             case 'r':
-                downlink_mode = param_getchar(Cmd, cmdp + 1) - '0';
-                if (downlink_mode > 3) downlink_mode = 0;
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
+
                 cmdp += 2;
                 break;
             default:
@@ -1149,25 +1517,37 @@ static int CmdT55xxWakeUp(const char *Cmd) {
 
     if (errors) return usage_t55xx_wakup();
 
-    flags = (downlink_mode & 3) << 3;
-    clearCommandBuffer();
-    SendCommandMIX(CMD_LF_T55XX_WAKEUP, password, flags, 0, NULL, 0);
-    PrintAndLogEx(SUCCESS, "Wake up command sent. Try read now");
+    struct p {
+        uint32_t password;
+        uint8_t flags;
+    } PACKED payload;
 
+    payload.password = password;
+    payload.flags = (downlink_mode & 3) << 3;
+
+    clearCommandBuffer();
+    SendCommandNG(CMD_LF_T55XX_WAKEUP, (uint8_t *)&payload, sizeof(payload));
+    if (!WaitForResponseTimeout(CMD_LF_T55XX_WAKEUP, NULL, 1000)) {
+        PrintAndLogEx(WARNING, "command execution time out");
+        return PM3_ETIMEOUT;
+    }
+
+    PrintAndLogEx(SUCCESS, "Wake up command sent. Try read now");
     return PM3_SUCCESS;
 }
 
 static int CmdT55xxWriteBlock(const char *Cmd) {
-    uint8_t  block         = 0xFF; //default to invalid block
-    uint32_t data          = 0;    //default to blank Block
-    uint32_t password      = 0;    //default to blank Block 7
-    bool     usepwd        = false;
-    bool     page1         = false;
-    bool     gotdata       = false;
-    bool     testMode      = false;
-    bool     errors        = false;
-    uint8_t  cmdp          = 0;
-    uint32_t downlink_mode = 0;
+    uint8_t block = 0xFF;    // default to invalid block
+    uint32_t data = 0;       // default to blank Block
+    uint32_t password = 0;   // default to blank Block 7
+    bool usepwd = false;
+    bool page1 = false;
+    bool gotdata = false;
+    bool testMode = false;
+    bool errors = false;
+    bool validate = false;
+    uint8_t cmdp = 0;
+    uint32_t downlink_mode = config.downlink_mode;;
 
     while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
         switch (tolower(param_getchar(Cmd, cmdp))) {
@@ -1201,9 +1581,15 @@ static int CmdT55xxWriteBlock(const char *Cmd) {
                 cmdp++;
                 break;
             case 'r':
-                downlink_mode = param_getchar(Cmd, cmdp + 1) - '0';
-                if (downlink_mode > 3) downlink_mode = 0;
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
+
                 cmdp += 2;
+                break;
+            case 'v':
+                validate = true;
+                cmdp++;
                 break;
             default:
                 PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
@@ -1213,64 +1599,66 @@ static int CmdT55xxWriteBlock(const char *Cmd) {
     }
     if (errors || !gotdata) return usage_t55xx_write();
 
-    PacketResponseNG resp;
-    uint8_t flags;
-    flags  = (usepwd)   ? 0x1 : 0;
-    flags |= (page1)    ? 0x2 : 0;
-    flags |= (testMode) ? 0x4 : 0;
-    flags |= (downlink_mode << 3);
-
     char pwdStr[16] = {0};
     snprintf(pwdStr, sizeof(pwdStr), "pwd: 0x%08X", password);
 
     PrintAndLogEx(INFO, "Writing page %d  block: %02d  data: 0x%08X %s", page1, block, data, (usepwd) ? pwdStr : "");
 
-    clearCommandBuffer();
-
-    /*
-        OLD style
-       arg0 = data, (4 bytes)
-       arg1 = block (1 byte)
-       arg2 = password (4 bytes)
-       flags = data[0] (1 byte)
-
-       new style
-       uses struct in pm3_cmd.h
-    */
-    t55xx_write_block_t ng;
-    ng.data    = data;
-    ng.pwd     = password;
-    ng.blockno = block;
-    ng.flags   = flags;
-
-    SendCommandNG(CMD_LF_T55XX_WRITEBL, (uint8_t *)&ng, sizeof(ng));
-    if (!WaitForResponseTimeout(CMD_LF_T55XX_WRITEBL, &resp, 2000)) {
-        PrintAndLogEx(ERR, "Error occurred, device did not ACK write operation. (May be due to old firmware)");
-        return PM3_ETIMEOUT;
+    if (t55xxWrite(block, page1, usepwd, testMode, password, downlink_mode, data) != PM3_SUCCESS) {
+        PrintAndLogEx(ERR, "Write failed");
+        return PM3_ESOFT;
     }
+
+    if (validate) {
+        bool isOK = t55xxVerifyWrite(block, page1, usepwd, 1, password, downlink_mode, data);
+        if (isOK)
+            PrintAndLogEx(SUCCESS, "Write OK, validation successful");
+        else
+            PrintAndLogEx(WARNING, "Write could not validate the written data");
+    }
+
     return PM3_SUCCESS;
 }
 
 static int CmdT55xxReadTrace(const char *Cmd) {
-    uint8_t cmd_len       = 0;
-    uint8_t downlink_mode = 0;
 
-    char cmdp = tolower(param_getchar(Cmd, 0));
-    if (cmdp == 'r') {
-        downlink_mode = param_getchar(Cmd, 1) - '0';
-        if (downlink_mode > 3) downlink_mode = 0;
-        cmd_len = 3;
+    bool frombuff = false;
+    uint8_t downlink_mode = config.downlink_mode;;
+    uint8_t cmdp = 0;
+    bool errors = false;
+
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':
+                return usage_t55xx_trace();
+            case 'r':
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
+
+                cmdp += 2;
+                break;
+            case '1':
+                frombuff = true;
+                cmdp += 2;
+                break;
+            default:
+                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
+                errors = true;
+                break;
+        }
     }
-    if ((strlen(Cmd) != cmd_len) || (cmdp == 'h')) return usage_t55xx_trace();
 
-    if (strlen(Cmd) == cmd_len) {
+    if (errors) return usage_t55xx_trace();
+
+    if (!frombuff) {
         // sanity check.
         if (SanityOfflineCheck(false) != PM3_SUCCESS) return PM3_ENODATA;
 
         bool pwdmode = false;
         uint32_t password = 0;
-//        REGULAR_READ_MODE_BLOCK - yeilds correct Page 1 Block 2 data i.e. + 32 bit offset.
-//        if (!AquireData(T55x7_PAGE1, T55x7_TRACE_BLOCK1, pwdmode, password,downlink_mode))
+
+        // REGULAR_READ_MODE_BLOCK - yeilds correct Page 1 Block 2 data i.e. + 32 bit offset.
         if (!AquireData(T55x7_PAGE1, REGULAR_READ_MODE_BLOCK, pwdmode, password, downlink_mode))
             return PM3_ENODATA;
     }
@@ -1295,7 +1683,7 @@ static int CmdT55xxReadTrace(const char *Cmd) {
         si += 9;
 
         if (hdr != 0x1FF) {
-            PrintAndLogEx(FAILED, "Invalid Q5 Trace data header (expected 0x1FF, found %X)", hdr);
+            PrintAndLogEx(FAILED, "Invalid T555 ( Q5 ) Trace data header (expected 0x1FF, found %X)", hdr);
             return PM3_ESOFT;
         }
 
@@ -1422,7 +1810,7 @@ void printT55x7Trace(t55x7_tracedata_t data, uint8_t repeat) {
 }
 
 void printT5555Trace(t5555_tracedata_t data, uint8_t repeat) {
-    PrintAndLogEx(NORMAL, "-- T5555 (Q5) Trace Information -----------------------------");
+    PrintAndLogEx(NORMAL, "-- T5555 ( Q5 ) Trace Information ---------------------------");
     PrintAndLogEx(NORMAL, "-------------------------------------------------------------");
     PrintAndLogEx(NORMAL, " ICR IC Revision  : %d", data.icr);
     PrintAndLogEx(NORMAL, "     Lot          : %c%d", data.lotidc, data.lotid);
@@ -1467,7 +1855,7 @@ static void printT5x7KnownBlock0(uint32_t b0) {
             snprintf(s + strlen(s), sizeof(s) - strlen(s), "FDXB ");
             break;
         case T55X7_HID_26_CONFIG_BLOCK:
-            snprintf(s + strlen(s), sizeof(s) - strlen(s), "HID 26b ");
+            snprintf(s + strlen(s), sizeof(s) - strlen(s), "HID 26b (ProxCard) ");
             break;
         case T55X7_PYRAMID_CONFIG_BLOCK:
             snprintf(s + strlen(s), sizeof(s) - strlen(s), "Pyramid ");
@@ -1513,18 +1901,23 @@ static int CmdT55xxInfo(const char *Cmd) {
         Normal mode
         Extended mode
     */
-    bool     frombuff      = false, gotdata = false, dataasq5 = false;
-    uint8_t  cmdp          = 0;
-    uint8_t  downlink_mode = 0;
-    uint32_t block0        = 0;
+    bool frombuff = false, gotdata = false, dataasq5 = false, usepwd = false;
+    uint8_t cmdp = 0;
+    uint8_t downlink_mode = config.downlink_mode;
+    uint32_t block0 = 0, password = 0;
 
     while (param_getchar(Cmd, cmdp) != 0x00) {
         switch (tolower(param_getchar(Cmd, cmdp))) {
             case 'h':
                 return usage_t55xx_info();
-            case 'd':
+            case 'c':
                 block0 = param_get32ex(Cmd, cmdp + 1, 0, 16);
                 gotdata = true;
+                cmdp += 2;
+                break;
+            case 'p':
+                password = param_get32ex(Cmd, cmdp + 1, 0, 16);
+                usepwd = true;
                 cmdp += 2;
                 break;
             case '1':
@@ -1536,8 +1929,10 @@ static int CmdT55xxInfo(const char *Cmd) {
                 cmdp += 2;
                 break;
             case 'r':
-                downlink_mode = param_getchar(Cmd, cmdp + 1) - '0';
-                if (downlink_mode > 3) downlink_mode = 0;
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
+
                 cmdp += 2;
                 break;
             default:
@@ -1556,11 +1951,10 @@ static int CmdT55xxInfo(const char *Cmd) {
         // sanity check.
         if (SanityOfflineCheck(false) != PM3_SUCCESS) return PM3_ENODATA;
 
-        bool pwdmode = false;
-        uint32_t password = 0;
-        if (!AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, pwdmode, password, downlink_mode))
+        if (!AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password, downlink_mode))
             return PM3_ENODATA;
     }
+
     if (!gotdata) {
         if (!DecodeT55xxBlock()) return PM3_ESOFT;
 
@@ -1568,7 +1962,7 @@ static int CmdT55xxInfo(const char *Cmd) {
         if (DemodBufferLen < 32 + config.offset) return PM3_ESOFT;
 
         //PrintAndLogEx(NORMAL, "Offset+32 ==%d\n DemodLen == %d", config.offset + 32, DemodBufferLen);
-        block0   = PackBits(config.offset, 32, DemodBuffer);
+        block0 = PackBits(config.offset, 32, DemodBuffer);
     }
 
     PrintAndLogEx(NORMAL, "");
@@ -1583,7 +1977,7 @@ static int CmdT55xxInfo(const char *Cmd) {
         uint32_t inv      = (block0 >> (32 - 25)) & 0x01;
         uint32_t datamod  = (block0 >> (32 - 28)) & 0x07;
         uint32_t maxblk   = (block0 >> (32 - 31)) & 0x07;
-        uint32_t st       = (block0 >> (32 - 32)) & 0x01;
+        uint32_t st       = block0 & 0x01;
         PrintAndLogEx(NORMAL, "-- Q5 Configuration & Tag Information -----------------------");
         PrintAndLogEx(NORMAL, "-------------------------------------------------------------");
         PrintAndLogEx(NORMAL, " Header                    : 0x%03X%s", header, (header != 0x600) ? _RED_(" - Warning") : "");
@@ -1653,34 +2047,47 @@ static int CmdT55xxInfo(const char *Cmd) {
 
 static int CmdT55xxDump(const char *Cmd) {
 
-    uint32_t password      = 0;
-    uint8_t  override      = false;
-    uint8_t  cmd_opt_idx   = 0;
-    uint8_t  downlink_mode = 0;
-    uint8_t  pwd_offset    = 0;
-    char     cmdp = tolower(param_getchar(Cmd, 0));
+    uint32_t password = 0;
+    uint8_t override = 0;
+    uint8_t downlink_mode = config.downlink_mode;;
+    bool usepwd = false;
+    bool errors = false;
+    uint8_t cmdp = 0;
 
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':
+                return usage_t55xx_dump();
+            case 'r':
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
 
-    if (cmdp == 'h') return usage_t55xx_dump();
-    if (cmdp == 'r') {
-        cmd_opt_idx++;
-        downlink_mode = param_getchar(Cmd, cmd_opt_idx++) - '0';
-        if (downlink_mode > 3) downlink_mode = 0;
-        pwd_offset = 3;
+                cmdp += 2;
+                break;
+            case 'p':
+                password = param_get32ex(Cmd, cmdp + 1, 0, 16);
+                usepwd = true;
+                cmdp += 2;
+                break;
+            case 'o':
+                override = 1;
+                cmdp++;
+                break;
+            default:
+                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
+                errors = true;
+                break;
+        }
     }
-    bool usepwd = (strlen(Cmd) > pwd_offset);
-    if (usepwd) {
-        password = param_get32ex(Cmd, cmd_opt_idx++, 0, 16);
-        if (param_getchar(Cmd, cmd_opt_idx++) == 'o')
-            override = true;
-    }
+    if (errors) return usage_t55xx_dump();
 
     printT5xxHeader(0);
     for (uint8_t i = 0; i < 8; ++i) {
         T55xxReadBlock(i, 0, usepwd, override, password, downlink_mode);
         // idea for better user experience and display.
         // only show override warning on the first block read
-        if (override) override |= 2; // flag not to show safty for 2nd and on.
+        if (override == 1) override++; // flag not to show safty for 2nd and on.
     }
     printT5xxHeader(1);
     for (uint8_t i = 0; i < 4; i++)
@@ -1848,6 +2255,30 @@ char *GetModulationStr(uint32_t id, bool xmode) {
     return buf;
 }
 
+char *GetDownlinkModeStr(uint8_t downlink_mode) {
+    static char buf[30];
+    char *retStr = buf;
+
+    switch (downlink_mode) {
+        case T55XX_DLMODE_FIXED :
+            snprintf(retStr, sizeof(buf), "default/fixed bit length");
+            break;
+        case T55XX_DLMODE_LLR :
+            snprintf(retStr, sizeof(buf), "long leading reference");
+            break;
+        case T55XX_DLMODE_LEADING_ZERO :
+            snprintf(retStr, sizeof(buf), "leading zero reference");
+            break;
+        case T55XX_DLMODE_1OF4 :
+            snprintf(retStr, sizeof(buf), "1 of 4 coding reference");
+            break;
+        default:
+            snprintf(retStr, sizeof(buf), _RED_("(Unknown)"));
+            break;
+    }
+    return buf;
+}
+
 char *GetQ5ModulationStr(uint32_t id) {
     static char buf[60];
     char *retStr = buf;
@@ -1958,7 +2389,7 @@ static void t55x7_create_config_block(int tagtype) {
             snprintf(retStr, sizeof(buf), "%08X - T55X7 Raw", T55X7_RAW_CONFIG_BLOCK);
             break;
         case 2:
-            snprintf(retStr, sizeof(buf), "%08X - T5555 Q5 Default", T5555_DEFAULT_CONFIG_BLOCK);
+            snprintf(retStr, sizeof(buf), "%08X - T5555 ( Q5 ) Default", T5555_DEFAULT_CONFIG_BLOCK);
             break;
         default:
             break;
@@ -1969,58 +2400,141 @@ static void t55x7_create_config_block(int tagtype) {
 
 static int CmdResetRead(const char *Cmd) {
 
-    uint8_t downlink_mode = 0;
-    uint8_t flags         = 0;
+    uint8_t downlink_mode = config.downlink_mode;;
+    uint8_t flags = 0;
+    uint8_t cmdp = 0;
+    bool errors = false;
 
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':
+                return usage_t55xx_resetread();
+            case 'r':
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
 
-    if (strlen(Cmd) == 3)
-        downlink_mode = param_getchar(Cmd, 1) - '0';
+                cmdp += 2;
+                break;
+            default:
+                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
+                errors = true;
+                break;
+        }
+    }
 
-    if (downlink_mode > 3) downlink_mode = 0;
+    if (errors) return usage_t55xx_resetread();
 
-    printf("DL : %d\n", downlink_mode);
     flags = downlink_mode << 3;
+
+    PacketResponseNG resp;
+
     clearCommandBuffer();
     SendCommandNG(CMD_LF_T55XX_RESET_READ, &flags, sizeof(flags));
-    if (!WaitForResponseTimeout(CMD_ACK, NULL, 2500)) {
+    if (!WaitForResponseTimeout(CMD_LF_T55XX_RESET_READ, &resp, 2500)) {
         PrintAndLogEx(WARNING, "command execution time out");
         return PM3_ETIMEOUT;
     }
 
-    uint8_t got[BIGBUF_SIZE - 1];
-    if (!GetFromDevice(BIG_BUF, got, sizeof(got), 0, NULL, 0, NULL, 2500, false)) {
-        PrintAndLogEx(WARNING, "command execution time out");
-        return PM3_ETIMEOUT;
+    if (resp.status == PM3_SUCCESS) {
+
+        uint8_t *got = calloc(BIGBUF_SIZE - 1, sizeof(uint8_t));
+        if (got == NULL) {
+            PrintAndLogEx(WARNING, "failed to allocate memory");
+            return PM3_EMALLOC;
+        }
+
+        if (!GetFromDevice(BIG_BUF, got, sizeof(got), 0, NULL, 0, NULL, 2500, false)) {
+            PrintAndLogEx(WARNING, "command execution time out");
+            free(got);
+            return PM3_ETIMEOUT;
+        }
+        setGraphBuf(got, sizeof(got));
+        free(got);
     }
-    setGraphBuf(got, sizeof(got));
     return PM3_SUCCESS;
 }
 
 static int CmdT55xxWipe(const char *Cmd) {
-    char writeData[20] = {0};
+
+    char writeData[36] = {0};
     char *ptrData = writeData;
-    char cmdp = tolower(param_getchar(Cmd, 0));
-    if (cmdp == 'h') return usage_t55xx_wipe();
+    uint32_t password = 0, block0 = 0;
+    bool usepwd = false, Q5 = false, gotconf = false;
+    uint8_t cmdp = 0;
+    bool errors = false;
 
-    bool Q5 = (cmdp == 'q');
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':
+                return usage_t55xx_wipe();
+            case 'p':
+                // password used by handheld cloners
+                password = param_get32ex(Cmd, cmdp + 1, 0x51243648, 16);
+                usepwd = true;
+                cmdp += 2;
+                break;
+            case 'c':
+                block0 = param_get32ex(Cmd, cmdp + 1, 0, 16);
+                gotconf = true;
+                cmdp += 2;
+                break;
+            case 'q':
+                Q5 = true;
+                cmdp++;
+                break;
+            default:
+                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
+                errors = true;
+                break;
+        }
+    }
 
-    // Try with the default password to reset block 0
-    // With a pwd should work even if pwd bit not set
-    PrintAndLogEx(INFO, "\nBeginning Wipe of a T55xx tag (assuming the tag is not password protected)\n");
+    if (errors) return usage_t55xx_wipe();
 
-    if (Q5)
-        snprintf(ptrData, sizeof(writeData), "b 0 d 6001F004 p 0");
+
+    PrintAndLogEx(INFO, "\nBegin wiping %s", (Q5) ? "T5555 ( Q5 ) tag" : "T55x7 tag");
+
+    // default config blocks.
+    if (gotconf == false) {
+        block0 = (Q5) ? 0x6001F004 : 0x000880E0;
+    }
+
+    char msg[80] = {0};
+
+    if (gotconf)
+        snprintf(msg, sizeof(msg), "User provided configuration block %08X", block0);
     else
-        snprintf(ptrData, sizeof(writeData), "b 0 d 000880E0 p 0");
+        snprintf(msg, sizeof(msg), "Default configation block %08X", block0);
 
-    if (CmdT55xxWriteBlock(ptrData) != PM3_SUCCESS) PrintAndLogEx(WARNING, "Warning: error writing blk 0");
+    PrintAndLogEx(INFO, "%s", msg);
+
+    // Creating cmd string for write block :)
+    snprintf(ptrData, sizeof(writeData), "b 0 ");
+
+    if (usepwd) {
+        snprintf(ptrData + strlen(writeData), sizeof(writeData) - strlen(writeData), "p %08x ", password);
+    }
+    snprintf(ptrData + strlen(writeData), sizeof(writeData) - strlen(writeData), "d %08X", block0);
+
+    if (CmdT55xxWriteBlock(ptrData) != PM3_SUCCESS)
+        PrintAndLogEx(WARNING, "Warning: error writing blk 0");
 
     for (uint8_t blk = 1; blk < 8; blk++) {
 
         snprintf(ptrData, sizeof(writeData), "b %d d 0", blk);
 
-        if (CmdT55xxWriteBlock(ptrData) != PM3_SUCCESS) PrintAndLogEx(WARNING, "Warning: error writing blk %d", blk);
+        if (CmdT55xxWriteBlock(ptrData) != PM3_SUCCESS)
+            PrintAndLogEx(WARNING, "Warning: error writing blk %d", blk);
 
+        memset(writeData, 0x00, sizeof(writeData));
+    }
+
+    // Check and rest t55xx downlink mode.
+    if (config.downlink_mode != T55XX_DLMODE_FIXED) { // Detect found a different mode so card must support
+        snprintf(ptrData, sizeof(writeData), "b 3 1 d 00000000");
+        if (CmdT55xxWriteBlock(ptrData) != PM3_SUCCESS)
+            PrintAndLogEx(WARNING, "Warning: failed writing block 3 page 1 (config)");
         memset(writeData, 0x00, sizeof(writeData));
     }
     return PM3_SUCCESS;
@@ -2037,44 +2551,50 @@ static bool IsCancelled(void) {
 // load a default pwd file.
 static int CmdT55xxChkPwds(const char *Cmd) {
 
-    char    filename[FILE_PATH_SIZE] = {0};
-    bool    found = false;
+    char filename[FILE_PATH_SIZE] = {0};
+    bool found = false;
     uint8_t timeout = 0;
     uint8_t *keyBlock = NULL;
-    bool    from_flash = false;
-    bool    try_all_dl_modes = false;
+    bool from_flash = false;
+    bool try_all_dl_modes = false;
     uint8_t downlink_mode = 0;
-    int     len;
-    char    cmdp;
-    bool    use_pwd_file = false;
-    int     dl_mode; // to try each downlink mode for each password
+    bool use_pwd_file = false;
+    int dl_mode; // to try each downlink mode for each password
+    uint8_t cmdp = 0;
+    bool errors = false;
 
-
-    cmdp = tolower(param_getchar(Cmd, 0));
-
-    if (cmdp == 'h') return usage_t55xx_chk();
-    if (cmdp == 'm') {
-        from_flash = true;
-        Cmd += 2;
-        cmdp = tolower(param_getchar(Cmd, 0));
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':
+                return usage_t55xx_chk();
+            case 'r':
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode >= 4) {
+                    try_all_dl_modes = true;
+                    downlink_mode = 0;
+                }
+                cmdp += 2;
+                break;
+            case 'm':
+                from_flash = true;
+                cmdp++;
+                break;
+            case 'i':
+                if (param_getstr(Cmd, cmdp + 1, filename, sizeof(filename)) == 0) {
+                    PrintAndLogEx(ERR, "Error, no filename after 'f' was found");
+                    errors = true;
+                }
+                use_pwd_file = true;
+                cmdp += 2;
+                break;
+            default:
+                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
+                errors = true;
+                break;
+        }
     }
-    if (cmdp == 'r') {
-        Cmd += 2;
-        downlink_mode = param_getchar(Cmd, 0) - '0'; // get 2nd option, as this is fixed order.
-        if (downlink_mode == 4) try_all_dl_modes = true;
-        if (downlink_mode > 3) downlink_mode = 0;
-        Cmd += 2;
-        cmdp = param_getchar(Cmd, 0);
-    }
-    if (cmdp == 'i') {
-        Cmd += 2;
-        len = strlen(Cmd);
-        if (len > FILE_PATH_SIZE) len = FILE_PATH_SIZE;
-        memcpy(filename, Cmd, len);
-        use_pwd_file = true;
-    }
 
-
+    if (errors) return usage_t55xx_chk();
 
     /*
     // block 7,  page1 = false, usepwd = false, override = false, pwd = 00000000
@@ -2105,13 +2625,12 @@ static int CmdT55xxChkPwds(const char *Cmd) {
         }
 
         if (resp.oldarg[0]) {
-            PrintAndLogEx(SUCCESS, "\nFound a candidate [ " _YELLOW_("%08X") " ]. Trying to validate", resp.oldarg[1]);
+            PrintAndLogEx(SUCCESS, "\nFound a candidate [ " _YELLOW_("%08"PRIX64) " ]. Trying to validate", resp.oldarg[1]);
 
             if (AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, true, resp.oldarg[1], downlink_mode)) {
-                found = tryDetectModulation();
+                found = tryDetectModulation(downlink_mode, T55XX_PrintConfig);
                 if (found) {
-                    PrintAndLogEx(SUCCESS, "Found valid password: [ " _GREEN_("%08X") " ]", resp.oldarg[1]);
-                    T55xx_Print_DownlinkMode(downlink_mode);
+                    PrintAndLogEx(SUCCESS, "Found valid password: [ " _GREEN_("%08"PRIX64) " ]", resp.oldarg[1]);
 
                 } else {
                     PrintAndLogEx(WARNING, "Check pwd failed");
@@ -2154,17 +2673,16 @@ static int CmdT55xxChkPwds(const char *Cmd) {
 
             curr_password = bytes_to_num(keyBlock + 4 * c, 4);
 
-            PrintAndLogEx(INFO, "Testing %08X", curr_password);
+            PrintAndLogEx(INFO, "Testing %08"PRIX64, curr_password);
             for (dl_mode = downlink_mode; dl_mode <= 3; dl_mode++) {
 
                 if (!AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, true, curr_password, dl_mode)) {
                     continue;
                 }
 
-                found = tryDetectModulation();
+                found = tryDetectModulation(dl_mode, T55XX_PrintConfig);
                 if (found) {
-                    PrintAndLogEx(SUCCESS, "Found valid password: [ " _GREEN_("%08X") " ]", curr_password);
-                    T55xx_Print_DownlinkMode(dl_mode);
+                    PrintAndLogEx(SUCCESS, "Found valid password: [ " _GREEN_("%08"PRIX64) " ]", curr_password);
                     dl_mode = 4; // Exit other downlink mode checks
                     c = keycount; // Exit loop
                 }
@@ -2188,32 +2706,47 @@ out:
 static int CmdT55xxBruteForce(const char *Cmd) {
 
     uint32_t start_password = 0x00000000; //start password
-    uint32_t end_password   = 0xFFFFFFFF; //end   password
-    uint32_t curr           = 0;
-    uint8_t  downlink_mode  = 0;
-    uint8_t  cmd_opt_idx    = 0;
-    uint8_t  found          = 0; // > 0 if found xx1 xx downlink needed, 1 found
+    uint32_t end_password = 0xFFFFFFFF; //end   password
+    uint32_t curr = 0;
+    uint8_t downlink_mode = 0;
+    uint8_t found = 0; // > 0 if found xx1 xx downlink needed, 1 found
+    uint8_t cmdp = 0;
+    bool errors = false;
 
-    char cmdp = tolower(param_getchar(Cmd, cmd_opt_idx));
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':
+                return usage_t55xx_bruteforce();
+            case 'r':
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 4)
+                    downlink_mode = 0;
 
-    if (cmdp == 'h') return usage_t55xx_bruteforce();
-    if (cmdp == 'r') { // downlink mode supplied
-        cmd_opt_idx++;   // skip over 'r'
-        downlink_mode = param_getchar(Cmd, cmd_opt_idx++) - '0';
-        if (downlink_mode > 4) downlink_mode = 0;
+                cmdp += 2;
+                break;
+            case 's':
+                start_password = param_get32ex(Cmd, cmdp + 1, 0, 16);
+                cmdp += 2;
+                break;
+            case 'e':
+                end_password   = param_get32ex(Cmd, cmdp + 1, 0, 16);
+                cmdp += 2;
+                break;
+            default:
+                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
+                errors = true;
+                break;
+        }
     }
-
-
-    uint64_t t1 = msclock();
-
-    start_password = param_get32ex(Cmd, cmd_opt_idx++, 0, 16);
-    end_password   = param_get32ex(Cmd, cmd_opt_idx++, 0, 16);
-
-    curr = start_password;
-
     if (start_password >= end_password) {
         return usage_t55xx_bruteforce();
     }
+
+    if (errors) return usage_t55xx_bruteforce();
+
+    uint64_t t1 = msclock();
+
+    curr = start_password;
 
     PrintAndLogEx(INFO, "Search password range [%08X -> %08X]", start_password, end_password);
 
@@ -2265,7 +2798,7 @@ uint8_t tryOnePassword(uint32_t password, uint8_t downlink_mode) {
 
         //  if (getSignalProperties()->isnoise == false) {
         //  } else {
-        if (tryDetectModulation()) {
+        if (tryDetectModulation(dl_mode, T55XX_PrintConfig)) {
             return 1 + (dl_mode << 1);
         }
         //  }
@@ -2275,25 +2808,41 @@ uint8_t tryOnePassword(uint32_t password, uint8_t downlink_mode) {
 }
 
 static int CmdT55xxRecoverPW(const char *Cmd) {
-    int      bit           = 0;
+    int bit = 0;
     uint32_t orig_password = 0x0;
     uint32_t curr_password = 0x0;
     uint32_t prev_password = 0xffffffff;
-    uint32_t mask          = 0x0;
-    uint8_t  downlink_mode = 0;
-    uint8_t  found         = 0;
-    uint8_t  cmd_opt_idx   = 0;
+    uint32_t mask = 0x0;
+    uint8_t downlink_mode = 0;
+    uint8_t found = 0;
+    uint8_t cmdp = 0;
+    bool errors = false;
 
-    char     cmdp = tolower(param_getchar(Cmd, cmd_opt_idx));
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':
+                return usage_t55xx_recoverpw();
+            case 'p':
+                // password used by handheld cloners
+                orig_password = param_get32ex(Cmd, cmdp + 1, 0x51243648, 16);
+                cmdp += 2;
+                break;
+            case 'r':
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 4)
+                    downlink_mode = 0;
 
-    if (cmdp == 'h') return usage_t55xx_recoverpw();
-    if (cmdp == 'r') { // downlink mode supplied
-        cmd_opt_idx++; // skip over 'r'
-        downlink_mode = param_getchar(Cmd, cmd_opt_idx++) - '0';
-        if (downlink_mode > 4) downlink_mode = 0;
+                cmdp += 2;
+                break;
+            default:
+                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
+                errors = true;
+                break;
+        }
     }
 
-    orig_password = param_get32ex(Cmd, cmd_opt_idx++, 0x51243648, 16); //password used by handheld cloners
+    if (errors) return usage_t55xx_recoverpw();
+
 
     // first try fliping each bit in the expected password
     while (bit < 32) {
@@ -2483,15 +3032,16 @@ bool tryDetectP1(bool getData) {
 }
 //  does this need to be a callable command?
 static int CmdT55xxDetectPage1(const char *Cmd) {
-    bool     errors           = false;
-    bool     useGB            = false;
-    bool     usepwd           = false;
-    bool     try_all_dl_modes = false;
-    uint8_t  found            = 0;
-    uint32_t password         = 0;
-    uint8_t  cmdp             = 0;
-    uint8_t  downlink_mode    = 0;
-    uint8_t  dl_mode          = 0;
+    bool errors = false;
+    bool useGB = false;
+    bool usepwd = false;
+    bool try_all_dl_modes = true;
+    bool found = false;
+    uint8_t found_mode = 0;
+    uint32_t password = 0;
+    uint8_t cmdp = 0;
+    uint8_t downlink_mode = config.downlink_mode;
+    uint8_t dl_mode = 0;
 
     while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
         switch (tolower(param_getchar(Cmd, cmdp))) {
@@ -2508,9 +3058,15 @@ static int CmdT55xxDetectPage1(const char *Cmd) {
                 cmdp++;
                 break;
             case 'r':
-                downlink_mode = param_getchar(Cmd, cmdp + 1) - '0';
-                if (downlink_mode == 4) try_all_dl_modes = true;
-                if (downlink_mode > 3) downlink_mode = 0;
+                //ICEMAN STRANGE
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode == 4)
+                    try_all_dl_modes = true;
+                if (downlink_mode < 4)
+                    try_all_dl_modes = false;
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
+
                 cmdp += 2;
                 break;
             default:
@@ -2526,23 +3082,23 @@ static int CmdT55xxDetectPage1(const char *Cmd) {
             found = AquireData(T55x7_PAGE1, T55x7_TRACE_BLOCK1, usepwd, password, dl_mode);
             //return PM3_ENODATA;
             if (tryDetectP1(false)) { //tryDetectModulation())
-                found = dl_mode;
+                found = true;
+                found_mode = dl_mode;
                 dl_mode = 4;
             } else found = false;
 
             if (!try_all_dl_modes) dl_mode = 4;
         }
 
+    } else {
+        found = tryDetectP1(false);
     }
-
-    if (useGB) found = tryDetectP1(false);
 
     if (found) {
         PrintAndLogEx(SUCCESS, "T55xx chip found!");
-        T55xx_Print_DownlinkMode(found);
+        T55xx_Print_DownlinkMode(found_mode);
     } else
         PrintAndLogEx(WARNING, "Could not detect modulation automatically. Try setting it manually with " _YELLOW_("\'lf t55xx config\'"));
-
 
     return PM3_SUCCESS;
 }
@@ -2556,7 +3112,7 @@ static int CmdT55xxSetDeviceConfig(const char *Cmd) {
     while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
         switch (tolower(param_getchar(Cmd, cmdp))) {
             case 'h':
-                return usage_lf_deviceconfig();
+                return usage_t55xx_deviceconfig();
             case 'a':
                 errors |= param_getdec(Cmd, cmdp + 1, &startgap);
                 cmdp += 2;
@@ -2586,8 +3142,10 @@ static int CmdT55xxSetDeviceConfig(const char *Cmd) {
                 cmdp += 2;
                 break;
             case 'r':
-                downlink_mode = param_getchar(Cmd, cmdp + 1) - '0';
-                if (downlink_mode > 3) downlink_mode = 0;
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
+
                 cmdp += 2;
                 break;
             case 'p':
@@ -2606,7 +3164,7 @@ static int CmdT55xxSetDeviceConfig(const char *Cmd) {
     }
 
     //Validations
-    if (errors || cmdp == 0) return usage_lf_deviceconfig();
+    if (errors || cmdp == 0) return usage_t55xx_deviceconfig();
 
     t55xx_configurations_t configurations = {{{0}, {0}, {0}, {0}}};
 
@@ -2662,6 +3220,64 @@ static int CmdT55xxSetDeviceConfig(const char *Cmd) {
     return PM3_SUCCESS;
 }
 
+static int CmdT55xxProtect(const char *Cmd) {
+    bool errors = false, usepwd = false, gotnewpwd = false;
+    uint32_t password = 0, new_password = 0;
+    uint8_t override = 0;
+    uint8_t cmdp = 0;
+    uint8_t downlink_mode = config.downlink_mode;
+
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':
+                return usage_t55xx_protect();
+            case 'o':
+                override = 2;
+                cmdp++;
+                break;
+            case 'n':
+                new_password = param_get32ex(Cmd, cmdp + 1, 0, 16);
+                gotnewpwd = true;
+                cmdp += 2;
+                break;
+            case 'p':
+                password = param_get32ex(Cmd, cmdp + 1, 0, 16);
+                usepwd = true;
+                override = 1;
+                cmdp += 2;
+                break;
+            case 'r':
+                //ICEMAN STRANGE
+                downlink_mode = param_get8ex(Cmd, cmdp + 1, 0, 10);
+                if (downlink_mode > 3)
+                    downlink_mode = 0;
+
+                cmdp += 2;
+                break;
+            default:
+                PrintAndLogEx(WARNING, "Unknown parameter '%c'", param_getchar(Cmd, cmdp));
+                errors = true;
+                break;
+        }
+    }
+
+    if (gotnewpwd == false)
+        return usage_t55xx_protect();
+
+    if (errors || cmdp == 0) return usage_t55xx_protect();
+
+    // sanity check.
+    if (SanityOfflineCheck(false) != PM3_SUCCESS)
+        return PM3_ESOFT;
+
+    // lock
+    if (t55xxProtect(true, usepwd, override, password, downlink_mode, new_password) == false) {
+        PrintAndLogEx(WARNING, "Command failed. Did you run `lf t55xx detect` before?");
+        return PM3_ESOFT;
+    }
+    return PM3_SUCCESS;
+}
+
 static command_t CommandTable[] = {
     {"help",         CmdHelp,                 AlwaysAvailable, "This help"},
     {"bruteforce",   CmdT55xxBruteForce,      IfPm3Lf,         "<start password> <end password> Simple bruteforce attack to find password"},
@@ -2669,9 +3285,10 @@ static command_t CommandTable[] = {
     {"chk",          CmdT55xxChkPwds,         IfPm3Lf,         "Check passwords from dictionary/flash"},
     {"detect",       CmdT55xxDetect,          AlwaysAvailable, "[1] Try detecting the tag modulation from reading the configuration block."},
     {"deviceconfig", CmdT55xxSetDeviceConfig, IfPm3Lf,         "Set/Get T55XX device configuration (startgap, writegap, write0, write1, readgap"},
-    {"p1detect",     CmdT55xxDetectPage1,     IfPm3Lf,         "[1] Try detecting if this is a t55xx tag by reading page 1"},
     {"dump",         CmdT55xxDump,            IfPm3Lf,         "[password] [o] Dump T55xx card block 0-7. Optional [password], [override]"},
     {"info",         CmdT55xxInfo,            AlwaysAvailable, "[1] Show T55x7 configuration data (page 0/ blk 0)"},
+    {"p1detect",     CmdT55xxDetectPage1,     IfPm3Lf,         "[1] Try detecting if this is a t55xx tag by reading page 1"},
+    {"protect",      CmdT55xxProtect,         IfPm3Lf,         "Password protect tag"},
     {"read",         CmdT55xxReadBlock,       IfPm3Lf,         "b <block> p [password] [o] [1] -- Read T55xx block data. Optional [p password], [override], [page1]"},
     {"resetread",    CmdResetRead,            IfPm3Lf,         "Send Reset Cmd then lf read the stream to attempt to identify the start of it (needs a demod and/or plot after)"},
     {"recoverpw",    CmdT55xxRecoverPW,       IfPm3Lf,         "[password] Try to recover from bad password write from a cloner. Only use on PW protected chips!"},

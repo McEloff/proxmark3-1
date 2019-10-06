@@ -69,6 +69,40 @@ int fileExists(const char *filename) {
     return result == 0;
 }
 
+/**
+ * @brief checks if path is file.
+ * @param filename
+ * @return
+ */
+bool is_regular_file(const char *filename) {
+#ifdef _WIN32
+    struct _stat st;
+    _stat(filename, &st);
+    return S_ISREG(st.st_mode) != 0;
+#else
+    struct stat st;
+    stat(filename, &st);
+    return S_ISREG(st.st_mode) != 0;
+#endif
+}
+/**
+ * @brief checks if path is directory.
+ * @param filename
+ * @return
+ */
+bool is_directory(const char *filename) {
+#ifdef _WIN32
+    struct _stat st;
+    _stat(filename, &st);
+    return S_ISDIR(st.st_mode) != 0;
+#else
+    struct stat st;
+    stat(filename, &st);
+    return S_ISDIR(st.st_mode) != 0;
+#endif
+}
+
+
 static char *filenamemcopy(const char *preferredName, const char *suffix) {
     if (preferredName == NULL) return NULL;
     if (suffix == NULL) return NULL;
@@ -119,7 +153,7 @@ int saveFile(const char *preferredName, const char *suffix, const void *data, si
     fwrite(data, 1, datalen, f);
     fflush(f);
     fclose(f);
-    PrintAndLogEx(SUCCESS, "saved %u bytes to binary file " _YELLOW_("%s"), datalen, fileName);
+    PrintAndLogEx(SUCCESS, "saved %zu bytes to binary file " _YELLOW_("%s"), datalen, fileName);
     free(fileName);
     return PM3_SUCCESS;
 }
@@ -376,7 +410,6 @@ int loadFile(const char *preferredName, const char *suffix, void *data, size_t m
     }
 
     size_t bytes_read = fread(dump, 1, fsize, f);
-    fclose(f);
 
     if (bytes_read != fsize) {
         PrintAndLogEx(FAILED, "error, bytes read mismatch file size");
@@ -386,18 +419,19 @@ int loadFile(const char *preferredName, const char *suffix, void *data, size_t m
     }
 
     if (bytes_read > maxdatalen) {
-        PrintAndLogEx(WARNING, "Warning, bytes read exceed calling array limit. Max bytes is %d bytes", maxdatalen);
+        PrintAndLogEx(WARNING, "Warning, bytes read exceed calling array limit. Max bytes is %zu bytes", maxdatalen);
         bytes_read = maxdatalen;
     }
 
     memcpy((data), dump, bytes_read);
     free(dump);
 
-    PrintAndLogEx(SUCCESS, "loaded %d bytes from binary file " _YELLOW_("%s"), bytes_read, fileName);
+    PrintAndLogEx(SUCCESS, "loaded %zu bytes from binary file " _YELLOW_("%s"), bytes_read, fileName);
 
     *datalen = bytes_read;
 
 out:
+    fclose(f);
     free(fileName);
     return retval;
 }
@@ -409,8 +443,6 @@ int loadFile_safe(const char *preferredName, const char *suffix, void **pdata, s
     if (res != PM3_SUCCESS) {
         return PM3_EFILE;
     }
-
-    int retval = PM3_SUCCESS;
 
     FILE *f = fopen(path, "rb");
     if (!f) {
@@ -444,13 +476,14 @@ int loadFile_safe(const char *preferredName, const char *suffix, void **pdata, s
 
     if (bytes_read != fsize) {
         PrintAndLogEx(FAILED, "error, bytes read mismatch file size");
+        free(*pdata);
         return PM3_EFILE;
     }
 
     *datalen = bytes_read;
 
-    PrintAndLogEx(SUCCESS, "loaded %d bytes from binary file " _YELLOW_("%s"), bytes_read, preferredName);
-    return retval;
+    PrintAndLogEx(SUCCESS, "loaded %zu bytes from binary file " _YELLOW_("%s"), bytes_read, preferredName);
+    return PM3_SUCCESS;
 }
 
 int loadFileEML(const char *preferredName, void *data, size_t *datalen) {
@@ -497,7 +530,7 @@ int loadFileEML(const char *preferredName, void *data, size_t *datalen) {
         }
     }
     fclose(f);
-    PrintAndLogEx(SUCCESS, "loaded %d bytes from text file " _YELLOW_("%s"), counter, fileName);
+    PrintAndLogEx(SUCCESS, "loaded %zu bytes from text file " _YELLOW_("%s"), counter, fileName);
 
     if (datalen)
         *datalen = counter;
@@ -748,7 +781,9 @@ int loadFileDICTIONARY_safe(const char *preferredName, void **pdata, uint8_t key
             *pdata = realloc(*pdata, mem_size);
 
             if (*pdata == NULL) {
-                return PM3_EFILE;
+                retval = PM3_EFILE;
+                fclose(f);
+                goto out;
             } else {
                 memset(*pdata + (mem_size - block_size), 0, block_size);
             }
@@ -850,10 +885,10 @@ int searchAndList(const char *pm3dir, const char *ext) {
         filelist(script_directory_path, ext, false, true);
     }
     // try pm3 dirs in user .proxmark3 (user mode)
-    char *userpath = getenv("HOME");
-    if (userpath != NULL) {
-        char script_directory_path[strlen(userpath) + strlen(PM3_USER_DIRECTORY) + strlen(pm3dir) + 1];
-        strcpy(script_directory_path, userpath);
+    const char *user_path = get_my_user_directory();
+    if (user_path != NULL) {
+        char script_directory_path[strlen(user_path) + strlen(PM3_USER_DIRECTORY) + strlen(pm3dir) + 1];
+        strcpy(script_directory_path, user_path);
         strcat(script_directory_path, PM3_USER_DIRECTORY);
         strcat(script_directory_path, pm3dir);
         filelist(script_directory_path, ext, false, false);
@@ -904,7 +939,7 @@ static int searchFinalFile(char **foundpath, const char *pm3dir, const char *sea
         }
     }
     // try pm3 dirs in user .proxmark3 (user mode)
-    char *user_path = getenv("HOME");
+    const char *user_path = get_my_user_directory();
     if (user_path != NULL) {
         char *path = calloc(strlen(user_path) + strlen(PM3_USER_DIRECTORY) + strlen(pm3dir) + strlen(filename) + 1, sizeof(char));
         if (path == NULL)
@@ -933,6 +968,7 @@ static int searchFinalFile(char **foundpath, const char *pm3dir, const char *sea
             ((strcmp(DICTIONARIES_SUBDIR, pm3dir) == 0) ||
              (strcmp(LUA_LIBRARIES_SUBDIR, pm3dir) == 0) ||
              (strcmp(LUA_SCRIPTS_SUBDIR, pm3dir) == 0) ||
+             (strcmp(CMD_SCRIPTS_SUBDIR, pm3dir) == 0) ||
              (strcmp(RESOURCES_SUBDIR, pm3dir) == 0))) {
         char *path = calloc(strlen(exec_path) + strlen(pm3dir) + strlen(filename) + 1, sizeof(char));
         if (path == NULL)
@@ -956,7 +992,10 @@ static int searchFinalFile(char **foundpath, const char *pm3dir, const char *sea
     }
     // try pm3 dirs in current repo workdir (dev mode)
     if ((exec_path != NULL) &&
-            ((strcmp(TRACES_SUBDIR, pm3dir) == 0))) {
+            ((strcmp(TRACES_SUBDIR, pm3dir) == 0) ||
+             (strcmp(FIRMWARES_SUBDIR, pm3dir) == 0) ||
+             (strcmp(BOOTROM_SUBDIR, pm3dir) == 0) ||
+             (strcmp(FULLIMAGE_SUBDIR, pm3dir) == 0))) {
         char *above = "../";
         char *path = calloc(strlen(exec_path) + strlen(above) + strlen(pm3dir) + strlen(filename) + 1, sizeof(char));
         if (path == NULL)
@@ -1008,10 +1047,24 @@ out:
 }
 
 int searchFile(char **foundpath, const char *pm3dir, const char *searchname, const char *suffix, bool silent) {
+
     if (foundpath == NULL)
         return PM3_EINVARG;
+
+    if (searchname == NULL || strlen(searchname) == 0)
+        return PM3_EINVARG;
+
+    if (is_directory(searchname))
+        return PM3_EINVARG;
+
+
     char *filename = filenamemcopy(searchname, suffix);
-    if (filename == NULL) return PM3_EMALLOC;
+    if (filename == NULL)
+        return PM3_EMALLOC;
+    if (strlen(filename) == 0) {
+        free(filename);
+        return PM3_EFILE;
+    }
     int res = searchFinalFile(foundpath, pm3dir, filename, silent);
     if (res != PM3_SUCCESS) {
         if ((res == PM3_EFILE) && (!silent))

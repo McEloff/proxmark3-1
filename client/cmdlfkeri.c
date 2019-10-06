@@ -15,6 +15,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#include "commonutil.h"     // ARRAYLEN
 #include "cmdparser.h"    // command_t
 #include "comms.h"
 #include "ui.h"
@@ -22,6 +23,7 @@
 #include "cmdlf.h"
 #include "protocols.h"  // for T55xx config register definitions
 #include "lfdemod.h"    // preamble test
+#include "cmdlft55xx.h" // verifywrite
 
 static int CmdHelp(const char *Cmd);
 
@@ -68,7 +70,7 @@ static int CmdKeriDemod(const char *Cmd) {
         else if (idx == -2)
             PrintAndLogEx(DEBUG, "DEBUG: Error - KERI: preamble not found");
         else if (idx == -3)
-            PrintAndLogEx(DEBUG, "DEBUG: Error - KERI: Size not correct: 64 != %d", size);
+            PrintAndLogEx(DEBUG, "DEBUG: Error - KERI: Size not correct: 64 != %zu", size);
         else
             PrintAndLogEx(DEBUG, "DEBUG: Error - KERI: ans: %d", idx);
 
@@ -152,38 +154,14 @@ static int CmdKeriClone(const char *Cmd) {
 
     // 3 LSB is ONE
     uint64_t data = ((uint64_t)internalid << 3) + 7;
-    PrintAndLogEx(INFO, "Preparing to clone KERI to T55x7 with Internal Id: %" PRIx64, internalid);
+    PrintAndLogEx(INFO, "Preparing to clone KERI to T55x7 with Internal Id: %" PRIx32, internalid);
 
-    //
     blocks[1] = data >> 32;
     blocks[2] = data & 0xFFFFFFFF;
-    print_blocks(blocks, 3);
 
-    PacketResponseNG resp;
+    print_blocks(blocks,  ARRAYLEN(blocks));
 
-    // fast push mode
-    conn.block_after_ACK = true;
-    for (uint8_t i = 0; i < 3; i++) {
-        if (i == 2) {
-            // Disable fast mode on last packet
-            conn.block_after_ACK = false;
-        }
-        clearCommandBuffer();
-
-        t55xx_write_block_t ng;
-        ng.data = blocks[i];
-        ng.pwd = 0;
-        ng.blockno = i;
-        ng.flags = 0;
-
-        SendCommandNG(CMD_LF_T55XX_WRITEBL, (uint8_t *)&ng, sizeof(ng));
-        if (!WaitForResponseTimeout(CMD_LF_T55XX_WRITEBL, &resp, T55XX_WRITE_TIMEOUT)) {
-            PrintAndLogEx(ERR, "Error occurred, device did not respond during write operation.");
-            return PM3_ETIMEOUT;
-        }
-    }
-
-    return PM3_SUCCESS;
+    return clone_t55xx_tag(blocks, ARRAYLEN(blocks));
 }
 
 static int CmdKeriSim(const char *Cmd) {
@@ -204,7 +182,7 @@ static int CmdKeriSim(const char *Cmd) {
         bs[j++] = ((internalid >> i) & 1);
     }
 
-    PrintAndLogEx(SUCCESS, "Simulating KERI - Internal Id: %u", internalid);
+    PrintAndLogEx(SUCCESS, "Simulating KERI - Internal Id: %" PRIu64, internalid);
 
     lf_psksim_t *payload = calloc(1, sizeof(lf_psksim_t) + sizeof(bs));
     payload->carrier =  2;

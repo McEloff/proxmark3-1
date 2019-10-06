@@ -22,6 +22,9 @@
 #endif
 
 uint8_t g_debugMode;
+uint8_t g_printAndLog;
+#define PRINTANDLOG_PRINT 1
+#define PRINTANDLOG_LOG   2
 
 int kbd_enter_pressed(void);
 void AddLogLine(const char *fn, const char *data, const char *c);
@@ -95,4 +98,5 @@ void clean_ascii(unsigned char *buf, size_t len);
 void strcleanrn(char *buf, size_t len);
 void strcreplace(char *buf, size_t len, char from, char to);
 char *strmcopy(const char *buf);
+int hexstring_to_u96(uint32_t *hi2, uint32_t *hi, uint32_t *lo, const char *str);
 #endif

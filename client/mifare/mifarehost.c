@@ -30,7 +30,7 @@ int mfDarkside(uint8_t blockno, uint8_t key_type, uint64_t *key) {
     uint32_t nt = 0, nr = 0, ar = 0;
     uint64_t par_list = 0, ks_list = 0;
     uint64_t *keylist = NULL, *last_keylist = NULL;
-    bool arg0 = true;
+    bool first_run = true;
 
     // message
     PrintAndLogEx(NORMAL, "--------------------------------------------------------------------------------\n");
@@ -40,7 +40,15 @@ int mfDarkside(uint8_t blockno, uint8_t key_type, uint64_t *key) {
 
     while (true) {
         clearCommandBuffer();
-        SendCommandMIX(CMD_HF_MIFARE_READER, arg0, blockno, key_type, NULL, 0);
+        struct {
+            uint8_t first_run;
+            uint8_t blockno;
+            uint8_t key_type;
+        } PACKED payload;
+        payload.first_run = first_run;
+        payload.blockno = blockno;
+        payload.key_type = key_type;
+        SendCommandNG(CMD_HF_MIFARE_READER, (uint8_t*)&payload, sizeof(payload));
 
         //flush queue
         while (kbd_enter_pressed()) {
@@ -56,26 +64,47 @@ int mfDarkside(uint8_t blockno, uint8_t key_type, uint64_t *key) {
             }
 
             PacketResponseNG resp;
-            if (WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
-                int16_t isOK  = resp.oldarg[0];
-                if (isOK < 0)
-                    return isOK;
+            if (WaitForResponseTimeout(CMD_HF_MIFARE_READER, &resp, 2000)) {
+                if (resp.status == PM3_EOPABORTED) {
+                    return -1;
+                }
 
-                uid = (uint32_t)bytes_to_num(resp.data.asBytes +  0, 4);
-                nt = (uint32_t)bytes_to_num(resp.data.asBytes +  4, 4);
-                par_list = bytes_to_num(resp.data.asBytes +  8, 8);
-                ks_list = bytes_to_num(resp.data.asBytes +  16, 8);
-                nr = (uint32_t)bytes_to_num(resp.data.asBytes + 24, 4);
-                ar = (uint32_t)bytes_to_num(resp.data.asBytes + 28, 4);
+                struct p {
+                    int32_t isOK;
+                    uint8_t cuid[4];
+                    uint8_t nt[4];
+                    uint8_t par_list[8];
+                    uint8_t ks_list[8];
+                    uint8_t nr[4];
+                    uint8_t ar[4];
+                } PACKED;
+
+               struct p* package = (struct p*) resp.data.asBytes;
+
+                if (package->isOK == -6) {
+                     *key = 0101;
+                      return 1;
+                }
+
+                if (package->isOK < 0)
+                    return package->isOK;
+
+
+                uid = (uint32_t)bytes_to_num(package->cuid, sizeof(package->cuid));
+                nt = (uint32_t)bytes_to_num(package->nt, sizeof(package->nr));
+                par_list = bytes_to_num(package->par_list, sizeof(package->par_list));
+                ks_list = bytes_to_num(package->ks_list, sizeof(package->ks_list));
+                nr = (uint32_t)bytes_to_num(package->nr, 4);
+                ar = (uint32_t)bytes_to_num(package->ar, 4);
                 break;
             }
         }
         PrintAndLogEx(NORMAL, "\n");
 
-        if (par_list == 0 && arg0 == true) {
+        if (par_list == 0 && first_run == true) {
             PrintAndLogEx(SUCCESS, "Parity is all zero. Most likely this card sends NACK on every authentication.");
         }
-        arg0 = false;
+        first_run = false;
 
         uint32_t keycount = nonce2key(uid, nt, nr, ar, par_list, ks_list, &keylist);
 
@@ -124,7 +153,7 @@ int mfDarkside(uint8_t blockno, uint8_t key_type, uint64_t *key) {
             PrintAndLogEx(FAILED, "all candidate keys failed. Restarting darkside attack");
             free(last_keylist);
             last_keylist = keylist;
-            arg0 = true;
+            first_run = true;
         }
     }
     free(last_keylist);
@@ -310,26 +339,62 @@ __attribute__((force_align_arg_pointer))
 int mfnested(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t trgBlockNo, uint8_t trgKeyType, uint8_t *resultKey, bool calibrate) {
     uint16_t i;
     uint32_t uid;
-    PacketResponseNG resp;
     StateList_t statelists[2];
     struct Crypto1State *p1, *p2, *p3, *p4;
 
+    struct {
+        uint8_t block;
+        uint8_t keytype;
+        uint8_t target_block;
+        uint8_t target_keytype;
+        bool calibrate;
+        uint8_t key[6];
+    } PACKED payload;
+    payload.block = blockNo;
+    payload.keytype = keyType;
+    payload.target_block = trgBlockNo;
+    payload.target_keytype = trgKeyType;
+    payload.calibrate = calibrate;
+    memcpy(payload.key, key, sizeof(payload.key));
+
+    PacketResponseNG resp;
     clearCommandBuffer();
-    SendCommandOLD(CMD_HF_MIFARE_NESTED, blockNo + keyType * 0x100, trgBlockNo + trgKeyType * 0x100, calibrate, key, 6);
-    if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) return PM3_ETIMEOUT;
+    SendCommandNG(CMD_HF_MIFARE_NESTED, (uint8_t*)&payload, sizeof(payload));
+
+    if (!WaitForResponseTimeout(CMD_HF_MIFARE_NESTED, &resp, 1500)) return PM3_ETIMEOUT;
+
+    if (resp.status != PM3_SUCCESS)
+        return PM3_ESOFT;
+
+    struct p {
+        int16_t isOK;
+        uint8_t block;
+        uint8_t keytype;
+        uint8_t cuid[4];
+        uint8_t nt_a[4];
+        uint8_t ks_a[4];
+        uint8_t nt_b[4];
+        uint8_t ks_b[4];
+    } PACKED;
+    struct p* package = (struct p*)resp.data.asBytes;
 
     // error during nested
-    if (resp.oldarg[0]) return resp.oldarg[0];
+    if (package->isOK) return package->isOK;
 
-    memcpy(&uid, resp.data.asBytes, 4);
+    memcpy(&uid, package->cuid, sizeof(package->cuid));
 
     for (i = 0; i < 2; i++) {
-        statelists[i].blockNo = resp.oldarg[2] & 0xff;
-        statelists[i].keyType = (resp.oldarg[2] >> 8) & 0xff;
+        statelists[i].blockNo = package->block;
+        statelists[i].keyType = package->keytype;
         statelists[i].uid = uid;
-        memcpy(&statelists[i].nt, (void *)(resp.data.asBytes + 4 + i * 8 + 0), 4);
-        memcpy(&statelists[i].ks1, (void *)(resp.data.asBytes + 4 + i * 8 + 4), 4);
     }
+
+    memcpy(&statelists[0].nt,  package->nt_a, sizeof(package->nt_a));
+    memcpy(&statelists[0].ks1, package->ks_a, sizeof(package->ks_a));
+
+    memcpy(&statelists[1].nt,  package->nt_b, sizeof(package->nt_b));
+    memcpy(&statelists[1].ks1, package->ks_b, sizeof(package->ks_b));
+
 
     // calc keys
     pthread_t thread_id[2];
@@ -512,6 +577,7 @@ int mfEmlSetMem_xt(uint8_t *data, int blockNum, int blocksCount, int blockBtWidt
 
     clearCommandBuffer();
     SendCommandNG(CMD_HF_MIFARE_EML_MEMSET, (uint8_t *)payload, sizeof(payload) + size);
+    free(payload);
     return PM3_SUCCESS;
 }
 
@@ -940,7 +1006,7 @@ int detect_classic_prng(void) {
 
     // check respA
     if (respA.oldarg[0] != 4) {
-        PrintAndLogEx(ERR, "PRNG data error: Wrong length: %d", respA.oldarg[0]);
+        PrintAndLogEx(ERR, "PRNG data error: Wrong length: %"PRIu64, respA.oldarg[0]);
         return PM3_ESOFT;
     }
 
@@ -1033,20 +1099,19 @@ void detect_classic_magic(void) {
     }
 
     switch (isGeneration) {
-        case 1:
-            PrintAndLogEx(SUCCESS, "Answers to magic commands (GEN 1a): " _GREEN_("YES"));
+        case MAGIC_GEN_1A:
+            PrintAndLogEx(SUCCESS, "Magic capabilities : " _GREEN_("Gen 1a"));
             break;
-        case 2:
-            PrintAndLogEx(SUCCESS, "Answers to magic commands (GEN 1b): " _GREEN_("YES"));
+        case MAGIC_GEN_1B:
+            PrintAndLogEx(SUCCESS, "Magic capabilities : " _GREEN_("Gen 1b"));
             break;
-        case 4:
-            PrintAndLogEx(SUCCESS, "Answers to magic commands (GEN 2 / CUID): "  _GREEN_("YES"));
+        case MAGIC_GEN_2:
+            PrintAndLogEx(SUCCESS, "Magic capabilities : "  _GREEN_("Gen 2 / CUID"));
             break;
-        case 5:
-            PrintAndLogEx(SUCCESS, "Answers to magic commands (Write Once / FUID): " _GREEN_("YES"));
+        case MAGIC_GEN_UNFUSED:
+            PrintAndLogEx(SUCCESS, "Magic capabilities : " _GREEN_("Write Once / FUID"));
             break;
         default:
-            PrintAndLogEx(INFO, "Answers to magic commands: " _YELLOW_("NO"));
             break;
     }
 }

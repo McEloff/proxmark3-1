@@ -118,6 +118,7 @@ typedef struct {
     bool averaging;
     int divisor;
     int trigger_threshold;
+    uint32_t samples_to_skip;
 } PACKED sample_config;
 /*
 typedef struct {
@@ -197,6 +198,14 @@ typedef struct {
     uint8_t flags;
 } PACKED t55xx_write_block_t;
 
+// For CMD_LF_HID_SIMULATE (FSK)
+typedef struct {
+    uint32_t hi2;
+    uint32_t hi;
+    uint32_t lo;
+    uint8_t longFMT;
+} PACKED lf_hidsim_t;
+
 // For CMD_LF_FSK_SIMULATE (FSK)
 typedef struct {
     uint8_t fchigh;
@@ -234,9 +243,17 @@ typedef struct {
     uint8_t keytype;
 } PACKED mfc_eload_t;
 
+typedef struct {
+    uint8_t status;
+    uint8_t CSN[8];
+    uint8_t CONFIG[8];
+    uint8_t CC[8];
+    uint8_t AIA[8];
+} PACKED iclass_reader_t;
+
 // For the bootloader
 #define CMD_DEVICE_INFO                                                   0x0000
-#define CMD_SETUP_WRITE                                                   0x0001
+//#define CMD_SETUP_WRITE                                                   0x0001
 #define CMD_FINISH_WRITE                                                  0x0003
 #define CMD_HARDWARE_RESET                                                0x0004
 #define CMD_START_FLASH                                                   0x0005
@@ -337,9 +354,6 @@ typedef struct {
 #define CMD_SET_ADC_MUX                                                   0x020F
 #define CMD_LF_HID_CLONE                                                  0x0210
 #define CMD_LF_EM410X_WRITE                                               0x0211
-#define CMD_LF_INDALA_CLONE                                               0x0212
-// for 224 bits UID
-#define CMD_LF_INDALA224_CLONE                                            0x0213
 #define CMD_LF_T55XX_READBL                                               0x0214
 #define CMD_LF_T55XX_WRITEBL                                              0x0215
 #define CMD_LF_T55XX_RESET_READ                                           0x0216
@@ -348,7 +362,6 @@ typedef struct {
 #define CMD_LF_EM4X_READWORD                                              0x0218
 #define CMD_LF_EM4X_WRITEWORD                                             0x0219
 #define CMD_LF_IO_DEMOD                                                   0x021A
-#define CMD_LF_IO_CLONE                                                   0x021B
 #define CMD_LF_EM410X_DEMOD                                               0x021c
 // Sampling configuration for LF reader/sniffer
 #define CMD_LF_SAMPLING_SET_CONFIG                                        0x021d
@@ -360,6 +373,7 @@ typedef struct {
 #define CMD_LF_T55XX_WAKEUP                                               0x0224
 #define CMD_LF_COTAG_READ                                                 0x0225
 #define CMD_LF_T55XX_SET_CONFIG                                           0x0226
+#define CMD_LF_SAMPLING_GET_CONFIG                                        0x0227
 
 #define CMD_LF_T55XX_CHK_PWDS                                             0x0230
 
@@ -430,6 +444,7 @@ typedef struct {
 // For measurements of the antenna tuning
 #define CMD_MEASURE_ANTENNA_TUNING                                        0x0400
 #define CMD_MEASURE_ANTENNA_TUNING_HF                                     0x0401
+#define CMD_MEASURE_ANTENNA_TUNING_LF                                     0x0402
 #define CMD_LISTEN_READER_FIELD                                           0x0420
 #define CMD_HF_DROPFIELD                                                  0x0430
 
@@ -568,6 +583,10 @@ typedef struct {
 // Quit program                         client:     reserved, order to quit the program
 #define PM3_EFATAL            -99
 
+// LF
+#define LF_DIVISOR(f) (((12000 + (f)/2)/(f))-1)
+#define LF_DIVISOR_125 LF_DIVISOR(125)
+#define LF_DIVISOR_134 LF_DIVISOR(134)
 
 // CMD_GET_STANDALONE_DONE_STATUS responses
 #define STANDALONE_ELOFF_LF_SUCCESS  1

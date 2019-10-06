@@ -866,26 +866,20 @@ void MifareAcquireEncryptedNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, 
 // MIFARE nested authentication.
 //
 //-----------------------------------------------------------------------------
-void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) {
-    // params
-    uint8_t blockNo = arg0 & 0xff;
-    uint8_t keyType = (arg0 >> 8) & 0xff;
-    uint8_t targetBlockNo = arg1 & 0xff;
-    uint8_t targetKeyType = (arg1 >> 8) & 0xff;
-    // calibrate = arg2
+void MifareNested(uint8_t blockNo, uint8_t keyType, uint8_t targetBlockNo, uint8_t targetKeyType, bool calibrate, uint8_t *key) {
     uint64_t ui64Key = 0;
-
-    ui64Key = bytes_to_num(datain, 6);
+    ui64Key = bytes_to_num(key, 6);
 
     // variables
     uint16_t i, j, len;
     static uint16_t dmin, dmax;
+
+    uint8_t par[1] = {0x00};
+    uint8_t par_array[4] = {0x00};
     uint8_t uid[10] = {0x00};
     uint32_t cuid = 0, nt1, nt2, nttest, ks1;
-    uint8_t par[1] = {0x00};
     uint32_t target_nt[2] = {0x00}, target_ks[2] = {0x00};
 
-    uint8_t par_array[4] = {0x00};
     uint16_t ncount = 0;
     struct Crypto1State mpcs = {0, 0};
     struct Crypto1State *pcs;
@@ -903,17 +897,19 @@ void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) 
     BigBuf_free();
     BigBuf_Clear_ext(false);
 
-    if (arg2) clear_trace();
+    if (calibrate)
+        clear_trace();
+
     set_tracing(true);
 
     // statistics on nonce distance
     int16_t isOK = 0;
 #define NESTED_MAX_TRIES 12
-    if (arg2) { // calibrate: for first call only. Otherwise reuse previous calibration
+    if (calibrate) { // calibrate: for first call only. Otherwise reuse previous calibration
         LED_B_ON();
         WDT_HIT();
 
-        uint16_t unsuccessfull_tries = 0;
+        uint16_t unsuccessful_tries = 0;
         uint16_t davg = 0;
         dmax = 0;
         dmin = 2000;
@@ -929,30 +925,36 @@ void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) 
 
             // prepare next select. No need to power down the card.
             if (mifare_classic_halt(pcs, cuid)) {
-                if (DBGLEVEL >= 2) Dbprintf("Nested: Halt error");
+                if (DBGLEVEL >= DBG_INFO) Dbprintf("Nested: Halt error");
                 rtr--;
                 continue;
             }
 
             if (!iso14443a_select_card(uid, NULL, &cuid, true, 0, true)) {
-                if (DBGLEVEL >= 2) Dbprintf("Nested: Can't select card");
+                if (DBGLEVEL >= DBG_INFO) Dbprintf("Nested: Can't select card");
                 rtr--;
                 continue;
             };
 
             auth1_time = 0;
             if (mifare_classic_authex(pcs, cuid, blockNo, keyType, ui64Key, AUTH_FIRST, &nt1, &auth1_time)) {
-                if (DBGLEVEL >= 2) Dbprintf("Nested: Auth1 error");
+                if (DBGLEVEL >= DBG_INFO) Dbprintf("Nested: Auth1 error");
                 rtr--;
                 continue;
             };
             auth2_time = (delta_time) ? auth1_time + delta_time : 0;
 
             if (mifare_classic_authex(pcs, cuid, blockNo, keyType, ui64Key, AUTH_NESTED, &nt2, &auth2_time)) {
-                if (DBGLEVEL >= 2) Dbprintf("Nested: Auth2 error");
+                if (DBGLEVEL >= DBG_INFO) Dbprintf("Nested: Auth2 error");
                 rtr--;
                 continue;
             };
+
+            // cards with fixed nonce
+            if (nt1 == nt2) {
+               Dbprintf("Nested: %08x vs %08x", nt1, nt2);
+               break;
+            }
 
             uint32_t nttmp = prng_successor(nt1, 100); //NXP Mifare is typical around 840,but for some unlicensed/compatible mifare card this can be 160
             for (i = 101; i < 1200; i++) {
@@ -968,10 +970,10 @@ void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) 
                 } else {
                     delta_time = auth2_time - auth1_time + 32;  // allow some slack for proper timing
                 }
-                if (DBGLEVEL >= 3) Dbprintf("Nested: calibrating... ntdist=%d", i);
+                if (DBGLEVEL >= DBG_DEBUG) Dbprintf("Nested: calibrating... ntdist=%d", i);
             } else {
-                unsuccessfull_tries++;
-                if (unsuccessfull_tries > NESTED_MAX_TRIES) { // card isn't vulnerable to nested attack (random numbers are not predictable)
+                unsuccessful_tries++;
+                if (unsuccessful_tries > NESTED_MAX_TRIES) { // card isn't vulnerable to nested attack (random numbers are not predictable)
                     isOK = -3;
                 }
             }
@@ -979,7 +981,7 @@ void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) 
 
         davg = (davg + (rtr - 1) / 2) / (rtr - 1);
 
-        if (DBGLEVEL >= 3) Dbprintf("rtr=%d isOK=%d min=%d max=%d avg=%d, delta_time=%d", rtr, isOK, dmin, dmax, davg, delta_time);
+        if (DBGLEVEL >= DBG_DEBUG) Dbprintf("rtr=%d isOK=%d min=%d max=%d avg=%d, delta_time=%d", rtr, isOK, dmin, dmax, davg, delta_time);
 
         dmin = davg - 2;
         dmax = davg + 2;
@@ -998,18 +1000,18 @@ void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) 
 
             // prepare next select. No need to power down the card.
             if (mifare_classic_halt(pcs, cuid)) {
-                if (DBGLEVEL >= 2) Dbprintf("Nested: Halt error");
+                if (DBGLEVEL >= DBG_INFO) Dbprintf("Nested: Halt error");
                 continue;
             }
 
             if (!iso14443a_select_card(uid, NULL, &cuid, true, 0, true)) {
-                if (DBGLEVEL >= 2) Dbprintf("Nested: Can't select card");
+                if (DBGLEVEL >= DBG_INFO) Dbprintf("Nested: Can't select card");
                 continue;
             };
 
             auth1_time = 0;
             if (mifare_classic_authex(pcs, cuid, blockNo, keyType, ui64Key, AUTH_FIRST, &nt1, &auth1_time)) {
-                if (DBGLEVEL >= 2) Dbprintf("Nested: Auth1 error");
+                if (DBGLEVEL >= DBG_INFO) Dbprintf("Nested: Auth1 error");
                 continue;
             };
 
@@ -1018,12 +1020,12 @@ void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) 
 
             len = mifare_sendcmd_short(pcs, AUTH_NESTED, 0x60 + (targetKeyType & 0x01), targetBlockNo, receivedAnswer, par, &auth2_time);
             if (len != 4) {
-                if (DBGLEVEL >= 2) Dbprintf("Nested: Auth2 error len=%d", len);
+                if (DBGLEVEL >= DBG_INFO) Dbprintf("Nested: Auth2 error len=%d", len);
                 continue;
             };
 
             nt2 = bytes_to_num(receivedAnswer, 4);
-            if (DBGLEVEL >= 3) Dbprintf("Nonce#%d: Testing nt1=%08x nt2enc=%08x nt2par=%02x", i + 1, nt1, nt2, par[0]);
+            if (DBGLEVEL >= DBG_DEBUG) Dbprintf("Nonce#%d: Testing nt1=%08x nt2enc=%08x nt2par=%02x", i + 1, nt1, nt2, par[0]);
 
             // Parity validity check
             for (j = 0; j < 4; j++) {
@@ -1038,7 +1040,7 @@ void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) 
 
                 if (valid_nonce(nttest, nt2, ks1, par_array)) {
                     if (ncount > 0) { // we are only interested in disambiguous nonces, try again
-                        if (DBGLEVEL >= 3) Dbprintf("Nonce#%d: dismissed (ambigous), ntdist=%d", i + 1, j);
+                        if (DBGLEVEL >= DBG_DEBUG) Dbprintf("Nonce#%d: dismissed (ambiguous), ntdist=%d", i + 1, j);
                         target_nt[i] = 0;
                         break;
                     }
@@ -1047,10 +1049,10 @@ void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) 
                     ncount++;
                     if (i == 1 && target_nt[1] == target_nt[0]) { // we need two different nonces
                         target_nt[i] = 0;
-                        if (DBGLEVEL >= 3) Dbprintf("Nonce#2: dismissed (= nonce#1), ntdist=%d", j);
+                        if (DBGLEVEL >= DBG_DEBUG) Dbprintf("Nonce#2: dismissed (= nonce#1), ntdist=%d", j);
                         break;
                     }
-                    if (DBGLEVEL >= 3) Dbprintf("Nonce#%d: valid, ntdist=%d", i + 1, j);
+                    if (DBGLEVEL >= DBG_DEBUG) Dbprintf("Nonce#%d: valid, ntdist=%d", i + 1, j);
                 }
             }
             if (target_nt[i] == 0 && j == dmax + 1 && DBGLEVEL >= 3) Dbprintf("Nonce#%d: dismissed (all invalid)", i + 1);
@@ -1061,15 +1063,28 @@ void MifareNested(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *datain) 
 
     crypto1_destroy(pcs);
 
-    uint8_t buf[4 + 4 * 4] = {0};
-    memcpy(buf, &cuid, 4);
-    memcpy(buf + 4, &target_nt[0], 4);
-    memcpy(buf + 8, &target_ks[0], 4);
-    memcpy(buf + 12, &target_nt[1], 4);
-    memcpy(buf + 16, &target_ks[1], 4);
+    struct p {
+       int16_t isOK;
+       uint8_t block;
+       uint8_t keytype;
+       uint8_t cuid[4];
+       uint8_t nt_a[4];
+       uint8_t ks_a[4];
+       uint8_t nt_b[4];
+       uint8_t ks_b[4];
+    } PACKED payload;
+    payload.isOK = isOK;
+    payload.block = targetBlockNo;
+    payload.keytype = targetKeyType;
+
+    memcpy(payload.cuid, &cuid, 4);
+    memcpy(payload.nt_a, &target_nt[0], 4);
+    memcpy(payload.ks_a, &target_ks[0], 4);
+    memcpy(payload.nt_b, &target_nt[1], 4);
+    memcpy(payload.ks_b, &target_ks[1], 4);
 
     LED_B_ON();
-    reply_mix(CMD_ACK, isOK, 0, targetBlockNo + (targetKeyType * 0x100), buf, sizeof(buf));
+    reply_ng(CMD_HF_MIFARE_NESTED, PM3_SUCCESS, (uint8_t*)&payload, sizeof(payload));
     LED_B_OFF();
 
     if (DBGLEVEL >= 3) DbpString("NESTED FINISHED");
@@ -1118,7 +1133,7 @@ uint8_t chkKey(struct chk_t *c) {
 
         CHK_TIMEOUT();
 
-        // if successfull auth, send HALT
+        // if successful auth, send HALT
         // if ( !res )
         // mifare_classic_halt_ex(c->pcs);
         break;
@@ -1977,11 +1992,6 @@ void MifareCGetBlock(uint32_t arg0, uint32_t arg1, uint8_t *datain) {
 }
 
 void MifareCIdent() {
-#define GEN_1A 1
-#define GEN_1B 2
-#define GEN_2  4
-#define GEN_UNFUSED 5
-
     // variables
     uint8_t isGen = 0;
     uint8_t rec[1] = {0x00};
@@ -1997,39 +2007,36 @@ void MifareCIdent() {
 
     // Generation 1 test
     ReaderTransmitBitsPar(wupC1, 7, NULL, NULL);
-    if (!ReaderReceive(rec, recpar) || (rec[0] != 0x0a)) {
-        goto TEST2;
-    };
-
-    ReaderTransmit(wupC2, sizeof(wupC2), NULL);
-    if (!ReaderReceive(rec, recpar) || (rec[0] != 0x0a)) {
-        isGen = GEN_1B;
+    if (ReaderReceive(rec, recpar) && (rec[0] == 0x0a)) {
+        ReaderTransmit(wupC2, sizeof(wupC2), NULL);
+        if (!ReaderReceive(rec, recpar) || (rec[0] != 0x0a)) {
+            isGen = MAGIC_GEN_1B;
+            goto OUT;
+        };
+        isGen = MAGIC_GEN_1A;
         goto OUT;
-    };
-    isGen = GEN_1A;
-    goto OUT;
+    }
 
-TEST2:
     // reset card
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    SpinDelay(100);
+    SpinDelay(40);
     iso14443a_setup(FPGA_HF_ISO14443A_READER_LISTEN);
 
     int res = iso14443a_select_card(uid, NULL, &cuid, true, 0, true);
     if (res == 2) {
         if (cuid == 0xAA55C396) {
-            isGen = GEN_UNFUSED;
+            isGen = MAGIC_GEN_UNFUSED;
             goto OUT;
         }
 
         ReaderTransmit(rats, sizeof(rats), NULL);
         res = ReaderReceive(buf, par);
         if (memcmp(buf, "\x09\x78\x00\x91\x02\xDA\xBC\x19\x10\xF0\x05", 11) == 0) {
-            isGen = GEN_2;
+            isGen = MAGIC_GEN_2;
             goto OUT;
         }
         if (memcmp(buf, "\x0D\x78\x00\x71\x02\x88\x49\xA1\x30\x20\x15\x06\x08\x56\x3D", 15) == 0) {
-            isGen = GEN_2;
+            isGen = MAGIC_GEN_2;
         }
     };
 
@@ -2040,6 +2047,7 @@ OUT:
     // turns off
     OnSuccessMagic();
     BigBuf_free();
+    BigBuf_Clear_ext(false);
 }
 
 void OnSuccessMagic() {
