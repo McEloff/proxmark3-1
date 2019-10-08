@@ -1646,7 +1646,7 @@ static int CmdHF14AMfAutoPWN(const char *Cmd) {
     int block_cnt = MIFARE_1K_MAXBLOCK;
     uint8_t tmp_key[6] = {0};
     bool know_target_key = false;
-    // For the timier
+    // For the timer
     uint64_t t1;
     // Parameters and dictionary file
     char filename[FILE_PATH_SIZE] = {0};
@@ -1668,6 +1668,7 @@ static int CmdHF14AMfAutoPWN(const char *Cmd) {
     bool verbose = false;
     bool has_filename = false;
     bool errors = false;
+    uint8_t num_found_keys = 0;
 
     // Parse the options given by the user
     while ((ctmp = param_getchar(Cmd, cmdp)) && !errors) {
@@ -1821,6 +1822,9 @@ static int CmdHF14AMfAutoPWN(const char *Cmd) {
 
             // Store the key for the nested / hardnested attack (if supplied by the user)
             e_sector[blockNo].Key[keyType] = key64;
+            e_sector[blockNo].foundKey[keyType] = 'U';
+
+            ++num_found_keys;
         } else {
             know_target_key = false;
             PrintAndLogEx(FAILED, "Key is wrong. Can't authenticate to sector:"_RED_("%3d") " key type: "_RED_("%c") " key: " _RED_("%s"),
@@ -1857,11 +1861,14 @@ static int CmdHF14AMfAutoPWN(const char *Cmd) {
                                           sprint_hex(key, sizeof(key))
                                          );
                         }
+                        ++num_found_keys;
                     }
                 }
             }
         }
         if (verbose) PrintAndLogEx(INFO, _YELLOW_("======================= STOP   KNOWN KEY ATTACK ======================="));
+        if (num_found_keys == sectors_cnt * 2)
+           goto all_found;
     }
 
     bool load_success = true;
@@ -1875,7 +1882,6 @@ static int CmdHF14AMfAutoPWN(const char *Cmd) {
 
             load_success = false;
         }
-
     }
 
     if (has_filename == false || load_success == false) {
@@ -1907,6 +1913,7 @@ static int CmdHF14AMfAutoPWN(const char *Cmd) {
                         if (mfCheckKeys(FirstBlockOfSector(i), j, true, 1, (keyBlock + (6 * k)), &key64) == PM3_SUCCESS) {
                             e_sector[i].Key[j] = bytes_to_num((keyBlock + (6 * k)), 6);
                             e_sector[i].foundKey[j] = 'D';
+                            ++num_found_keys;
                             break;
                         }
                     }
@@ -1962,7 +1969,7 @@ static int CmdHF14AMfAutoPWN(const char *Cmd) {
 
                 // Store valid credentials for the nested / hardnested attack if none exist
                 if (know_target_key == false) {
-                    num_to_bytes(e_sector[i].Key[j], 6, key);
+                    num_to_bytes(e_sector[i].Key[j], 6, tmp_key);
                     know_target_key = true;
                     blockNo = i;
                     keyType = j;
@@ -2206,6 +2213,8 @@ tryHardnested: // If the nested attack fails then we try the hardnested attack
             }
         }
     }
+
+all_found:
 
     // Show the results to the user
     PrintAndLogEx(NORMAL, "");
@@ -2728,8 +2737,13 @@ static int CmdHF14AMfChk(const char *Cmd) {
         PrintAndLogEx(INFO, "No key specified, trying default keys");
         for (; keycnt < ARRAYLEN(g_mifare_default_keys); keycnt++)
             PrintAndLogEx(NORMAL, "[%2d] %02x%02x%02x%02x%02x%02x", keycnt,
-                          (keyBlock + 6 * keycnt)[0], (keyBlock + 6 * keycnt)[1], (keyBlock + 6 * keycnt)[2],
-                          (keyBlock + 6 * keycnt)[3], (keyBlock + 6 * keycnt)[4], (keyBlock + 6 * keycnt)[5], 6);
+                          (keyBlock + 6 * keycnt)[0],
+                          (keyBlock + 6 * keycnt)[1],
+                          (keyBlock + 6 * keycnt)[2],
+                          (keyBlock + 6 * keycnt)[3],
+                          (keyBlock + 6 * keycnt)[4],
+                          (keyBlock + 6 * keycnt)[5]
+                          );
     }
 
     // initialize storage for found keys
