@@ -155,8 +155,11 @@ void CmdsHelp(const command_t Commands[]) {
     int i = 0;
     while (Commands[i].Name) {
         if (Commands[i].IsAvailable())
-//            PrintAndLogEx(NORMAL, _GREEN_("%-16s")" %s", Commands[i].Name, Commands[i].Help);
+#ifdef _WIN32
+            PrintAndLogEx(NORMAL, _GREEN_("%-16s")" %s", Commands[i].Name, Commands[i].Help);
+#else
             printf(_GREEN_("%-16s")" %s\n", Commands[i].Name, Commands[i].Help);
+#endif
         ++i;
     }
 }
