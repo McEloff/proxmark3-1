@@ -97,6 +97,10 @@ uint8_t iso15693_CRC_check(uint8_t *d, uint8_t n) {
     return check_crc(CRC_15693, d, n);
 }
 
+uint8_t felica_CRC_check(uint8_t *d, uint8_t n) {
+    return check_crc(CRC_FELICA, d, n);
+}
+
 /**
  * @brief iclass_CRC_Ok Checks CRC in command or response
  * @param isResponse
@@ -363,7 +367,7 @@ void annotateIclass(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize) {
             snprintf(exp, size, "UPDATE(%d)", cmd[1]);
             break;
         case ICLASS_CMD_READCHECK:
-            if (ICLASS_CREDIT(c)) {
+            if (ICLASS_CREDIT(cmd[0])) {
                 snprintf(exp, size, "READCHECK[Kc](%d)", cmd[1]);
             } else {
                 snprintf(exp, size, "READCHECK[Kd](%d)", cmd[1]);
@@ -889,8 +893,7 @@ void annotateLegic(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize) {
 }
 
 void annotateFelica(char *exp, size_t size, uint8_t *cmd, uint8_t cmdsize) {
-
-    switch (cmd[0]) {
+    switch (cmd[3]) {
         case FELICA_POLL_REQ:
             snprintf(exp, size, "POLLING");
             break;

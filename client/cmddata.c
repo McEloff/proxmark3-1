@@ -508,7 +508,7 @@ int CmdGetBitStream(const char *Cmd) {
     RepaintGraphWindow();
     return PM3_SUCCESS;
 }
-int CmdConvertBitStream(const char *Cmd) {
+static int CmdConvertBitStream(const char *Cmd) {
 
     if (isGraphBitstream()) {
         convertGraphFromBitstream();
@@ -812,7 +812,7 @@ int AutoCorrelate(const int *in, int *out, size_t len, size_t window, bool SaveG
     // sanity check
     if (window > len) window = len;
 
-    if (verbose) PrintAndLogEx(INFO, "performing " _YELLOW_("%zu")" correlations", GraphTraceLen - window);
+    if (verbose) PrintAndLogEx(INFO, "performing " _YELLOW_("%zu") "correlations", GraphTraceLen - window);
 
     //test
     double autocv = 0.0;    // Autocovariance value
@@ -868,9 +868,9 @@ int AutoCorrelate(const int *in, int *out, size_t len, size_t window, bool SaveG
 
     if (verbose && foo < bar) {
         distance = idx_1 - idx;
-        PrintAndLogEx(SUCCESS, "possible visible correlation %4d samples", distance);
+        PrintAndLogEx(SUCCESS, "possible visible correlation "_YELLOW_("%4d") "samples", distance);
     } else if (verbose && (correlation > 1)) {
-        PrintAndLogEx(SUCCESS, "possible correlation %4zu samples", correlation);
+        PrintAndLogEx(SUCCESS, "possible correlation " _YELLOW_("%4zu") "samples", correlation);
     } else {
         PrintAndLogEx(FAILED, "no repeating pattern found, try increasing window size");
     }
@@ -1174,7 +1174,7 @@ int FSKrawDemod(const char *Cmd, bool verbose) {
         PrintAndLogEx(DEBUG, "no FSK data found");
     }
 
-out:    
+out:
     free(bits);
     return PM3_SUCCESS;
 }
@@ -1218,7 +1218,7 @@ int PSKDemod(const char *Cmd, bool verbose) {
         free(bits);
         return PM3_ESOFT;
     }
-    
+
     int startIdx = 0;
     int errCnt = pskRawDemod_ext(bits, &bitlen, &clk, &invert, &startIdx);
     if (errCnt > maxErr) {
@@ -1336,7 +1336,7 @@ int NRZrawDemod(const char *Cmd, bool verbose) {
     if (bits == NULL) {
         return PM3_EMALLOC;
     }
-            
+
     size_t BitLen = getFromGraphBuf(bits);
 
     if (BitLen == 0) {
@@ -1355,7 +1355,7 @@ int NRZrawDemod(const char *Cmd, bool verbose) {
         free(bits);
         return PM3_ESOFT;
     }
-    
+
     if (verbose || g_debugMode) PrintAndLogEx(DEBUG, "DEBUG: (NRZrawDemod) Tried NRZ Demod using Clock: %d - invert: %d - Bits Found: %zu", clk, invert, BitLen);
     //prime demod buffer for output
     setDemodBuff(bits, BitLen, 0);
@@ -1368,7 +1368,7 @@ int NRZrawDemod(const char *Cmd, bool verbose) {
         // Now output the bitstream to the scrollback by line of 16 bits
         printDemodBuff();
     }
-    
+
     free(bits);
     return PM3_SUCCESS;
 }
@@ -1673,19 +1673,19 @@ int CmdTuneSamples(const char *Cmd) {
         uint8_t results[256];
     } PACKED;
 
-    struct p* package = (struct p*)resp.data.asBytes;
+    struct p *package = (struct p *)resp.data.asBytes;
 
     if (package->v_lf125 > NON_VOLTAGE)
-        PrintAndLogEx(SUCCESS, "LF antenna: %5.2f V - %.2f kHz", (package->v_lf125 * ANTENNA_ERROR) / 1000.0, 12000.0 / (LF_DIVISOR_125 + 1));
+        PrintAndLogEx(SUCCESS, "LF antenna: %5.2f V - %.2f kHz", (package->v_lf125 * ANTENNA_ERROR) / 1000.0, LF_DIV2FREQ(LF_DIVISOR_125));
 
     if (package->v_lf134 > NON_VOLTAGE)
-        PrintAndLogEx(SUCCESS, "LF antenna: %5.2f V - %.2f kHz", (package->v_lf134 * ANTENNA_ERROR) / 1000.0, 12000.0 / (LF_DIVISOR_134 + 1));
+        PrintAndLogEx(SUCCESS, "LF antenna: %5.2f V - %.2f kHz", (package->v_lf134 * ANTENNA_ERROR) / 1000.0, LF_DIV2FREQ(LF_DIVISOR_134));
 
     if (package->v_lfconf > NON_VOLTAGE && package->divisor > 0 && package->divisor != LF_DIVISOR_125 && package->divisor != LF_DIVISOR_134)
-        PrintAndLogEx(SUCCESS, "LF antenna: %5.2f V - %.2f kHz", (package->v_lfconf * ANTENNA_ERROR) / 1000.0, 12000.0 / (package->divisor + 1));
+        PrintAndLogEx(SUCCESS, "LF antenna: %5.2f V - %.2f kHz", (package->v_lfconf * ANTENNA_ERROR) / 1000.0, LF_DIV2FREQ(package->divisor));
 
     if (package->peak_v > NON_VOLTAGE && package->peak_f > 0)
-        PrintAndLogEx(SUCCESS, "LF optimal: %5.2f V - %6.2f kHz", (package->peak_v * ANTENNA_ERROR) / 1000.0, 12000.0 / (package->peak_f + 1));
+        PrintAndLogEx(SUCCESS, "LF optimal: %5.2f V - %6.2f kHz", (package->peak_v * ANTENNA_ERROR) / 1000.0, LF_DIV2FREQ(package->peak_f));
 
     char judgement[20];
     memset(judgement, 0, sizeof(judgement));
@@ -1730,7 +1730,7 @@ int CmdTuneSamples(const char *Cmd) {
 
     if (test1 > 0) {
         PrintAndLogEx(SUCCESS, "\nDisplaying LF tuning graph. Divisor %d is %.2f kHz, %d is %.2f kHz.\n\n",
-            LF_DIVISOR_134, 12000.0 / (LF_DIVISOR_134 + 1), LF_DIVISOR_125, 12000.0 / (LF_DIVISOR_125 + 1));
+                      LF_DIVISOR_134, LF_DIV2FREQ(LF_DIVISOR_134), LF_DIVISOR_125, LF_DIV2FREQ(LF_DIVISOR_125));
         GraphTraceLen = 256;
         ShowGraphWindow();
         RepaintGraphWindow();
@@ -1872,7 +1872,7 @@ int CmdPlot(const char *Cmd) {
     return PM3_SUCCESS;
 }
 
-static int CmdSave(const char *Cmd) {
+int CmdSave(const char *Cmd) {
 
     int len = 0;
     char filename[FILE_PATH_SIZE] = {0x00};

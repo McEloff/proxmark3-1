@@ -535,7 +535,7 @@ static int CmdHF14AMfWrBl(const char *Cmd) {
     if (strlen(Cmd) < 3) {
         PrintAndLogEx(NORMAL, "Usage:  hf mf wrbl    <block number> <key A/B> <key (12 hex symbols)> <block data (32 hex symbols)>");
         PrintAndLogEx(NORMAL, "Examples:");
-        PrintAndLogEx(NORMAL, "        hf mf wrbl 0 A FFFFFFFFFFFF 000102030405060708090A0B0C0D0E0F");
+        PrintAndLogEx(NORMAL, "        hf mf wrbl 1 A FFFFFFFFFFFF 000102030405060708090A0B0C0D0E0F");
         return 0;
     }
 
@@ -1868,7 +1868,7 @@ static int CmdHF14AMfAutoPWN(const char *Cmd) {
         }
         if (verbose) PrintAndLogEx(INFO, _YELLOW_("======================= STOP   KNOWN KEY ATTACK ======================="));
         if (num_found_keys == sectors_cnt * 2)
-           goto all_found;
+            goto all_found;
     }
 
     bool load_success = true;
@@ -1969,7 +1969,7 @@ static int CmdHF14AMfAutoPWN(const char *Cmd) {
 
                 // Store valid credentials for the nested / hardnested attack if none exist
                 if (know_target_key == false) {
-                    num_to_bytes(e_sector[i].Key[j], 6, tmp_key);
+                    num_to_bytes(e_sector[i].Key[j], 6, key);
                     know_target_key = true;
                     blockNo = i;
                     keyType = j;
@@ -2743,7 +2743,7 @@ static int CmdHF14AMfChk(const char *Cmd) {
                           (keyBlock + 6 * keycnt)[3],
                           (keyBlock + 6 * keycnt)[4],
                           (keyBlock + 6 * keycnt)[5]
-                          );
+                         );
     }
 
     // initialize storage for found keys
@@ -2868,18 +2868,21 @@ out:
         PrintAndLogEx(SUCCESS, "Found keys have been transferred to the emulator memory");
     }
 
-    // Disable fast mode and send a dummy command to make it effective
-    conn.block_after_ACK = false;
-    SendCommandNG(CMD_PING, NULL, 0);
-    WaitForResponseTimeout(CMD_PING, NULL, 1000);
-
     if (createDumpFile) {
         fptr = GenerateFilename("hf-mf-", "-key.bin");
         createMfcKeyDump(SectorsCnt, e_sector, fptr);
     }
-
     free(keyBlock);
     free(e_sector);
+
+    // Disable fast mode and send a dummy command to make it effective
+    conn.block_after_ACK = false;
+    SendCommandNG(CMD_PING, NULL, 0);
+    if (!WaitForResponseTimeout(CMD_PING, NULL, 1000)) {
+        PrintAndLogEx(WARNING, "command execution time out");
+        return PM3_ETIMEOUT;
+    }
+
     PrintAndLogEx(NORMAL, "");
     return PM3_SUCCESS;
 }
@@ -2919,7 +2922,7 @@ void readerAttack(nonces_t data, bool setEmulatorMem, bool verbose) {
     if (k_sector == NULL)
         emptySectorTable();
 
-    success = mfkey32_moebius(data, &key);
+    success = mfkey32_moebius(&data, &key);
     if (success) {
         uint8_t sector = data.sector;
         uint8_t keytype = data.keytype;

@@ -367,7 +367,7 @@ static void lookupChipID(uint32_t iChipID, uint32_t mem_used) {
     PrintAndLogEx(NORMAL, "  --= Nonvolatile Program Memory Type: %s", asBuff);
 }
 
-int CmdDbg(const char *Cmd) {
+static int CmdDbg(const char *Cmd) {
 
     char ctmp = tolower(param_getchar(Cmd, 0));
     if (strlen(Cmd) < 1 || ctmp == 'h') return usage_dbg();
@@ -512,6 +512,18 @@ static int CmdStatus(const char *Cmd) {
     return PM3_SUCCESS;
 }
 
+static int CmdTia(const char *Cmd) {
+    (void)Cmd; // Cmd is not used so far
+    clearCommandBuffer();
+    PrintAndLogEx(INFO, "Triggering new Timing Interval Acquisition...");
+    PacketResponseNG resp;
+    SendCommandNG(CMD_TIA, NULL, 0);
+    if (WaitForResponseTimeout(CMD_TIA, &resp, 2000) == false)
+        PrintAndLogEx(WARNING, "Tia command failed. You probably need to unplug the Proxmark3.");
+    PrintAndLogEx(INFO, "TIA done.");
+    return PM3_SUCCESS;
+}
+
 static int CmdPing(const char *Cmd) {
     uint32_t len = strtol(Cmd, NULL, 0);
     if (len > PM3_CMD_DATA_SIZE)
@@ -531,9 +543,9 @@ static int CmdPing(const char *Cmd) {
         bool error = false;
         if (len) {
             error = memcmp(data, resp.data.asBytes, len) != 0;
-            PrintAndLogEx((error) ? ERR : SUCCESS, "Ping response " _GREEN_("received") "and content is %s", error ? _RED_("NOT ok") : _GREEN_("ok"));
+            PrintAndLogEx((error) ? ERR : SUCCESS, "Ping response " _GREEN_("received") "and content is %s", error ? _RED_("NOT ok") : _GREEN_("OK"));
         } else {
-            PrintAndLogEx((error) ? ERR : SUCCESS, "Ping response " _GREEN_("received"));
+            PrintAndLogEx(SUCCESS, "Ping response " _GREEN_("received"));
         }
     } else
         PrintAndLogEx(WARNING, "Ping response " _RED_("timeout"));
@@ -605,6 +617,7 @@ static command_t CommandTable[] = {
     {"setmux",        CmdSetMux,      IfPm3Present,    "Set the ADC mux to a specific value"},
     {"standalone",    CmdStandalone,  IfPm3Present,    "Jump to the standalone mode"},
     {"status",        CmdStatus,      IfPm3Present,    "Show runtime status information about the connected Proxmark3"},
+    {"tia",           CmdTia,         IfPm3Present,    "Trigger a Timing Interval Acquisition to re-adjust the RealTimeCounter divider"},
     {"tune",          CmdTune,        IfPm3Present,    "Measure antenna tuning"},
     {"version",       CmdVersion,     IfPm3Present,    "Show version information about the connected Proxmark3"},
     {NULL, NULL, NULL, NULL}
@@ -696,7 +709,7 @@ void pm3_version(bool verbose, bool oneliner) {
         PrintAndLogEx(NORMAL, "  compiled with " PM3CLIENTCOMPILER __VERSION__ PM3HOSTOS PM3HOSTARCH);
 
 //#if PLATFORM == PM3RDV4
-        if ( IfPm3Flash() == false && IfPm3Smartcard() == false && IfPm3FpcUsartHost() == false) {
+        if (IfPm3Flash() == false && IfPm3Smartcard() == false && IfPm3FpcUsartHost() == false) {
             PrintAndLogEx(NORMAL, "\n [ PROXMARK3 ]");
         } else {
             PrintAndLogEx(NORMAL, "\n [ PROXMARK3 RDV4 ]");

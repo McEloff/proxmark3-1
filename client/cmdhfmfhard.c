@@ -282,7 +282,12 @@ static void init_bitflip_bitarrays(void) {
                 fclose(statesfile);
                 uint32_t count = 0;
                 init_inflate(&compressed_stream, input_buffer, filesize, (uint8_t *)&count, sizeof(count));
-                inflate(&compressed_stream, Z_SYNC_FLUSH);
+                int res = inflate(&compressed_stream, Z_SYNC_FLUSH);
+                if (res != Z_OK) {
+                    PrintAndLogEx(ERR, "Inflate error. Aborting...\n");
+                    inflateEnd(&compressed_stream);
+                    exit(4);
+                }
                 if ((float)count / (1 << 24) < IGNORE_BITFLIP_THRESHOLD) {
                     uint32_t *bitset = (uint32_t *)malloc_bitarray(sizeof(uint32_t) * (1 << 19));
                     if (bitset == NULL) {
@@ -292,7 +297,12 @@ static void init_bitflip_bitarrays(void) {
                     }
                     compressed_stream.next_out = (uint8_t *)bitset;
                     compressed_stream.avail_out = sizeof(uint32_t) * (1 << 19);
-                    inflate(&compressed_stream, Z_SYNC_FLUSH);
+                    res = inflate(&compressed_stream, Z_SYNC_FLUSH);
+                    if (res != Z_OK && res != Z_STREAM_END) {
+                        PrintAndLogEx(ERR, "Inflate error. Aborting...\n");
+                        inflateEnd(&compressed_stream);
+                        exit(4);
+                    }
                     effective_bitflip[odd_even][num_effective_bitflips[odd_even]++] = bitflip;
                     bitflip_bitarrays[odd_even][bitflip] = bitset;
                     count_bitflip_bitarrays[odd_even][bitflip] = count;
@@ -1042,6 +1052,11 @@ static void estimate_sum_a8(void) {
 
 
 static int read_nonce_file(char *filename) {
+
+    if (filename == NULL) {
+        PrintAndLogEx(WARNING, "Filename is NULL");
+        return 1;
+    }
     FILE *fnonces = NULL;
     char progress_text[80] = "";
     uint8_t read_buf[9];
@@ -1051,6 +1066,7 @@ static int read_nonce_file(char *filename) {
         PrintAndLogEx(WARNING, "Could not open file %s", filename);
         return 1;
     }
+
     snprintf(progress_text, 80, "Reading nonces from file %s...", filename);
     hardnested_print_progress(0, progress_text, (float)(1LL << 47), 0);
     size_t bytes_read = fread(read_buf, 1, 6, fnonces);
@@ -1644,8 +1660,8 @@ static uint_fast8_t reverse(uint_fast8_t b) {
     b = (b & 0xCC) >> 2 | (b & 0x33) << 2;
     b = (b & 0xAA) >> 1 | (b & 0x55) << 1;
     return b;
-}	
-*/		  
+}
+*/
 static uint_fast8_t reverse(uint_fast8_t b) {
     return (b * 0x0202020202ULL & 0x010884422010ULL) % 1023;
 }
@@ -1756,7 +1772,7 @@ static void add_matching_states(statelist_t *candidates, uint8_t part_sum_a0, ui
 }
 
 static statelist_t *add_more_candidates(void) {
-    statelist_t *new_candidates = candidates;
+    statelist_t *new_candidates;
     if (candidates == NULL) {
         candidates = (statelist_t *)malloc(sizeof(statelist_t));
         new_candidates = candidates;

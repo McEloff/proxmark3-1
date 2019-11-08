@@ -165,11 +165,12 @@ static int CmdNoralsyClone(const char *Cmd) {
     blocks[3] = bytebits_to_byte(bits + 64, 32);
 
     free(bits);
-    
+
     PrintAndLogEx(INFO, "Preparing to clone Noralsy to T55x7 with CardId: %u", id);
     print_blocks(blocks,  ARRAYLEN(blocks));
 
-    return clone_t55xx_tag(blocks, ARRAYLEN(blocks));}
+    return clone_t55xx_tag(blocks, ARRAYLEN(blocks));
+}
 
 static int CmdNoralsySim(const char *Cmd) {
 
@@ -218,7 +219,7 @@ static command_t CommandTable[] = {
     {"help",    CmdHelp,         AlwaysAvailable, "This help"},
     {"demod",   CmdNoralsyDemod, AlwaysAvailable, "Demodulate an Noralsy tag from the GraphBuffer"},
     {"read",    CmdNoralsyRead,  IfPm3Lf,         "Attempt to read and extract tag data from the antenna"},
-    {"clone",   CmdNoralsyClone, IfPm3Lf,         "clone Noralsy to T55x7"},
+    {"clone",   CmdNoralsyClone, IfPm3Lf,         "clone Noralsy tag to T55x7 (or to q5/T5555)"},
     {"sim",     CmdNoralsySim,   IfPm3Lf,         "simulate Noralsy tag"},
     {NULL, NULL, NULL, NULL}
 };

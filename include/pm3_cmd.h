@@ -119,6 +119,7 @@ typedef struct {
     int divisor;
     int trigger_threshold;
     uint32_t samples_to_skip;
+    bool verbose;
 } PACKED sample_config;
 /*
 typedef struct {
@@ -286,6 +287,7 @@ typedef struct {
 #define CMD_SET_DBGMODE                                                   0x0114
 #define CMD_STANDALONE                                                    0x0115
 #define CMD_WTX                                                           0x0116
+#define CMD_TIA                                                           0x0117
 
 // RDV40, Flash memory operations
 #define CMD_FLASHMEM_WRITE                                                0x0121
@@ -488,6 +490,7 @@ typedef struct {
 #define CMD_HF_MIFARE_CHKKEYS_FAST                                        0x0625
 
 #define CMD_HF_MIFARE_SNIFF                                               0x0630
+#define CMD_HF_MIFARE_MFKEY                                               0x0631
 //ultralightC
 #define CMD_HF_MIFAREUC_AUTH                                              0x0724
 //0x0725 and 0x0726 no longer used
@@ -591,9 +594,10 @@ typedef struct {
 #define PM3_EFATAL            -99
 
 // LF
-#define LF_DIVISOR(f) (((12000 + (f)/2)/(f))-1)
-#define LF_DIVISOR_125 LF_DIVISOR(125)
-#define LF_DIVISOR_134 LF_DIVISOR(134)
+#define LF_FREQ2DIV(f) ((int)(((12000.0 + (f)/2.0)/(f))-1))
+#define LF_DIVISOR_125 LF_FREQ2DIV(125)
+#define LF_DIVISOR_134 LF_FREQ2DIV(134.2)
+#define LF_DIV2FREQ(d) (12000.0/((d)+1))
 
 // CMD_GET_STANDALONE_DONE_STATUS responses
 #define STANDALONE_ELOFF_LF_SUCCESS  1

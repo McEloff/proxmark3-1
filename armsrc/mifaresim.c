@@ -577,7 +577,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
             EmSendPrecompiledCmd(&responses[ATQA]);
 
             // init crypto block
-            crypto1_destroy(pcs);
+            crypto1_deinit(pcs);
             cardAUTHKEY = AUTHKEYNONE;
             nonce = prng_successor(selTimer, 32);
             // prepare NT for nested authentication
@@ -594,9 +594,11 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
             case MFEMUL_NOFIELD:
                 if (DBGLEVEL >= DBG_EXTENDED)
                     Dbprintf("MFEMUL_NOFIELD");
+                break;
             case MFEMUL_HALTED:
                 if (DBGLEVEL >= DBG_EXTENDED)
                     Dbprintf("MFEMUL_HALTED");
+                break;
             case MFEMUL_IDLE: {
                 LogTrace(uart->output, uart->len, uart->startTime * 16 - DELAY_AIR2ARM_AS_TAG, uart->endTime * 16 - DELAY_AIR2ARM_AS_TAG, uart->parity, true);
                 if (DBGLEVEL >= DBG_EXTENDED)
@@ -727,7 +729,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
 
                     // iceman,  u8 can never be larger than 256
                     // if authenticating to a block that shouldn't exist - as long as we are not doing the reader attack
-                    if ( ((flags & FLAG_NR_AR_ATTACK) != FLAG_NR_AR_ATTACK) ) {
+                    if (((flags & FLAG_NR_AR_ATTACK) != FLAG_NR_AR_ATTACK)) {
                         EmSend4bit(mf_crypto1_encrypt4bit(pcs, CARD_NACK_NA));
                         if (DBGLEVEL >= DBG_EXTENDED) Dbprintf("Reader tried to operate (0x%02x) on out of range block: %d (0x%02x), nacking", receivedCmd_dec[0], receivedCmd_dec[1], receivedCmd_dec[1]);
                         break;
@@ -747,10 +749,10 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                     if (DBGLEVEL >= DBG_EXTENDED) Dbprintf("[MFEMUL_WORK] KEY %c: %012" PRIx64, (cardAUTHKEY == 0) ? 'A' : 'B', emlGetKey(cardAUTHSC, cardAUTHKEY));
 
                     // first authentication
-                    crypto1_destroy(pcs);
+                    crypto1_deinit(pcs);
 
                     // Load key into crypto
-                    crypto1_create(pcs, emlGetKey(cardAUTHSC, cardAUTHKEY));
+                    crypto1_init(pcs, emlGetKey(cardAUTHSC, cardAUTHKEY));
 
                     if (!encrypted_data) {
                         // Receive Cmd in clear txt
@@ -1102,7 +1104,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                     Dbprintf("[MFEMUL_AUTH1] AUTH COMPLETED for sector %d with key %c. time=%d",
                              cardAUTHSC,
                              cardAUTHKEY == 0 ? 'A' : 'B',
-                             GetTickCount() - authTimer
+                             GetTickCountDelta(authTimer)
                             );
                 }
                 LED_C_ON();

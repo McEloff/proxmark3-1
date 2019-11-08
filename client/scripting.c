@@ -32,6 +32,7 @@
 #include "crc16.h"
 #include "protocols.h"
 #include "fileutils.h"    // searchfile
+#include "cmdlf.h"        // lf_config
 
 static int returnToLuaWithError(lua_State *L, const char *fmt, ...) {
     char buffer[200];
@@ -69,7 +70,10 @@ static int l_fast_push_mode(lua_State *L) {
     // Disable fast mode and send a dummy command to make it effective
     if (enable == false) {
         SendCommandNG(CMD_PING, NULL, 0);
-        WaitForResponseTimeout(CMD_PING, NULL, 1000);
+        if (!WaitForResponseTimeout(CMD_PING, NULL, 1000)) {
+            PrintAndLogEx(WARNING, "command execution time out");
+            return returnToLuaWithError(L, "command execution time out");
+        }
     }
 
     //Push the retval on the stack
@@ -299,6 +303,61 @@ static int l_GetFromFlashMem(lua_State *L) {
     }
 }
 
+
+/**
+ * @brief The following params expected:
+ * uint8_t *destfilename
+ * @param L
+ * @return
+ */
+static int l_GetFromFlashMemSpiffs(lua_State *L) {
+
+    if (IfPm3Flash()) {
+        uint32_t start_index = 0, len = 0x40000; //FLASH_MEM_MAX_SIZE
+		char destfilename[32] = {0};
+		size_t size;
+
+        int n = lua_gettop(L);
+        if (n == 0)
+            return returnToLuaWithError(L, "You need to supply the destination filename");
+
+        if (n >= 1) {
+			const char *p_filename = luaL_checklstring(L, 1, &size);
+			if (size != 0)
+				memcpy(destfilename, p_filename, 31);
+		}
+		
+		if (destfilename[0] == '\0')
+			return returnToLuaWithError(L, "Filename missing or invalid");
+		
+		// get size from spiffs itself !
+		SendCommandMIX(CMD_SPIFFS_STAT, 0, 0, 0, (uint8_t *)destfilename, 32);
+		PacketResponseNG resp;
+		if (!WaitForResponseTimeout(CMD_ACK, &resp, 2000))
+			return returnToLuaWithError(L, "No response from the device");
+
+		len = resp.oldarg[0];
+	
+        if (len <= 0)
+            return returnToLuaWithError(L, "Filename invalid or empty");
+	
+        uint8_t *data = calloc(len, sizeof(uint8_t));
+        if (!data)
+            return returnToLuaWithError(L, "Allocating memory failed");
+
+		if (!GetFromDevice(SPIFFS, data, len, start_index, (uint8_t *)destfilename, 32, NULL, -1, true)) {
+			free(data);
+			return returnToLuaWithError(L, "ERROR; downloading from spiffs(flashmemory)");
+		}
+
+        lua_pushlstring(L, (const char *)data, len);
+		lua_pushunsigned(L, len);
+        free(data);
+        return 2;
+    } else {
+        return returnToLuaWithError(L, "No FLASH MEM support");
+    }
+}
 
 /**
  * @brief The following params expected:
@@ -926,7 +985,7 @@ static int l_T55xx_readblock(lua_State *L) {
         // try reading the config block and verify that PWD bit is set before doing this!
         if (!override) {
 
-            if (!AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, false, 0, 0)) {
+            if (!AcquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, false, 0, 0)) {
                 return returnToLuaWithError(L, "Failed to read config block");
             }
 
@@ -943,7 +1002,7 @@ static int l_T55xx_readblock(lua_State *L) {
         }
     }
 
-    if (!AquireData(usepage1, block, usepwd, password, 0)) {
+    if (!AcquireData(usepage1, block, usepwd, password, 0)) {
         return returnToLuaWithError(L, "Failed to acquire data from card");
     }
 
@@ -1000,7 +1059,7 @@ static int l_T55xx_detect(lua_State *L) {
 
     if (!useGB) {
 
-        isok = AquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password, 0);
+        isok = AcquireData(T55x7_PAGE0, T55x7_CONFIGURATION_BLOCK, usepwd, password, 0);
         if (isok == false) {
             return returnToLuaWithError(L, "Failed to acquire LF signal data");
         }
@@ -1049,6 +1108,22 @@ static int l_ndefparse(lua_State *L) {
     }
 
     int res = NDEFDecodeAndPrint(data, datalen, verbose);
+    lua_pushinteger(L, res);
+    return 1;
+}
+
+static int l_remark(lua_State *L) {
+    //Check number of arguments
+    int n = lua_gettop(L);
+    if (n != 1)  {
+        return returnToLuaWithError(L, "Only one string allowed");
+    }
+
+    size_t size;
+    // data
+    const char *s = luaL_checklstring(L, 1, &size);
+
+    int res = CmdRem(s);
     lua_pushinteger(L, res);
     return 1;
 }
@@ -1108,6 +1183,7 @@ int set_pm3_libraries(lua_State *L) {
         {"SendCommandNG",               l_SendCommandNG},
         {"GetFromBigBuf",               l_GetFromBigBuf},
         {"GetFromFlashMem",             l_GetFromFlashMem},
+        {"GetFromFlashMemSpiffs",       l_GetFromFlashMemSpiffs},
         {"WaitForResponseTimeout",      l_WaitForResponseTimeout},
         {"mfDarkside",                  l_mfDarkside},
         {"foobar",                      l_foobar},
@@ -1138,6 +1214,7 @@ int set_pm3_libraries(lua_State *L) {
         {"ndefparse",                   l_ndefparse},
         {"fast_push_mode",              l_fast_push_mode},
         {"search_file",                 l_searchfile},
+        {"rem",                         l_remark},
         {NULL, NULL}
     };
 

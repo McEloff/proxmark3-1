@@ -109,9 +109,11 @@ ifneq ($(SKIPQT),1)
 endif
 
 ifneq ($(QTLDLIBS),)
+    QTGUISRCS = proxgui.cpp proxguiqt.cpp proxguiqt.moc.cpp
     QTGUIOBJS = $(OBJDIR)/proxgui.o $(OBJDIR)/proxguiqt.o $(OBJDIR)/proxguiqt.moc.o
     PM3CFLAGS += -DHAVE_GUI
 else
+    QTGUISRCS = guidummy.cpp
     QTGUIOBJS = $(OBJDIR)/guidummy.o
 endif
 
@@ -184,6 +186,7 @@ CMDSRCS =   crapto1/crapto1.c \
             cmdanalyse.c \
             cmdhf.c \
             cmdhflist.c \
+            aidsearch.c \
             cmdhf14a.c \
             cmdhf14b.c \
             cmdhf15.c \
@@ -227,7 +230,7 @@ CMDSRCS =   crapto1/crapto1.c \
             cmdlfti.c \
             cmdlfviking.c \
             cmdlfvisa2000.c \
-            cmdlfverichip.c \
+            cmdlfmotorola.c \
             cmdtrace.c \
             cmdflashmem.c \
             cmdflashmemspiffs.c \
@@ -257,7 +260,6 @@ ifeq ($(MULTIARCHSRCS), )
     CMDSRCS += hardnested/hardnested_bf_core.c hardnested/hardnested_bitarray_core.c
 endif
 
-QTGUISRCS = proxgui.cpp proxguiqt.cpp proxguiqt.moc.cpp guidummy.cpp
 
 COREOBJS = $(CORESRCS:%.c=$(OBJDIR)/%.o)
 CMDOBJS = $(CMDSRCS:%.c=$(OBJDIR)/%.o)

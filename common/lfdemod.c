@@ -84,10 +84,10 @@ static void printSignal(void) {
 
 #ifndef ON_DEVICE
 static int cmp_uint8(const void *a, const void *b) {
-   if (*(const uint8_t *)a < * (const uint8_t *)b)
-       return -1;
-   else
-       return *(const uint8_t *)a > *(const uint8_t *)b;
+    if (*(const uint8_t *)a < * (const uint8_t *)b)
+        return -1;
+    else
+        return *(const uint8_t *)a > *(const uint8_t *)b;
 }
 #endif
 
@@ -117,10 +117,13 @@ void computeSignalProperties(uint8_t *samples, uint32_t size) {
 
         sum += samples[i];
         cnt++;
-   }
-    signalprop.mean = sum / cnt;
+    }
+    if (cnt > 0)
+        signalprop.mean = sum / cnt;
+    else
+        signalprop.mean = 0;
 #else
-   for (uint32_t i =  SIGNAL_IGNORE_FIRST_SAMPLES; i < size; i++) {
+    for (uint32_t i =  SIGNAL_IGNORE_FIRST_SAMPLES; i < size; i++) {
         if (samples[i] < signalprop.low) signalprop.low = samples[i];
         if (samples[i] > signalprop.high) signalprop.high = samples[i];
         sum += samples[i];
@@ -160,8 +163,11 @@ void removeSignalOffset(uint8_t *samples, uint32_t size) {
 
         acc_off += samples[i] - 128;
         cnt++;
-   }
-    acc_off /= cnt;
+    }
+    if (cnt > 0)
+        acc_off /= cnt;
+    else
+        acc_off = 0;
 #else
     for (uint32_t i = SIGNAL_IGNORE_FIRST_SAMPLES; i < size; i++)
         acc_off += samples[i] - 128;
@@ -195,7 +201,7 @@ void getHiLo(int *high, int *low, uint8_t fuzzHi, uint8_t fuzzLo) {
     }
 
     // if fuzzing to great and overlap
-    if (*high < *low) {
+    if (*high <= *low) {
         *high = signalprop.high;
         *low =  signalprop.low;
     }
@@ -1717,7 +1723,6 @@ int nrzRawDemod(uint8_t *dest, size_t *size, int *clk, int *invert, int *startId
     size_t i;
     int high, low;
 
-    getHiLo(&high, &low, 75, 75);
     getHiLo(&high, &low, 75, 75);
 
     uint8_t bit = 0;

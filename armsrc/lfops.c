@@ -404,7 +404,7 @@ void ModThenAcquireRawAdcSamples125k(uint32_t delay_off, uint32_t period_0, uint
             DbpString("[!] Warning periods cannot be less than 7us in bit bang mode");
             FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
             LED_D_OFF();
-	    reply_ng(CMD_LF_MOD_THEN_ACQ_RAW_ADC, PM3_EINVARG, NULL, 0);
+            reply_ng(CMD_LF_MOD_THEN_ACQ_RAW_ADC, PM3_EINVARG, NULL, 0);
             return;
         }
 
@@ -1047,6 +1047,16 @@ static void leadingZeroAskSimBits(int *n, uint8_t clock) {
     memset(dest + (*n), 0, clock * 8);
     *n += clock * 8;
 }
+/*
+static void leadingZeroBiphaseSimBits(int *n, uint8_t clock, uint8_t *phase) {
+    uint8_t *dest = BigBuf_get_addr();
+    for (uint8_t i = 0; i < 8; i++) {
+        memset(dest + (*n), 0 ^ *phase, clock);
+        *phase ^= 1;
+        *n += clock;
+    }
+}
+*/
 
 
 // args clock, ask/man or askraw, invert, transmission separator
@@ -1056,10 +1066,14 @@ void CmdASKsimTAG(uint8_t encoding, uint8_t invert, uint8_t separator, uint8_t c
 
     int n = 0, i = 0;
 
-    leadingZeroAskSimBits(&n, clk);
-
     if (encoding == 2) { //biphase
         uint8_t phase = 0;
+
+// iceman,  if I add this,  the demod includes these extra zero and detection fails.
+// now, I only need to figure out just to add carrier without modulation
+// the old bug, with adding ask zeros messed up the phase variable and deteion failed because of it in LF FDX
+//        leadingZeroBiphaseSimBits(&n, clk, &phase);
+
         for (i = 0; i < size; i++) {
             biphaseSimBit(bits[i] ^ invert, &n, clk, &phase);
         }
@@ -1069,6 +1083,9 @@ void CmdASKsimTAG(uint8_t encoding, uint8_t invert, uint8_t separator, uint8_t c
             }
         }
     } else {  // ask/manchester || ask/raw
+
+        leadingZeroAskSimBits(&n, clk);
+
         for (i = 0; i < size; i++) {
             askSimBit(bits[i] ^ invert, &n, clk, encoding);
         }
@@ -1085,7 +1102,14 @@ void CmdASKsimTAG(uint8_t encoding, uint8_t invert, uint8_t separator, uint8_t c
 
     WDT_HIT();
 
-    Dbprintf("Simulating with clk: %d, invert: %d, encoding: %d, separator: %d, n: %d", clk, invert, encoding, separator, n);
+    Dbprintf("Simulating with clk: %d, invert: %d, encoding: %s (%d), separator: %d, n: %d"
+        , clk
+        , invert
+        , (encoding == 2) ? "BI" : (encoding == 1) ? "ASK" : "RAW"
+        , encoding
+        , separator
+        , n
+    );
 
     if (ledcontrol) LED_A_ON();
     SimulateTagLowFrequency(n, 0, ledcontrol);
@@ -1237,8 +1261,8 @@ void CmdAWIDdemodFSK(int findone, uint32_t *high, uint32_t *low, int ledcontrol)
 
     uint8_t *dest = BigBuf_get_addr();
 
-    //big enough to catch 2 sequences of largest format
-    size_t size = 12800; //50 * 128 * 2;
+    //big enough to catch 2 sequences of largest format but don't exeed whats available in bigbuff.
+    size_t size = MIN(12800, BigBuf_max_traceLen()); //50 * 128 * 2;
 
     int dummyIdx = 0;
 
@@ -1546,13 +1570,12 @@ void T55xxWriteBit(uint8_t bit, uint8_t downlink_idx) {
 // max_len      - how many bytes can the bit_array hold (ensure no buffer overflow)
 // returns "Next" bit offset / bits stored (for next store)
 uint8_t T55xx_SetBits(uint8_t *bs, uint8_t start_offset, uint32_t data, uint8_t num_bits, uint8_t max_len) {
-    int8_t offset;
     int8_t next_offset = start_offset;
 
     // Check if data will fit.
     if ((start_offset + num_bits) <= (max_len * 8)) {
         // Loop through the data and store
-        for (offset = (num_bits - 1); offset >= 0; offset--) {
+        for (int8_t offset = (num_bits - 1); offset >= 0; offset--) {
 
             if ((data >> offset) & 1)
                 bs[BITSTREAM_BYTE(next_offset)] |= (1 << BITSTREAM_BIT(next_offset));  // Set 1
@@ -1710,12 +1733,12 @@ void T55xxDangerousRawTest(uint8_t *data) {
     t55xx_test_block_t *c = (t55xx_test_block_t *)data;
 
     uint8_t start_wait = 4;
-    uint8_t bs[128/8];
+    uint8_t bs[128 / 8];
     memset(bs, 0x00, sizeof(bs));
     uint8_t len = 0;
     if (c->bitlen == 0 || c->bitlen > 128 || c->time == 0)
         reply_ng(CMD_LF_T55XX_DANGERRAW, PM3_EINVARG, NULL, 0);
-    for (uint8_t i=0; i<c->bitlen; i++)
+    for (uint8_t i = 0; i < c->bitlen; i++)
         len = T55xx_SetBits(bs, len, c->data[i], 1, sizeof(bs));
 
     if (DBGLEVEL > 1) {
@@ -2413,18 +2436,37 @@ void EM4xWriteWord(uint8_t addr, uint32_t data, uint32_t pwd, uint8_t usepwd) {
 }
 
 /*
-Reading a COTAG.
+Reading COTAG.
 
 COTAG needs the reader to send a startsequence and the card has an extreme slow datarate.
 because of this, we can "sample" the data signal but we interpreate it to Manchester direct.
 
-READER START SEQUENCE:
-burst 800 us,    gap   2.2 msecs
-burst 3.6 msecs  gap   2.2 msecs
-burst 800 us     gap   2.2 msecs
-pulse 3.6 msecs
+This behavior looks very similar to old ancient Motorola Flexpass
 
-This triggers a COTAG tag to response
+-----------------------------------------------------------------------
+According to patent EP0040544B1:
+Operating freq
+  reader 132 kHz
+  tag     66 kHz
+
+Divide by 384 counter
+
+PULSE repetition 5.82ms
+LOW  2.91 ms
+HIGH  2.91 ms
+
+Also references to a half-bit format and leading zero.
+-----------------------------------------------------------------------
+
+READER START SEQUENCE:
+
+burst 800 us  gap 2.2 ms
+burst 3.6 ms  gap 2.2 ms
+burst 800 us  gap 2.2 ms
+pulse 3.6 ms
+
+This triggers COTAG tag to response
+
 */
 void Cotag(uint32_t arg0) {
 #ifndef OFF
@@ -2437,7 +2479,7 @@ void Cotag(uint32_t arg0) {
 
     LED_A_ON();
 
-    LFSetupFPGAForADC(LF_DIVISOR_134, true);
+    LFSetupFPGAForADC(LF_FREQ2DIV(132), true);
 
     //clear buffer now so it does not interfere with timing later
     BigBuf_Clear_ext(false);
@@ -2450,7 +2492,7 @@ void Cotag(uint32_t arg0) {
 
     switch (rawsignal) {
         case 0:
-            doCotagAcquisition(50000);
+            doCotagAcquisition(40000);
             break;
         case 1:
             doCotagAcquisitionManchester();
@@ -2462,7 +2504,7 @@ void Cotag(uint32_t arg0) {
 
     // Turn the field off
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF); // field off
-    reply_mix(CMD_ACK, 0, 0, 0, 0, 0);
+    reply_ng(CMD_LF_COTAG_READ, PM3_SUCCESS, NULL, 0);
     LEDsoff();
 }
 

@@ -58,6 +58,8 @@ From "Dismantling iclass":
     output of hash0 is the diversified card key k = k [0] , . . . , k [7] ∈ (F 82 ) 8 .
 
 **/
+#include "ikeys.h"
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
@@ -420,7 +422,7 @@ typedef struct {
     uint8_t div_key[8];
 } Testcase;
 
-static int testDES(Testcase testcase, mbedtls_des_context ctx_enc, mbedtls_des_context ctx_dec) {
+static int testDES(Testcase testcase) {
     uint8_t des_encrypted_csn[8] = {0};
     uint8_t decrypted[8] = {0};
     uint8_t div_key[8] = {0};
@@ -560,7 +562,7 @@ static int testKeyDiversificationWithMasterkeyTestcases() {
     PrintAndLogEx(INFO, "Testing encryption/decryption");
 
     for (i = 0; memcmp(testcases + i, empty, 8); i++)
-        error += testDES(testcases[i], ctx_enc, ctx_dec);
+        error += testDES(testcases[i]);
 
     if (error)
         PrintAndLogEx(FAILED, "%d errors occurred (%d testcases)", error, i);

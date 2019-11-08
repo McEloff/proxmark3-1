@@ -103,7 +103,7 @@ void MifareReadBlock(uint8_t blockNo, uint8_t keyType, uint8_t *datain) {
         break;
     }
 
-    crypto1_destroy(pcs);
+    crypto1_deinit(pcs);
 
     if (DBGLEVEL >= 2) DbpString("READ BLOCK FINISHED");
 
@@ -264,7 +264,7 @@ void MifareReadSector(uint8_t arg0, uint8_t arg1, uint8_t *datain) {
 
     if (DBGLEVEL >= 2) DbpString("READ SECTOR FINISHED");
 
-    crypto1_destroy(pcs);
+    crypto1_deinit(pcs);
 
     LED_B_ON();
     reply_old(CMD_ACK, isOK, 0, 0, dataoutbuf, 16 * NumBlocksPerSector(sectorNo));
@@ -430,7 +430,7 @@ void MifareWriteBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain) {
         break;
     }
 
-    crypto1_destroy(pcs);
+    crypto1_deinit(pcs);
 
     if (DBGLEVEL >= 2) DbpString("WRITE BLOCK FINISHED");
 
@@ -847,7 +847,7 @@ void MifareAcquireEncryptedNonces(uint32_t arg0, uint32_t arg1, uint32_t flags, 
     }
 
     LED_C_OFF();
-    crypto1_destroy(pcs);
+    crypto1_deinit(pcs);
     LED_B_ON();
     reply_old(CMD_ACK, isOK, cuid, num_nonces, buf, sizeof(buf));
     LED_B_OFF();
@@ -952,8 +952,8 @@ void MifareNested(uint8_t blockNo, uint8_t keyType, uint8_t targetBlockNo, uint8
 
             // cards with fixed nonce
             if (nt1 == nt2) {
-               Dbprintf("Nested: %08x vs %08x", nt1, nt2);
-               break;
+                Dbprintf("Nested: %08x vs %08x", nt1, nt2);
+                break;
             }
 
             uint32_t nttmp = prng_successor(nt1, 100); //NXP Mifare is typical around 840,but for some unlicensed/compatible mifare card this can be 160
@@ -1061,17 +1061,17 @@ void MifareNested(uint8_t blockNo, uint8_t keyType, uint8_t targetBlockNo, uint8
 
     LED_C_OFF();
 
-    crypto1_destroy(pcs);
+    crypto1_deinit(pcs);
 
     struct p {
-       int16_t isOK;
-       uint8_t block;
-       uint8_t keytype;
-       uint8_t cuid[4];
-       uint8_t nt_a[4];
-       uint8_t ks_a[4];
-       uint8_t nt_b[4];
-       uint8_t ks_b[4];
+        int16_t isOK;
+        uint8_t block;
+        uint8_t keytype;
+        uint8_t cuid[4];
+        uint8_t nt_a[4];
+        uint8_t ks_a[4];
+        uint8_t nt_b[4];
+        uint8_t ks_b[4];
     } PACKED payload;
     payload.isOK = isOK;
     payload.block = targetBlockNo;
@@ -1084,7 +1084,7 @@ void MifareNested(uint8_t blockNo, uint8_t keyType, uint8_t targetBlockNo, uint8
     memcpy(payload.ks_b, &target_ks[1], 4);
 
     LED_B_ON();
-    reply_ng(CMD_HF_MIFARE_NESTED, PM3_SUCCESS, (uint8_t*)&payload, sizeof(payload));
+    reply_ng(CMD_HF_MIFARE_NESTED, PM3_SUCCESS, (uint8_t *)&payload, sizeof(payload));
     LED_B_OFF();
 
     if (DBGLEVEL >= 3) DbpString("NESTED FINISHED");
@@ -1510,7 +1510,7 @@ void MifareChkKeys_fast(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint8_t *da
 OUT:
     LEDsoff();
 
-    crypto1_destroy(pcs);
+    crypto1_deinit(pcs);
 
     // All keys found, send to client, or last keychunk from client
     if (foundkeys == allkeys || lastchunk) {
@@ -1660,7 +1660,7 @@ void MifareChkKeys(uint8_t *datain) {
     LEDsoff();
 
     set_tracing(false);
-    crypto1_destroy(pcs);
+    crypto1_deinit(pcs);
 }
 
 //-----------------------------------------------------------------------------
@@ -1780,7 +1780,7 @@ int MifareECardLoad(uint8_t numSectors, uint8_t keyType) {
     if (DBGLEVEL >= DBG_INFO) DbpString("Emulator fill sectors finished");
 
 out:
-    crypto1_destroy(pcs);
+    crypto1_deinit(pcs);
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();
     set_tracing(false);
@@ -2110,7 +2110,7 @@ void MifareSetMod(uint8_t *datain) {
         break;
     }
 
-    crypto1_destroy(pcs);
+    crypto1_deinit(pcs);
 
     LED_B_ON();
     reply_ng(CMD_HF_MIFARE_SETMOD, isOK, NULL, 0);

@@ -8,8 +8,9 @@
 // HID card format packing/unpacking routines
 //-----------------------------------------------------------------------------
 #include "wiegand_formats.h"
+#include "commonutil.h"
 
-bool Pack_H10301(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_H10301(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0xFF) return false; // Can't encode FC.
@@ -25,7 +26,7 @@ bool Pack_H10301(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_H10301(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_H10301(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
     if (packed->Length != 26) return false; // Wrong length? Stop here.
 
@@ -37,7 +38,7 @@ bool Unpack_H10301(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_Tecom27(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_Tecom27(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0x7FF) return false; // Can't encode FC.
@@ -51,7 +52,7 @@ bool Pack_Tecom27(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_Tecom27(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_Tecom27(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 27) return false; // Wrong length? Stop here.
@@ -61,7 +62,7 @@ bool Unpack_Tecom27(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_2804W(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_2804W(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0x0FF) return false; // Can't encode FC.
@@ -84,7 +85,7 @@ bool Pack_2804W(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_2804W(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_2804W(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 28) return false; // Wrong length? Stop here.
@@ -98,7 +99,7 @@ bool Unpack_2804W(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_ATSW30(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_ATSW30(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0xFFF) return false; // Can't encode FC.
@@ -118,7 +119,7 @@ bool Pack_ATSW30(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_ATSW30(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_ATSW30(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 30) return false; // Wrong length? Stop here.
@@ -131,7 +132,7 @@ bool Unpack_ATSW30(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_ADT31(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_ADT31(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0x0F) return false; // Can't encode FC.
@@ -146,7 +147,7 @@ bool Pack_ADT31(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_ADT31(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_ADT31(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 31) return false; // Wrong length? Stop here.
@@ -155,7 +156,7 @@ bool Unpack_ADT31(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_Kastle(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_Kastle(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0x00FF) return false; // Can't encode FC.
@@ -173,7 +174,7 @@ bool Pack_Kastle(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_Kastle(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_Kastle(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 32) return false; // Wrong length? Stop here.
@@ -188,7 +189,7 @@ bool Unpack_Kastle(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_D10202(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_D10202(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0x007F) return false; // Can't encode FC.
@@ -204,7 +205,7 @@ bool Pack_D10202(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_D10202(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_D10202(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 33) return false; // Wrong length? Stop here.
@@ -217,7 +218,7 @@ bool Unpack_D10202(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_H10306(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_H10306(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0xFFFF) return false; // Can't encode FC.
@@ -234,7 +235,7 @@ bool Pack_H10306(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_H10306(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_H10306(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 34) return false; // Wrong length? Stop here.
@@ -247,7 +248,7 @@ bool Unpack_H10306(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_N10002(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_N10002(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0xFF) return false; // Can't encode FC.
@@ -261,7 +262,7 @@ bool Pack_N10002(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_N10002(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_N10002(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 34) return false; // Wrong length? Stop here.
@@ -271,7 +272,7 @@ bool Unpack_N10002(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_C1k35s(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_C1k35s(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0xFFF) return false; // Can't encode FC.
@@ -289,7 +290,7 @@ bool Pack_C1k35s(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_C1k35s(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_C1k35s(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 35) return false; // Wrong length? Stop here.
@@ -303,7 +304,7 @@ bool Unpack_C1k35s(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_H10320(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_H10320(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0) return false; // Can't encode FC. (none in this format)
@@ -331,7 +332,7 @@ bool Pack_H10320(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_H10320(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_H10320(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 36) return false; // Wrong length? Stop here.
@@ -355,7 +356,7 @@ bool Unpack_H10320(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_S12906(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_S12906(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0xFF) return false; // Can't encode FC.
@@ -372,7 +373,7 @@ bool Pack_S12906(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_S12906(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_S12906(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 36) return false; // Wrong length? Stop here.
@@ -386,7 +387,7 @@ bool Unpack_S12906(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_Sie36(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_Sie36(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0x0003FFFF) return false; // Can't encode FC.
@@ -406,7 +407,7 @@ bool Pack_Sie36(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_Sie36(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_Sie36(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 36) return false; // Wrong length? Stop here.
@@ -419,7 +420,7 @@ bool Unpack_Sie36(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_C15001(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_C15001(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0x000000FF) return false; // Can't encode FC.
@@ -436,7 +437,7 @@ bool Pack_C15001(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_C15001(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_C15001(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 36) return false; // Wrong length? Stop here.
@@ -450,7 +451,7 @@ bool Unpack_C15001(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_H10302(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_H10302(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0) return false; // Can't encode FC. (none in this format)
@@ -465,7 +466,7 @@ bool Pack_H10302(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_H10302(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_H10302(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 37) return false; // Wrong length? Stop here.
@@ -477,7 +478,7 @@ bool Unpack_H10302(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_H10304(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_H10304(wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
     if (card->FacilityCode > 0x0000FFFF) return false; // Can't encode FC.
@@ -494,7 +495,7 @@ bool Pack_H10304(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_H10304(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_H10304(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 37) return false; // Wrong length? Stop here.
@@ -507,7 +508,7 @@ bool Unpack_H10304(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_P10001(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_P10001(wiegand_card_t *card, wiegand_message_t *packed) {
 
     memset(packed, 0, sizeof(wiegand_message_t));
 
@@ -529,7 +530,7 @@ bool Pack_P10001(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_P10001(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_P10001(wiegand_message_t *packed, wiegand_card_t *card) {
 
     memset(card, 0, sizeof(wiegand_card_t));
 
@@ -546,7 +547,7 @@ bool Unpack_P10001(wiegand_message_t *packed, wiegand_card_t *card) {
     return true;
 }
 
-bool Pack_C1k48s(wiegand_card_t *card, wiegand_message_t *packed) {
+static bool Pack_C1k48s(wiegand_card_t *card, wiegand_message_t *packed) {
 
     memset(packed, 0, sizeof(wiegand_message_t));
 
@@ -565,7 +566,7 @@ bool Pack_C1k48s(wiegand_card_t *card, wiegand_message_t *packed) {
     return add_HID_header(packed);
 }
 
-bool Unpack_C1k48s(wiegand_message_t *packed, wiegand_card_t *card) {
+static bool Unpack_C1k48s(wiegand_message_t *packed, wiegand_card_t *card) {
     memset(card, 0, sizeof(wiegand_card_t));
 
     if (packed->Length != 48) return false; // Wrong length? Stop here.
@@ -643,13 +644,13 @@ int HIDFindCardFormat(const char *format) {
 bool HIDPack(int format_idx, wiegand_card_t *card, wiegand_message_t *packed) {
     memset(packed, 0, sizeof(wiegand_message_t));
 
-    if (format_idx < 0 || format_idx >= (sizeof(FormatTable) / sizeof(FormatTable[0])))
+    if (format_idx < 0 || format_idx >= ARRAYLEN(FormatTable))
         return false;
 
     return FormatTable[format_idx].Pack(card, packed);
 }
 
-void HIDDisplayUnpackedCard(wiegand_card_t *card, const cardformat_t format) {
+static void HIDDisplayUnpackedCard(wiegand_card_t *card, const cardformat_t format) {
 
     /*
         PrintAndLogEx(SUCCESS, "       Format: %s (%s)", format.Name, format.Descrp);
@@ -672,16 +673,16 @@ void HIDDisplayUnpackedCard(wiegand_card_t *card, const cardformat_t format) {
 
     char s[80] = {0};
     if (format.Fields.hasFacilityCode)
-        snprintf(s, sizeof(s), "FC: %d", card->FacilityCode);
+        snprintf(s, sizeof(s), "FC: %u", card->FacilityCode);
 
     if (format.Fields.hasCardNumber)
         snprintf(s + strlen(s), sizeof(s) - strlen(s), "  CN: %" PRIu64, card->CardNumber);
 
     if (format.Fields.hasIssueLevel)
-        snprintf(s + strlen(s), sizeof(s) - strlen(s), "  Issue %d", card->IssueLevel);
+        snprintf(s + strlen(s), sizeof(s) - strlen(s), "  Issue %u", card->IssueLevel);
 
     if (format.Fields.hasOEMCode)
-        snprintf(s + strlen(s), sizeof(s) - strlen(s), "  OEM: %d", card->OEM);
+        snprintf(s + strlen(s), sizeof(s) - strlen(s), "  OEM: %u", card->OEM);
 
     if (format.Fields.hasParity)
         snprintf(s + strlen(s), sizeof(s) - strlen(s), "    parity: %s", card->ParityValid ? "valid" : "invalid");

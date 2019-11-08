@@ -1,11 +1,13 @@
 //-----------------------------------------------------------------------------
+// Iceman, 2019
 //
 // This code is licensed to you under the terms of the GNU GPL, version 2 or,
 // at your option, any later version. See the LICENSE.txt file for the text of
 // the license.
 //-----------------------------------------------------------------------------
 // Low frequency GALLAGHER tag commands
-// NRZ, RF/32, 128 bits long (unknown cs)
+// ASK/MAN, RF/32, 96 bits long (unknown cs) (0x00088060)
+// sample Q5 ,  ASK RF/32, STT,  96 bits  (3blocks)   ( 0x9000F006)
 //-----------------------------------------------------------------------------
 #include "cmdlfgallagher.h"
 
@@ -96,11 +98,11 @@ static int CmdGallagherClone(const char *Cmd) {
                 // skip first block,  3*4 = 12 bytes left
                 uint8_t rawhex[12] = {0};
                 int res = param_gethex_to_eol(Cmd, cmdp + 1, rawhex, sizeof(rawhex), &datalen);
-                if ( res != 0 )
+                if (res != 0)
                     errors = true;
 
-                for(uint8_t i = 1; i < ARRAYLEN(blocks); i++) {
-                    blocks[i] = bytes_to_num(rawhex + ( (i - 1) * 4 ), sizeof(uint32_t));
+                for (uint8_t i = 1; i < ARRAYLEN(blocks); i++) {
+                    blocks[i] = bytes_to_num(rawhex + ((i - 1) * 4), sizeof(uint32_t));
                 }
                 cmdp += 2;
                 break;
@@ -134,7 +136,7 @@ static command_t CommandTable[] = {
     {"help",  CmdHelp,            AlwaysAvailable, "This help"},
     {"demod", CmdGallagherDemod,  AlwaysAvailable, "Demodulate an GALLAGHER tag from the GraphBuffer"},
     {"read",  CmdGallagherRead,   IfPm3Lf,         "Attempt to read and extract tag data from the antenna"},
-    {"clone", CmdGallagherClone,  IfPm3Lf,         "clone GALLAGHER tag"},
+    {"clone", CmdGallagherClone,  IfPm3Lf,         "clone GALLAGHER tag to T55x7"},
     {"sim",   CmdGallagherSim,    IfPm3Lf,         "simulate GALLAGHER tag"},
     {NULL, NULL, NULL, NULL}
 };
@@ -156,10 +158,11 @@ int detectGallagher(uint8_t *dest, size_t *size) {
     if (*size < 96) return -1; //make sure buffer has data
     size_t startIdx = 0;
     uint8_t preamble[] = {
-          0, 0, 0, 0, 1, 1, 1, 1,
-          1, 1, 1, 1, 1, 1, 0, 1,
-          0, 1, 0, 1, 0, 1, 0, 0,
-          0, 1, 1, 0, 0 ,0 ,0 ,1
+        //0, 0, 0, 0,
+        1, 1, 1, 1,
+        1, 1, 1, 1, 1, 1, 0, 1,
+        0, 1, 0, 1, 0, 1, 0, 0,
+        0, 1, 1, 0, 0, 0
     };
     if (!preambleSearch(dest, preamble, sizeof(preamble), size, &startIdx))
         return -2; //preamble not found

@@ -46,6 +46,9 @@ void init_table(CrcType_t crctype) {
         case CRC_KERMIT:
             generate_table(CRC16_POLY_CCITT, true);
             break;
+        case CRC_11784:
+            generate_table(CRC16_POLY_CCITT, false);
+            break;
         case CRC_NONE:
             crc_table_init = false;
             current_crc_type = CRC_NONE;
@@ -185,6 +188,9 @@ void compute_crc(CrcType_t ct, const uint8_t *d, size_t n, uint8_t *first, uint8
         case CRC_KERMIT:
             crc = crc16_kermit(d, n);
             break;
+        case CRC_11784:
+            crc = crc16_fdx(d, n);
+            break;
         case CRC_LEGIC:
             // TODO
             return;
@@ -215,9 +221,12 @@ uint16_t Crc16ex(CrcType_t ct, const uint8_t *d, size_t n) {
             return crc16_ccitt(d, n);
         case CRC_KERMIT:
             return crc16_kermit(d, n);
+        case CRC_11784:
+            return crc16_fdx(d, n);
         case CRC_LEGIC:
             // TODO
             return 0;
+        case CRC_NONE:
         default:
             break;
     }
@@ -230,7 +239,7 @@ uint16_t Crc16ex(CrcType_t ct, const uint8_t *d, size_t n) {
 // n    length (including crc)
 //
 //  This function uses the message + crc bytes in order to compare the "residue" afterwards.
-// crc16 algos like CRC-A become 0x000
+// crc16 algos like CRC-A become 0x0000
 // while CRC-15693 become 0x0F47
 // If calculated with crc bytes,  the residue should be 0xF0B8
 bool check_crc(CrcType_t ct, const uint8_t *d, size_t n) {
@@ -254,9 +263,14 @@ bool check_crc(CrcType_t ct, const uint8_t *d, size_t n) {
             return (crc16_xmodem(d, n) == 0);
         case CRC_CCITT:
             return (crc16_ccitt(d, n) == 0);
+        case CRC_KERMIT:
+            return (crc16_kermit(d, n) == 0);
+        case CRC_11784:
+            return (crc16_fdx(d, n) == 0);
         case CRC_LEGIC:
             // TODO
             return false;
+        case CRC_NONE:
         default:
             break;
     }
@@ -268,7 +282,12 @@ uint16_t crc16_ccitt(uint8_t const *d, size_t n) {
     return crc16_fast(d, n, 0xffff, false, false);
 }
 
-// FDX-B ISO11784/85) uses KERMIT
+// FDX-B ISO11784/85) uses KERMIT/CCITT
+// poly 0x xx  init=0x000  refin=false  refout=true  xorout=0x0000 ...
+uint16_t crc16_fdx(uint8_t const *d, size_t n) {
+    return crc16_fast(d, n, 0x0000, false, true);
+}
+
 // poly=0x1021  init=0x0000  refin=true  refout=true  xorout=0x0000 name="KERMIT"
 uint16_t crc16_kermit(uint8_t const *d, size_t n) {
     return crc16_fast(d, n, 0x0000, true, true);

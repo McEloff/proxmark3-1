@@ -52,11 +52,7 @@ pacman -S mingw-w64-x86_64-astyle
 
 ## Compile and use the project
 
-To use the compiled client, the only differences are that executables end with `.exe` (e.g. `proxmark3.exe`) and that the Proxmark3 port is one of your `comX` ports where "X" is the com port number assigned to proxmark3 under Windows, so commands become:
-
-```sh
-proxmark3 /dev/ttyACM0  =>  proxmark3.exe comX
-```
+To use the compiled client, the only differences are that executables end with `.exe` (e.g. `proxmark3.exe`) and that the Proxmark3 port is one of your `comX` ports where "X" is the com port number assigned to proxmark3 under Windows, so commands like `proxmark3 /dev/ttyACMX` become `proxmark3.exe comX`.
 
 Now you're ready to follow the [compilation instructions](/doc/md/Use_of_Proxmark/0_Compilation-Instructions.md).
 
@@ -135,4 +131,12 @@ In later versions of windows 10 you may be able to get color to work by setting 
 [HKEY_CURRENT_USER\Console]
     "VirtualTerminalLevel"=dword:00000001
 ```
-If after setting this key (and restarting proxmark3.exe) you get extra characters and no color text, either delete the key or set the value to 0
+You also need to disable "use legacy console" in the cmd.exe properties, or set the following registry key
+```
+[HKEY_CURRENT_USER\Console]
+    "ForceV2"=dword:00000001
+```
+After making these changes, you will need to start a new command prompt (cmd.exe) to ensure its using the new settings.
+
+If after making these changes (and restarting proxmark3.exe) you get extra characters and no color text, set either key to 0 or enable legacy mode again (and restart the command prompt).
+

@@ -2113,7 +2113,7 @@ bool GetIso14443aAnswerFromTag_Thinfilm(uint8_t *receivedResponse,  uint8_t *rec
             }
         }
 
-        if (GetTickCount() - receive_timer >  100)
+        if (GetTickCountDelta(receive_timer) >  100)
             break;
     }
     *received_len = Demod.len;
@@ -2163,7 +2163,7 @@ static int GetIso14443aAnswerFromTag(uint8_t *receivedResponse, uint8_t *receive
         }
 
         // timeout already in ms + 100ms guard time
-        if (GetTickCount() - receive_timer > timeout + 100)
+        if (GetTickCountDelta(receive_timer) > timeout + 100)
             break;
     }
     return false;
@@ -3109,7 +3109,7 @@ void ReaderMifare(bool first_try, uint8_t block, uint8_t keytype) {
     memcpy(payload.nr, mf_nr_ar, sizeof(payload.nr));
     memcpy(payload.ar, mf_nr_ar + 4, sizeof(payload.ar));
 
-    reply_ng(CMD_HF_MIFARE_READER, return_status, (uint8_t*)&payload, sizeof(payload));
+    reply_ng(CMD_HF_MIFARE_READER, return_status, (uint8_t *)&payload, sizeof(payload));
 
     hf_field_off();
     set_tracing(false);

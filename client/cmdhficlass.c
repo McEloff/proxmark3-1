@@ -150,7 +150,7 @@ static int usage_hf_iclass_writeblock(void) {
     return PM3_SUCCESS;
 }
 static int usage_hf_iclass_readblock(void) {
-    PrintAndLogEx(NORMAL, "Usage:  hf iclass readblk b <block> k <key> [c|e|r|v]\n");
+    PrintAndLogEx(NORMAL, "Usage:  hf iclass rdbl b <block> k <key> [c|e|r|v]\n");
     PrintAndLogEx(NORMAL, "Options:");
     PrintAndLogEx(NORMAL, "  b <block> : The block number as 2 hex symbols");
     PrintAndLogEx(NORMAL, "  k <key>   : Access Key as 16 hex symbols or 1 hex to select key from memory");
@@ -159,9 +159,9 @@ static int usage_hf_iclass_readblock(void) {
     PrintAndLogEx(NORMAL, "  r         : raw, no computations applied to key");
     PrintAndLogEx(NORMAL, "  v         : verbose output");
     PrintAndLogEx(NORMAL, "Examples:");
-    PrintAndLogEx(NORMAL, "        hf iclass readblk b 06 k 0011223344556677");
-    PrintAndLogEx(NORMAL, "        hf iclass readblk b 1B k 0011223344556677 c");
-    PrintAndLogEx(NORMAL, "        hf iclass readblk b 0A k 0");
+    PrintAndLogEx(NORMAL, "        hf iclass rdbl b 06 k 0011223344556677");
+    PrintAndLogEx(NORMAL, "        hf iclass rdbl b 1B k 0011223344556677 c");
+    PrintAndLogEx(NORMAL, "        hf iclass rdbl b 0A k 0");
     return PM3_SUCCESS;
 }
 static int usage_hf_iclass_readtagfile() {
@@ -1839,7 +1839,7 @@ static int CmdHFiClass_loclass(const char *Cmd) {
         int errors = testCipherUtils();
         errors += testMAC();
         errors += doKeyTests(0);
-        errors += testElite(opt2=='l');
+        errors += testElite(opt2 == 'l');
         if (errors) PrintAndLogEx(ERR, "There were errors!!!");
         return PM3_ESOFT;
     }
@@ -2330,7 +2330,7 @@ static int CmdHFiClassCheckKeys(const char *Cmd) {
     uint8_t found_offset = 0;
     uint32_t key_offset = 0;
     // main keychunk loop
-    for (uint32_t key_offset = 0; key_offset < keycount; key_offset += chunksize) {
+    for (key_offset = 0; key_offset < keycount; key_offset += chunksize) {
 
         uint64_t t2 = msclock();
         uint8_t timeout = 0;
@@ -2806,16 +2806,18 @@ int readIclass(bool loop, bool verbose) {
                      FLAG_ICLASS_READER_ONE_TRY;
 
     // loop in client not device - else on windows have a communication error
-    PacketResponseNG resp;
     while (!kbd_enter_pressed()) {
 
         clearCommandBuffer();
         SendCommandMIX(CMD_HF_ICLASS_READER, flags, 0, 0, NULL, 0);
+        PacketResponseNG resp;
+
         if (WaitForResponseTimeout(CMD_ACK, &resp, 4500)) {
+
             uint8_t readStatus = resp.oldarg[0] & 0xff;
             uint8_t *data = resp.data.asBytes;
 
-            if (verbose) PrintAndLogEx(INFO, "Readstatus:%02x", readStatus);
+//            if (verbose) PrintAndLogEx(INFO, "Readstatus:%02x", readStatus);
 
             // no tag found or button pressed
             if ((readStatus == 0 && !loop) || readStatus == 0xFF) {
@@ -2837,18 +2839,29 @@ int readIclass(bool loop, bool verbose) {
                 printIclassDumpInfo(data);
             }
 
+            // if CSN ends with FF12E0, it's inside HID CSN range.
+            bool isHidRange = (memcmp((uint8_t *)(data + 5), "\xFF\x12\xE0", 3) == 0);
+
             if (readStatus & FLAG_ICLASS_READER_AIA) {
                 bool legacy = (memcmp((uint8_t *)(data + 8 * 5), "\xff\xff\xff\xff\xff\xff\xff\xff", 8) == 0);
 
                 bool se_enabled = (memcmp((uint8_t *)(data + 8 * 5), "\xff\xff\xff\x00\x06\xff\xff\xff", 8) == 0);
 
                 PrintAndLogEx(NORMAL, " App IA: %s", sprint_hex(data + 8 * 5, 8));
-                if (legacy)
-                    PrintAndLogEx(SUCCESS, "      : Possible iClass (legacy credential tag)");
-                else if (se_enabled)
-                    PrintAndLogEx(SUCCESS, "      : Possible iClass (SE credential tag)");
-                else
-                    PrintAndLogEx(WARNING, "      : Possible iClass (NOT legacy tag)");
+
+                if (isHidRange) {
+                    if (legacy)
+                        PrintAndLogEx(SUCCESS, "      : Possible iClass - legacy credential tag");
+
+                    if (se_enabled)
+                        PrintAndLogEx(SUCCESS, "      : Possible iClass - SE credential tag");
+                }
+
+                if (isHidRange) {
+                    PrintAndLogEx(SUCCESS, "      : Tag is "_YELLOW_("iClass")", CSN is in HID range");
+                } else {
+                    PrintAndLogEx(SUCCESS, "      : Tag is "_YELLOW_("PicoPass")", CSN is not in HID range");
+                }
             }
 
             if (tagFound && !loop) {

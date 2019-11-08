@@ -83,7 +83,7 @@ static int CmdPacRead(const char *Cmd) {
 }
 
 static int CmdPacClone(const char *Cmd) {
-    
+
     uint32_t blocks[5];
     bool errors = false;
     uint8_t cmdp = 0;
@@ -95,13 +95,13 @@ static int CmdPacClone(const char *Cmd) {
                 return usage_lf_pac_clone();
             case 'b': {
                 // skip first block,  4*4 = 16 bytes left
-                uint8_t rawhex[16] = {0}; 
+                uint8_t rawhex[16] = {0};
                 int res = param_gethex_to_eol(Cmd, cmdp + 1, rawhex, sizeof(rawhex), &datalen);
-                if ( res != 0 )
+                if (res != 0)
                     errors = true;
-                
-                for(uint8_t i = 1; i < ARRAYLEN(blocks); i++) {
-                    blocks[i] = bytes_to_num(rawhex + ( (i - 1) * 4 ), sizeof(uint32_t));
+
+                for (uint8_t i = 1; i < ARRAYLEN(blocks); i++) {
+                    blocks[i] = bytes_to_num(rawhex + ((i - 1) * 4), sizeof(uint32_t));
                 }
                 cmdp += 2;
                 break;
@@ -135,7 +135,7 @@ static command_t CommandTable[] = {
     {"help",  CmdHelp,      AlwaysAvailable, "This help"},
     {"demod", CmdPacDemod,  AlwaysAvailable, "Demodulate an PAC tag from the GraphBuffer"},
     {"read",  CmdPacRead,   IfPm3Lf,         "Attempt to read and extract tag data from the antenna"},
-    {"clone", CmdPacClone,  IfPm3Lf,         "clone PAC tag"},
+    {"clone", CmdPacClone,  IfPm3Lf,         "clone PAC tag to T55x7"},
     {"sim",   CmdPacSim,    IfPm3Lf,         "simulate PAC tag"},
     {NULL, NULL, NULL, NULL}
 };

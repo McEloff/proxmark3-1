@@ -120,7 +120,7 @@ bool set_nonlinear_field(wiegand_message_t *data, uint64_t value, uint8_t numBit
     return result;
 }
 
-uint8_t get_length_from_header(wiegand_message_t *data) {
+static uint8_t get_length_from_header(wiegand_message_t *data) {
     uint8_t len = 0;
     uint32_t hfmt = 0; // for calculating card length
 
@@ -149,7 +149,7 @@ uint8_t get_length_from_header(wiegand_message_t *data) {
         hfmt >>= 1;
         len++;
     }
-    if (len < 26 )
+    if (len < 26)
         len = 26;
     return len;
 }

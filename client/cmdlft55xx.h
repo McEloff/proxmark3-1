@@ -20,6 +20,7 @@
 #define T55x7_PAGE1 0x01
 #define T55x7_PWD 0x00000010
 #define REGULAR_READ_MODE_BLOCK 0xFF
+#define T55x7_BLOCK_COUNT 12
 
 // config blocks
 #define T55X7_DEFAULT_CONFIG_BLOCK      0x000880E8  // ASK, compat mode, data rate 32, manchester, STT, 7 data blocks
@@ -127,6 +128,11 @@ typedef struct {
     } downlink_mode;
 } t55xx_conf_block_t;
 
+typedef struct {
+    uint32_t blockdata;
+    bool valid;
+}  t55xx_memory_item_t ;
+
 t55xx_conf_block_t Get_t55xx_Config(void);
 void Set_t55xx_Config(t55xx_conf_block_t conf);
 
@@ -142,9 +148,9 @@ char *GetQ5ModulationStr(uint32_t id);
 char *GetModulationStr(uint32_t id, bool xmode);
 char *GetModelStrFromCID(uint32_t cid);
 char *GetSelectedModulationStr(uint8_t id);
-char *GetDownlinkModeStr(uint8_t dlmode);
+char *GetDownlinkModeStr(uint8_t downlink_mode);
 void printT5xxHeader(uint8_t page);
-void printT55xxBlock(uint8_t blockNum);
+void printT55xxBlock(uint8_t blockNum, bool page1);
 int  printConfiguration(t55xx_conf_block_t b);
 
 bool t55xxAquireAndCompareBlock0(bool usepwd, uint32_t password, uint32_t known_block0, bool verbose);
@@ -164,7 +170,7 @@ bool testKnownConfigBlock(uint32_t block0);
 bool tryDetectP1(bool getData);
 bool test(uint8_t mode, uint8_t *offset, int *fndBitRate, uint8_t clk, bool *Q5);
 int  special(const char *Cmd);
-bool AquireData(uint8_t page, uint8_t block, bool pwdmode, uint32_t password, uint8_t downlink_mode);
+bool AcquireData(uint8_t page, uint8_t block, bool pwdmode, uint32_t password, uint8_t downlink_mode);
 uint8_t  tryOnePassword(uint32_t password, uint8_t downlink_mode);
 
 void printT55x7Trace(t55x7_tracedata_t data, uint8_t repeat);

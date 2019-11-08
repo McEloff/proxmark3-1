@@ -29,6 +29,8 @@
 
 
 static void showBanner(void) {
+    g_printAndLog = PRINTANDLOG_PRINT;
+
     PrintAndLogEx(NORMAL, "\n");
 #if defined(__linux__) || (__APPLE__) || (_WIN32)
     PrintAndLogEx(NORMAL, _BLUE_("██████╗ ███╗   ███╗ ████╗ ") "    ...iceman fork");
@@ -50,9 +52,11 @@ static void showBanner(void) {
 //    printf("\nMonero: 43mNJLpgBVaTvyZmX9ajcohpvVkaRy1kbZPm8tqAb7itZgfuYecgkRF36rXrKFUkwEGeZedPsASRxgv4HPBHvJwyJdyvQuP");
     PrintAndLogEx(NORMAL, "\n");
     fflush(stdout);
+
+    g_printAndLog = PRINTANDLOG_PRINT | PRINTANDLOG_LOG;
 }
 
-int check_comm(void) {
+static int check_comm(void) {
     // If communications thread goes down. Device disconnected then this should hook up PM3 again.
     if (IsCommunicationThreadDead() && session.pm3_present) {
         rl_set_prompt(PROXPROMPT_OFFLINE);
@@ -82,11 +86,11 @@ int push_cmdscriptfile(char *path, bool stayafter) {
     return PM3_SUCCESS;
 }
 
-FILE *current_cmdscriptfile() {
+static FILE *current_cmdscriptfile() {
     return cmdscriptfile[cmdscriptfile_idx];
 }
 
-bool pop_cmdscriptfile() {
+static bool pop_cmdscriptfile() {
     fclose(cmdscriptfile[cmdscriptfile_idx]);
     cmdscriptfile[cmdscriptfile_idx--] = NULL;
     if (cmdscriptfile_idx == 0)
@@ -149,7 +153,7 @@ main_loop(char *script_cmds_file, char *script_cmd, bool stayInCommandLoop) {
     // loops every time enter is pressed...
     while (1) {
         bool printprompt = false;
-        char *prompt = PROXPROMPT;
+        const char *prompt = PROXPROMPT;
 
 check_script:
         // If there is a script file
@@ -319,7 +323,7 @@ static void set_my_executable_path(void) {
     }
 }
 
-static char *my_user_directory = NULL;
+static const char *my_user_directory = NULL;
 
 const char *get_my_user_directory(void) {
     return my_user_directory;
@@ -465,6 +469,60 @@ finish2:
     else
         PrintAndLogEx(ERR, "Aborted on error.");
     PrintAndLogEx(NORMAL, "\nHave a nice day!");
+    return ret;
+}
+
+// Check if windows AnsiColor Support is enabled in the registery
+// [HKEY_CURRENT_USER\Console]
+//     "VirtualTerminalLevel"=dword:00000001
+// 2nd Key needs to be enabled...  This key takes the console out of legacy mode.
+// [HKEY_CURRENT_USER\Console]
+//     "ForceV2"=dword:00000001
+static bool DetectWindowsAnsiSupport(void) {
+    bool ret = false;
+#if defined(_WIN32)
+    HKEY hKey = NULL;
+    bool virtualTerminalLevelSet = false;
+    bool forceV2Set = false;
+
+    if (RegOpenKeyA(HKEY_CURRENT_USER, "Console", &hKey) == ERROR_SUCCESS) {
+        DWORD dwType = REG_SZ;
+        BYTE KeyValue[sizeof(dwType)];
+        DWORD len = sizeof(KeyValue);
+
+        if (RegQueryValueEx(hKey, "VirtualTerminalLevel", NULL, &dwType, KeyValue, &len) != ERROR_FILE_NOT_FOUND) {
+            uint8_t i;
+            uint32_t Data = 0;
+            for (i = 0; i < 4; i++)
+                Data += KeyValue[i] << (8 * i);
+
+            if (Data == 1) { // Reg key is set to 1, Ansi Color Enabled
+                virtualTerminalLevelSet = true;
+            }
+        }
+        RegCloseKey(hKey);
+    }
+
+    if (RegOpenKeyA(HKEY_CURRENT_USER, "Console", &hKey) == ERROR_SUCCESS) {
+        DWORD dwType = REG_SZ;
+        BYTE KeyValue[sizeof(dwType)];
+        DWORD len = sizeof(KeyValue);
+
+        if (RegQueryValueEx(hKey, "ForceV2", NULL, &dwType, KeyValue, &len) != ERROR_FILE_NOT_FOUND) {
+            uint8_t i;
+            uint32_t Data = 0;
+            for (i = 0; i < 4; i++)
+                Data += KeyValue[i] << (8 * i);
+
+            if (Data == 1) { // Reg key is set to 1, Not using legacy Mode.
+                forceV2Set = true;
+            }
+        }
+        RegCloseKey(hKey);
+    }
+    // If both VirtualTerminalLevel and ForceV2 is set, AnsiColor should work
+    ret = virtualTerminalLevelSet && forceV2Set;
+#endif
     return ret;
 }
 
@@ -685,34 +743,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    session.supports_colors = false;
-
-#if defined(_WIN32)
-    // Check if windows AnsiColor Support is enabled in the registery
-    // [HKEY_CURRENT_USER\Console]
-    //     "VirtualTerminalLevel"=dword:00000001
-    
-    HKEY hKey = NULL;
-
-    if(RegOpenKeyA (HKEY_CURRENT_USER,"Console",&hKey) == ERROR_SUCCESS) {
-        DWORD dwType = REG_SZ;
-        BYTE KeyValue[sizeof(dwType)];
-        DWORD len = sizeof(KeyValue);
-
-        if (RegQueryValueEx(hKey,"VirtualTerminalLevel", NULL, &dwType,KeyValue, &len) != ERROR_FILE_NOT_FOUND) {
-            uint8_t i;
-            uint32_t Data = 0;
-            for (i = 0; i < 4; i++)
-                Data += KeyValue[i] << (8 * i);
-
-            if (Data == 1) { // Reg key is set to 1, Ansi Color Enabled
-                 session.supports_colors = true;
-            }
-        }
-        RegCloseKey(hKey);
-    }
-
-#endif
+    session.supports_colors = DetectWindowsAnsiSupport();
 
     session.stdinOnTTY = isatty(STDIN_FILENO);
     session.stdoutOnTTY = isatty(STDOUT_FILENO);

@@ -11,6 +11,7 @@
 //-----------------------------------------------------------------------------
 #include "appmain.h"
 
+#include "clocks.h"
 #include "usb_cdc.h"
 #include "proxmark3_arm.h"
 #include "dbprint.h"
@@ -214,7 +215,7 @@ void MeasureAntennaTuning(void) {
     }
 
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    reply_ng(CMD_MEASURE_ANTENNA_TUNING, PM3_SUCCESS, (uint8_t*)&payload, sizeof(payload));
+    reply_ng(CMD_MEASURE_ANTENNA_TUNING, PM3_SUCCESS, (uint8_t *)&payload, sizeof(payload));
     LEDsoff();
 }
 
@@ -234,7 +235,7 @@ uint16_t MeasureAntennaTuningHfData(void) {
 
 // Measure LF in milliVolt
 uint32_t MeasureAntennaTuningLfData(void) {
-    return  (MAX_ADC_LF_VOLTAGE * AvgAdc(ADC_CHAN_LF)) >> 10;
+    return (MAX_ADC_LF_VOLTAGE * AvgAdc(ADC_CHAN_LF)) >> 10;
 }
 
 void ReadMem(int addr) {
@@ -303,6 +304,14 @@ void SendVersion(void) {
     reply_ng(CMD_VERSION, PM3_SUCCESS, (uint8_t *)&payload, 12 + payload.versionstr_len);
 }
 
+void TimingIntervalAcquisition(void) {
+    // trigger new acquisition by turning main oscillator off and on
+    mck_from_pll_to_slck();
+    mck_from_slck_to_pll();
+    // wait for MCFR and recompute RTMR scaler
+    StartTickCount();
+}
+
 // measure the Connection Speed by sending SpeedTestBufferSize bytes to client and measuring the elapsed time.
 // Note: this mimics GetFromBigbuf(), i.e. we have the overhead of the PacketCommandNG structure included.
 void printConnSpeed(void) {
@@ -354,6 +363,17 @@ void SendStatus(void) {
     while ((AT91C_BASE_PMC->PMC_MCFR & AT91C_CKGR_MAINRDY) == 0);       // Wait for MAINF value to become available...
     uint16_t mainf = AT91C_BASE_PMC->PMC_MCFR & AT91C_CKGR_MAINF;       // Get # main clocks within 16 slow clocks
     Dbprintf("  Slow clock..............%d Hz", (16 * MAINCK) / mainf);
+    uint32_t delta_time = 0;
+    uint32_t start_time = GetTickCount();
+#define SLCK_CHECK_MS 50
+    SpinDelay(SLCK_CHECK_MS);
+    delta_time = GetTickCountDelta(start_time);
+    if ((delta_time < SLCK_CHECK_MS - 1) || (delta_time > SLCK_CHECK_MS + 1)) {
+        // error > 2% with SLCK_CHECK_MS=50
+        Dbprintf(_RED_("  Slow Clock speed change detected, TIA needed"));
+        Dbprintf(_YELLOW_("  Slow Clock actual speed seems closer to %d kHz"),
+                 (16 * MAINCK / 1000) / mainf * delta_time / SLCK_CHECK_MS);
+    }
     DbpString(_BLUE_("Installed StandAlone Mode"));
     ModInfo();
 
@@ -1569,9 +1589,15 @@ static void PacketReceived(PacketCommandNG *packet) {
                 BigBuf_Clear_ext(false);
                 BigBuf_free();
             }
+            uint16_t offset = MIN(BIGBUF_SIZE - PM3_CMD_DATA_SIZE - 3, payload->offset);
+
+            // need to copy len bytes of data, not PM3_CMD_DATA_SIZE - 3 - offset
+            // ensure len bytes copied wont go past end of bigbuf
+            uint16_t len = MIN(BIGBUF_SIZE - offset, PM3_CMD_DATA_SIZE - 3);
 
             uint8_t *mem = BigBuf_get_addr();
-            memcpy(mem + payload->offset, &payload->data, PM3_CMD_DATA_SIZE - 3);
+            memcpy(mem + offset, &payload->data, len);
+            // memcpy(mem + offset, &payload->data, PM3_CMD_DATA_SIZE - 3 - offset);
             reply_ng(CMD_LF_UPLOAD_SIM_SAMPLES, PM3_SUCCESS, NULL, 0);
             break;
         }
@@ -1691,8 +1717,10 @@ static void PacketReceived(PacketCommandNG *packet) {
             strncpy((char *)src, token, sizeof(src) - 1);
             token = strtok(NULL, ",");
             strncpy((char *)dest, token, sizeof(dest) - 1);
-            if (DBGLEVEL > 1) Dbprintf("> Filename received as source for spiffs RENAME : %s", src);
-            if (DBGLEVEL > 1) Dbprintf("> Filename received as destination for spiffs RENAME : %s", dest);
+            if (DBGLEVEL > 1) {
+                Dbprintf("> Filename received as source for spiffs RENAME : %s", src);
+                Dbprintf("> Filename received as destination for spiffs RENAME : %s", dest);
+            }
             rdv40_spiffs_rename((char *) src, (char *)dest, RDV40_SPIFFS_SAFETY_SAFE);
             LED_B_OFF();
             break;
@@ -1707,8 +1735,10 @@ static void PacketReceived(PacketCommandNG *packet) {
             strncpy((char *)src, token, sizeof(src) - 1);
             token = strtok(NULL, ",");
             strncpy((char *)dest, token, sizeof(dest) - 1);
-            if (DBGLEVEL > 1) Dbprintf("> Filename received as source for spiffs COPY : %s", src);
-            if (DBGLEVEL > 1) Dbprintf("> Filename received as destination for spiffs COPY : %s", dest);
+            if (DBGLEVEL > 1) {
+                Dbprintf("> Filename received as source for spiffs COPY : %s", src);
+                Dbprintf("> Filename received as destination for spiffs COPY : %s", dest);
+            }
             rdv40_spiffs_copy((char *) src, (char *)dest, RDV40_SPIFFS_SAFETY_SAFE);
             LED_B_OFF();
             break;
@@ -1876,6 +1906,20 @@ static void PacketReceived(PacketCommandNG *packet) {
         }
         case CMD_STATUS: {
             SendStatus();
+            break;
+        }
+        case CMD_TIA: {
+
+            while ((AT91C_BASE_PMC->PMC_MCFR & AT91C_CKGR_MAINRDY) == 0);       // Wait for MAINF value to become available...
+            uint16_t mainf = AT91C_BASE_PMC->PMC_MCFR & AT91C_CKGR_MAINF;
+            Dbprintf("  Slow clock old measured value:.........%d Hz", (16 * MAINCK) / mainf);
+            TimingIntervalAcquisition();
+
+            while ((AT91C_BASE_PMC->PMC_MCFR & AT91C_CKGR_MAINRDY) == 0);       // Wait for MAINF value to become available...
+            mainf = AT91C_BASE_PMC->PMC_MCFR & AT91C_CKGR_MAINF;
+            Dbprintf(""); // first message gets lost
+            Dbprintf("  Slow clock new measured value:.........%d Hz", (16 * MAINCK) / mainf);
+            reply_ng(CMD_TIA, PM3_SUCCESS, NULL, 0);
             break;
         }
         case CMD_STANDALONE: {
