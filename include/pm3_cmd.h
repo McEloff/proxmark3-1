@@ -288,6 +288,7 @@ typedef struct {
 #define CMD_STANDALONE                                                    0x0115
 #define CMD_WTX                                                           0x0116
 #define CMD_TIA                                                           0x0117
+#define CMD_BREAK_LOOP                                                    0x0118
 
 // RDV40, Flash memory operations
 #define CMD_FLASHMEM_WRITE                                                0x0121
@@ -506,6 +507,10 @@ typedef struct {
 #define CMD_HF_DESFIRE_COMMAND                                            0x072e
 
 #define CMD_HF_MIFARE_NACK_DETECT                                         0x0730
+#define CMD_HF_MIFARE_STATIC_NONCE                                        0x0731
+
+// MFU OTP TearOff
+#define CMD_HF_MFU_OTP_TEAROFF                                            0x0740
 
 #define CMD_HF_SNIFF                                                      0x0800
 
@@ -551,6 +556,8 @@ typedef struct {
 
 // Error codes                          Usages:
 
+// Success, transfer nonces            pm3:        Sending nonces back to client
+#define PM3_SNONCES             1
 // Success (no error)
 #define PM3_SUCCESS             0
 
@@ -588,6 +595,8 @@ typedef struct {
 #define PM3_EWRONGANSVER      -16
 // Memory out-of-bounds error           client/pm3: error when a read/write is outside the expected array
 #define PM3_EOUTOFBOUND       -17
+// exchange with card error             client/pm3: error when cant get answer from card or got an incorrect answer
+#define PM3_ECARDEXCHANGE     -18
 // No data                              pm3:        no data available, no host frame available (not really an error)
 #define PM3_ENODATA           -98
 // Quit program                         client:     reserved, order to quit the program

@@ -222,6 +222,16 @@ static int usage_hf_mfu_pwdgen(void) {
     return PM3_SUCCESS;
 }
 
+static int usage_hf_mfu_otp_tearoff(void) {
+    PrintAndLogEx(NORMAL, "Tear-off test against OTP block on MFU tags - More help sooner or later\n");
+    PrintAndLogEx(NORMAL, "Usage:  hf mfu otptear [h]");
+    PrintAndLogEx(NORMAL, "Options:");
+    PrintAndLogEx(NORMAL, "    h       : this help");
+    PrintAndLogEx(NORMAL, "Examples:");
+    PrintAndLogEx(NORMAL, "        hf mfu otptear");
+    return PM3_SUCCESS;
+}
+
 
 uint8_t default_3des_keys[][16] = {
     { 0x42, 0x52, 0x45, 0x41, 0x4b, 0x4d, 0x45, 0x49, 0x46, 0x59, 0x4f, 0x55, 0x43, 0x41, 0x4e, 0x21 }, // 3des std key
@@ -436,7 +446,7 @@ static int ul_ev1_pwdgen_selftest() {
     uint8_t uid4[] = {0x04, 0xC5, 0xDF, 0x4A, 0x6D, 0x51, 0x80};
     uint32_t pwd4 = ul_ev1_pwdgenD(uid4);
     PrintAndLogEx(NORMAL, "UID | %s | %08X | %s", sprint_hex(uid4, 7), pwd4, (pwd4 == 0x72B1EC61) ? "OK" : "->72B1EC61<--");
-    return 0;
+    return PM3_SUCCESS;
 }
 
 //------------------------------------
@@ -556,7 +566,7 @@ static int ulc_requestAuthentication(uint8_t *nonce, uint16_t nonceLength) {
 static int ulc_authentication(uint8_t *key, bool switch_off_field) {
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_HF_MIFAREUC_AUTH, switch_off_field, 0, 0, key, 16);
+    SendCommandMIX(CMD_HF_MIFAREUC_AUTH, switch_off_field, 0, 0, key, 16);
     PacketResponseNG resp;
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) return 0;
     if (resp.oldarg[0] == 1) return 1;
@@ -2254,7 +2264,7 @@ static int CmdHF14AMfURestore(const char *Cmd) {
 
             PrintAndLogEx(NORMAL, "special PWD     block written 0x%X - %s\n", MFU_NTAG_SPECIAL_PWD, sprint_hex(data, 4));
             clearCommandBuffer();
-            SendCommandOLD(CMD_HF_MIFAREU_WRITEBL, MFU_NTAG_SPECIAL_PWD, keytype, 0, data, sizeof(data));
+            SendCommandMIX(CMD_HF_MIFAREU_WRITEBL, MFU_NTAG_SPECIAL_PWD, keytype, 0, data, sizeof(data));
 
             wait4response(MFU_NTAG_SPECIAL_PWD);
 
@@ -2270,7 +2280,7 @@ static int CmdHF14AMfURestore(const char *Cmd) {
         data[3] = 0;
         PrintAndLogEx(NORMAL, "special PACK    block written 0x%X - %s\n", MFU_NTAG_SPECIAL_PACK, sprint_hex(data, 4));
         clearCommandBuffer();
-        SendCommandOLD(CMD_HF_MIFAREU_WRITEBL, MFU_NTAG_SPECIAL_PACK, keytype, 0, data, sizeof(data));
+        SendCommandMIX(CMD_HF_MIFAREU_WRITEBL, MFU_NTAG_SPECIAL_PACK, keytype, 0, data, sizeof(data));
         wait4response(MFU_NTAG_SPECIAL_PACK);
 
         // Signature
@@ -2278,7 +2288,7 @@ static int CmdHF14AMfURestore(const char *Cmd) {
             memcpy(data, mem->signature + i, 4);
             PrintAndLogEx(NORMAL, "special SIG     block written 0x%X - %s\n", s, sprint_hex(data, 4));
             clearCommandBuffer();
-            SendCommandOLD(CMD_HF_MIFAREU_WRITEBL, s, keytype, 0, data, sizeof(data));
+            SendCommandMIX(CMD_HF_MIFAREU_WRITEBL, s, keytype, 0, data, sizeof(data));
             wait4response(s);
         }
 
@@ -2287,7 +2297,7 @@ static int CmdHF14AMfURestore(const char *Cmd) {
             memcpy(data, mem->version + i, 4);
             PrintAndLogEx(NORMAL, "special VERSION block written 0x%X - %s\n", s, sprint_hex(data, 4));
             clearCommandBuffer();
-            SendCommandOLD(CMD_HF_MIFAREU_WRITEBL, s, keytype, 0, data, sizeof(data));
+            SendCommandMIX(CMD_HF_MIFAREU_WRITEBL, s, keytype, 0, data, sizeof(data));
             wait4response(s);
         }
     }
@@ -2301,7 +2311,7 @@ static int CmdHF14AMfURestore(const char *Cmd) {
         //Send write Block
         memcpy(data, mem->data + (b * 4), 4);
         clearCommandBuffer();
-        SendCommandOLD(CMD_HF_MIFAREU_WRITEBL, b, keytype, 0, data, sizeof(data));
+        SendCommandMIX(CMD_HF_MIFAREU_WRITEBL, b, keytype, 0, data, sizeof(data));
         wait4response(b);
         printf(".");
         fflush(stdout);
@@ -2321,7 +2331,7 @@ static int CmdHF14AMfURestore(const char *Cmd) {
             uint8_t b = blocks[i];
             memcpy(data, mem->data + (b * 4), 4);
             clearCommandBuffer();
-            SendCommandOLD(CMD_HF_MIFAREU_WRITEBL, b, keytype, 0, data, sizeof(data));
+            SendCommandMIX(CMD_HF_MIFAREU_WRITEBL, b, keytype, 0, data, sizeof(data));
             wait4response(b);
             PrintAndLogEx(NORMAL, "special block written %u - %s\n", b, sprint_hex(data, 4));
         }
@@ -2330,7 +2340,7 @@ static int CmdHF14AMfURestore(const char *Cmd) {
     DropField();
     free(dump);
     PrintAndLogEx(INFO, "Finish restore");
-    return 0;
+    return PM3_SUCCESS;
 }
 //
 //  Load emulator with dump file
@@ -2380,7 +2390,7 @@ static int CmdHF14AMfUCAuth(const char *Cmd) {
     else
         PrintAndLogEx(WARNING, "Authentication failed");
 
-    return 0;
+    return PM3_SUCCESS;
 }
 
 /**
@@ -2492,11 +2502,11 @@ static int CmdHF14AMfUCSetPwd(const char *Cmd) {
 
     if (param_gethex(Cmd, 0, pwd, 32)) {
         PrintAndLogEx(WARNING, "Password must include 32 HEX symbols");
-        return 1;
+        return PM3_EINVARG;
     }
 
     clearCommandBuffer();
-    SendCommandOLD(CMD_HF_MIFAREUC_SETPWD, 0, 0, 0, pwd, 16);
+    SendCommandMIX(CMD_HF_MIFAREUC_SETPWD, 0, 0, 0, pwd, 16);
 
     PacketResponseNG resp;
     if (WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
@@ -2504,13 +2514,13 @@ static int CmdHF14AMfUCSetPwd(const char *Cmd) {
             PrintAndLogEx(INFO, "Ultralight-C new password: %s", sprint_hex(pwd, 16));
         } else {
             PrintAndLogEx(WARNING, "Failed writing at block %u", (uint8_t)(resp.oldarg[1] & 0xff));
-            return 1;
+            return PM3_ESOFT;
         }
     } else {
         PrintAndLogEx(WARNING, "command execution time out");
-        return 1;
+        return PM3_ETIMEOUT;
     }
-    return 0;
+    return PM3_SUCCESS;
 }
 
 //
@@ -2548,7 +2558,7 @@ static int CmdHF14AMfUCSetUid(const char *Cmd) {
     data[2] = uid[2];
     data[3] =  0x88 ^ uid[0] ^ uid[1] ^ uid[2];
     clearCommandBuffer();
-    SendCommandOLD(CMD_HF_MIFAREU_WRITEBL, 0, 0, 0, data, sizeof(data));
+    SendCommandMIX(CMD_HF_MIFAREU_WRITEBL, 0, 0, 0, data, sizeof(data));
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
         PrintAndLogEx(WARNING, "Command execute timeout");
         return PM3_ETIMEOUT;
@@ -2560,7 +2570,7 @@ static int CmdHF14AMfUCSetUid(const char *Cmd) {
     data[2] = uid[5];
     data[3] = uid[6];
     clearCommandBuffer();
-    SendCommandOLD(CMD_HF_MIFAREU_WRITEBL, 1, 0, 0, data, sizeof(data));
+    SendCommandMIX(CMD_HF_MIFAREU_WRITEBL, 1, 0, 0, data, sizeof(data));
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
         PrintAndLogEx(WARNING, "Command execute timeout");
         return PM3_ETIMEOUT;
@@ -2572,7 +2582,7 @@ static int CmdHF14AMfUCSetUid(const char *Cmd) {
     data[2] = oldblock2[2];
     data[3] = oldblock2[3];
     clearCommandBuffer();
-    SendCommandOLD(CMD_HF_MIFAREU_WRITEBL, 2, 0, 0, data, sizeof(data));
+    SendCommandMIX(CMD_HF_MIFAREU_WRITEBL, 2, 0, 0, data, sizeof(data));
     if (!WaitForResponseTimeout(CMD_ACK, &resp, 1500)) {
         PrintAndLogEx(WARNING, "Command execute timeout");
         return PM3_ETIMEOUT;
@@ -2603,11 +2613,11 @@ static int CmdHF14AMfUGenDiverseKeys(const char *Cmd) {
 
         if (select_status == 0) {
             PrintAndLogEx(WARNING, "iso14443a card select failed");
-            return 1;
+            return PM3_ESOFT;
         }
         if (card.uidlen != 4) {
             PrintAndLogEx(WARNING, "Wrong sized UID, expected 4bytes got %d", card.uidlen);
-            return 1;
+            return PM3_ESOFT;
         }
         memcpy(uid, card.uid, sizeof(uid));
     } else {
@@ -2646,13 +2656,13 @@ static int CmdHF14AMfUGenDiverseKeys(const char *Cmd) {
                            , divkey         // output
                           );
 
-    PrintAndLogEx(NORMAL, "-- 3DES version");
-    PrintAndLogEx(NORMAL, "Masterkey    :\t %s", sprint_hex(masterkey, sizeof(masterkey)));
-    PrintAndLogEx(NORMAL, "UID          :\t %s", sprint_hex(uid, sizeof(uid)));
-    PrintAndLogEx(NORMAL, "block        :\t %0d", block);
-    PrintAndLogEx(NORMAL, "Mifare key   :\t %s", sprint_hex(mifarekeyA, sizeof(mifarekeyA)));
-    PrintAndLogEx(NORMAL, "Message      :\t %s", sprint_hex(mix, sizeof(mix)));
-    PrintAndLogEx(NORMAL, "Diversified key: %s", sprint_hex(divkey + 1, 6));
+    PrintAndLogEx(SUCCESS, "-- 3DES version");
+    PrintAndLogEx(SUCCESS, "Masterkey    :\t %s", sprint_hex(masterkey, sizeof(masterkey)));
+    PrintAndLogEx(SUCCESS, "UID          :\t %s", sprint_hex(uid, sizeof(uid)));
+    PrintAndLogEx(SUCCESS, "block        :\t %0d", block);
+    PrintAndLogEx(SUCCESS, "Mifare key   :\t %s", sprint_hex(mifarekeyA, sizeof(mifarekeyA)));
+    PrintAndLogEx(SUCCESS, "Message      :\t %s", sprint_hex(mix, sizeof(mix)));
+    PrintAndLogEx(SUCCESS, "Diversified key: %s", sprint_hex(divkey + 1, 6));
 
     for (int i = 0; i < ARRAYLEN(mifarekeyA); ++i) {
         dkeyA[i]  = (mifarekeyA[i] << 1) & 0xff;
@@ -2682,11 +2692,11 @@ static int CmdHF14AMfUGenDiverseKeys(const char *Cmd) {
                            , newpwd         // output
                           );
 
-    PrintAndLogEx(NORMAL, "\n-- DES version");
-    PrintAndLogEx(NORMAL, "Mifare dkeyA :\t %s", sprint_hex(dkeyA, sizeof(dkeyA)));
-    PrintAndLogEx(NORMAL, "Mifare dkeyB :\t %s", sprint_hex(dkeyB, sizeof(dkeyB)));
-    PrintAndLogEx(NORMAL, "Mifare ABA   :\t %s", sprint_hex(dmkey, sizeof(dmkey)));
-    PrintAndLogEx(NORMAL, "Mifare Pwd   :\t %s", sprint_hex(newpwd, sizeof(newpwd)));
+    PrintAndLogEx(SUCCESS, "\n-- DES version");
+    PrintAndLogEx(SUCCESS, "Mifare dkeyA :\t %s", sprint_hex(dkeyA, sizeof(dkeyA)));
+    PrintAndLogEx(SUCCESS, "Mifare dkeyB :\t %s", sprint_hex(dkeyB, sizeof(dkeyB)));
+    PrintAndLogEx(SUCCESS, "Mifare ABA   :\t %s", sprint_hex(dmkey, sizeof(dmkey)));
+    PrintAndLogEx(SUCCESS, "Mifare Pwd   :\t %s", sprint_hex(newpwd, sizeof(newpwd)));
 
     mbedtls_des3_free(&ctx);
     // next. from the diversify_key method.
@@ -2742,6 +2752,38 @@ static int CmdHF14AMfUPwdGen(const char *Cmd) {
     PrintAndLogEx(NORMAL, "--------------------");
     return PM3_SUCCESS;
 }
+
+//
+// MFU TearOff against OTP
+// Moebius et al
+//
+static int CmdHF14AMfuOtpTearoff(const char *Cmd) {
+    uint8_t cmdp = 0;
+    bool errors = 0;
+    uint32_t len = strtol(Cmd, NULL, 0);
+    uint8_t data[PM3_CMD_DATA_SIZE] = {0};
+
+    while (param_getchar(Cmd, cmdp) != 0x00 && !errors) {
+        switch (tolower(param_getchar(Cmd, cmdp))) {
+            case 'h':
+                return usage_hf_mfu_otp_tearoff();
+            default:
+                break;
+        }
+    }
+
+    if (errors) return usage_hf_mfu_otp_tearoff();
+
+    clearCommandBuffer();
+    SendCommandNG(CMD_HF_MFU_OTP_TEAROFF, data, len);
+    PacketResponseNG resp;
+    if (!WaitForResponseTimeout(CMD_HF_MFU_OTP_TEAROFF, &resp, 4000)) {
+        PrintAndLogEx(WARNING, "Failed");
+        return PM3_ESOFT;
+    }
+    return PM3_SUCCESS;
+}
+
 //------------------------------------
 // Menu Stuff
 //------------------------------------
@@ -2759,6 +2801,7 @@ static command_t CommandTable[] = {
     {"sim",     CmdHF14AMfUSim,            IfPm3Iso14443a,  "Simulate Ultralight from emulator memory"},
     {"gen",     CmdHF14AMfUGenDiverseKeys, AlwaysAvailable, "Generate 3des mifare diversified keys"},
     {"pwdgen",  CmdHF14AMfUPwdGen,         AlwaysAvailable, "Generate pwd from known algos"},
+    {"otptear", CmdHF14AMfuOtpTearoff,     IfPm3Iso14443a,  "Tear-off test on OTP bits"},
     {NULL, NULL, NULL, NULL}
 };
 

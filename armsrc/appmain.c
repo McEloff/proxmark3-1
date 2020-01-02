@@ -175,7 +175,7 @@ void MeasureAntennaTuning(void) {
      */
 
     FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
-    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_ADC | FPGA_LF_ADC_READER_FIELD);
+    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_READER | FPGA_LF_ADC_READER_FIELD);
     SpinDelay(50);
 
     for (uint8_t i = 255; i >= 19; i--) {
@@ -696,10 +696,25 @@ static void PacketReceived(PacketCommandNG *packet) {
     */
 
     switch (packet->cmd) {
-        case CMD_QUIT_SESSION:
+        case CMD_BREAK_LOOP:
+            break;
+        case CMD_QUIT_SESSION: {
             reply_via_fpc = false;
             reply_via_usb = false;
             break;
+        }
+        // emulator
+        case CMD_SET_DBGMODE: {
+            DBGLEVEL = packet->data.asBytes[0];
+            Dbprintf("Debug level: %d", DBGLEVEL);
+            reply_ng(CMD_SET_DBGMODE, PM3_SUCCESS, NULL, 0);
+            break;
+        }
+        // always available
+        case CMD_HF_DROPFIELD: {
+            hf_field_off();
+            break;
+        }
 #ifdef WITH_LF
         case CMD_LF_T55XX_SET_CONFIG: {
             setT55xxConfig(packet->oldarg[0], (t55xx_configurations_t *) packet->data.asBytes);
@@ -1034,12 +1049,6 @@ static void PacketReceived(PacketCommandNG *packet) {
         }
 #endif
 
-// always available
-        case CMD_HF_DROPFIELD: {
-            hf_field_off();
-            break;
-        }
-
 #ifdef WITH_ISO14443a
         case CMD_HF_ISO14443A_SNIFF: {
             SniffIso14443a(packet->data.asBytes[0]);
@@ -1156,13 +1165,6 @@ static void PacketReceived(PacketCommandNG *packet) {
             Mifare1ksim(payload->flags, payload->exitAfterReads, payload->exitAfterWrites, payload->uid, payload->atqa, payload->sak);
             break;
         }
-        // emulator
-        case CMD_SET_DBGMODE: {
-            DBGLEVEL = packet->data.asBytes[0];
-            Dbprintf("Debug level: %d", DBGLEVEL);
-            reply_ng(CMD_SET_DBGMODE, PM3_SUCCESS, NULL, 0);
-            break;
-        }
         case CMD_HF_MIFARE_EML_MEMCLR: {
             MifareEMemClr();
             reply_ng(CMD_HF_MIFARE_EML_MEMCLR, PM3_SUCCESS, NULL, 0);
@@ -1244,6 +1246,14 @@ static void PacketReceived(PacketCommandNG *packet) {
         }
         case CMD_HF_MIFARE_NACK_DETECT: {
             DetectNACKbug();
+            break;
+        }
+        case CMD_HF_MFU_OTP_TEAROFF: {
+            MifareU_Otp_Tearoff();
+            break;
+        }
+        case CMD_HF_MIFARE_STATIC_NONCE: {
+            MifareHasStaticNonce();
             break;
         }
 #endif
@@ -1509,7 +1519,7 @@ static void PacketReceived(PacketCommandNG *packet) {
                 case 1: // MEASURE_ANTENNA_TUNING_LF_START
                     // Let the FPGA drive the low-frequency antenna around 125kHz
                     FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
-                    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_ADC | FPGA_LF_ADC_READER_FIELD);
+                    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_READER | FPGA_LF_ADC_READER_FIELD);
                     FpgaSendCommand(FPGA_CMD_SET_DIVISOR, packet->data.asBytes[1]);
                     reply_ng(CMD_MEASURE_ANTENNA_TUNING_LF, PM3_SUCCESS, NULL, 0);
                     break;

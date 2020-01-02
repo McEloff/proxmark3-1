@@ -52,11 +52,11 @@ SAM7S has several timers, we will use the source TIMER_CLOCK1 (aka AT91C_TC_CLKS
  TIMER_CLOCK1 = MCK/2, MCK is running at 48 MHz, Timer is running at 48/2 = 24 MHz
 
 New timer implemenation in ticks.c, which is used in LFOPS.c
-       1us = 1.5ticks
- 1fc = 8us = 12ticks
+       1 μs = 1.5 ticks
+ 1 fc = 8 μs = 12 ticks
 
 Terms you find in different datasheets and how they match.
-1 Cycle = 8 microseconds(us)  == 1 field clock (fc)
+1 Cycle = 8 microseconds (μs)  == 1 field clock (fc)
 
 Note about HITAG timing
 Hitag units (T0) have duration of 8 microseconds (us), which is 1/125000 per second (carrier)
@@ -135,19 +135,30 @@ Initial values if not in flash
    RG = Read gap
 
  Explainations for array T55xx_Timing below
-         SG     WG    Bit 0/00 Bit 1/01  Bit 10  Bit 11  RG
+
+                           0        1       2       3
+         SG     WG    Bit 00   Bit 01  Bit 10  Bit 11   RG
    --------------------------------------------------------------------
         { 29    , 17    , 15    , 47    , 0     , 0     , 15     }, // Default Fixed
-        { 31    , 20    , 18    , 50    , 0     , 0     , 15     }, // Long Leading Ref.
-        { 31    , 20    , 18    , 40    , 0     , 0     , 15     }, // Leading 0
+        { 29    , 17    , 15    , 50    , 0     , 0     , 15     }, // Long Leading Ref.
+        { 29    , 17    , 15    , 40    , 0     , 0     , 15     }, // Leading 0
         { 29    , 17    , 15    , 31    , 47    , 63    , 15     }  // 1 of 4
 */
 t55xx_configurations_t T55xx_Timing  = {
     {
+#ifdef WITH_FLASH
+// PM3RDV4
         { 29 * 8, 17 * 8, 15 * 8, 47 * 8, 15 * 8, 0, 0 },           // Default Fixed
+        { 29 * 8, 17 * 8, 15 * 8, 47 * 8, 15 * 8, 0, 0 },           // Long Leading Ref.
+        { 29 * 8, 17 * 8, 15 * 8, 40 * 8, 15 * 8, 0, 0 },           // Leading 0
+        { 29 * 8, 17 * 8, 15 * 8, 31 * 8, 15 * 8, 47 * 8, 63 * 8 }  // 1 of 4
+#else
+// PM3OTHER or like offical repo
+        { 31 * 8, 20 * 8, 18 * 8, 50 * 8, 15 * 8, 0, 0 },           // Default Fixed
         { 31 * 8, 20 * 8, 18 * 8, 50 * 8, 15 * 8, 0, 0 },           // Long Leading Ref.
         { 31 * 8, 20 * 8, 18 * 8, 40 * 8, 15 * 8, 0, 0 },           // Leading 0
-        { 29 * 8, 17 * 8, 15 * 8, 31 * 8, 15 * 8, 47 * 8, 63 * 8 }  // 1 of 4
+        { 31 * 8, 20 * 8, 18 * 8, 34 * 8, 15 * 8, 50 * 8, 66 * 8 }  // 1 of 4
+#endif
     }
 };
 
@@ -435,7 +446,7 @@ void ModThenAcquireRawAdcSamples125k(uint32_t delay_off, uint32_t period_0, uint
             } else {
                 // if field already on leave alone (affects timing otherwise)
                 if (off) {
-                    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_ADC | FPGA_LF_ADC_READER_FIELD);
+                    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_READER | FPGA_LF_ADC_READER_FIELD);
                     LED_D_ON();
                     off = false;
                 }
@@ -459,7 +470,7 @@ void ModThenAcquireRawAdcSamples125k(uint32_t delay_off, uint32_t period_0, uint
         FpgaSendCommand(FPGA_CMD_SET_DIVISOR, sc->divisor);
     }
 
-    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_ADC | FPGA_LF_ADC_READER_FIELD);
+    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_READER | FPGA_LF_ADC_READER_FIELD);
 
     // now do the read
     DoAcquisition_config(false, 0);
@@ -1103,13 +1114,13 @@ void CmdASKsimTAG(uint8_t encoding, uint8_t invert, uint8_t separator, uint8_t c
     WDT_HIT();
 
     Dbprintf("Simulating with clk: %d, invert: %d, encoding: %s (%d), separator: %d, n: %d"
-        , clk
-        , invert
-        , (encoding == 2) ? "BI" : (encoding == 1) ? "ASK" : "RAW"
-        , encoding
-        , separator
-        , n
-    );
+             , clk
+             , invert
+             , (encoding == 2) ? "BI" : (encoding == 1) ? "ASK" : "RAW"
+             , encoding
+             , separator
+             , n
+            );
 
     if (ledcontrol) LED_A_ON();
     SimulateTagLowFrequency(n, 0, ledcontrol);
@@ -1260,10 +1271,7 @@ void CmdHIDdemodFSK(int findone, uint32_t *high, uint32_t *low, int ledcontrol) 
 void CmdAWIDdemodFSK(int findone, uint32_t *high, uint32_t *low, int ledcontrol) {
 
     uint8_t *dest = BigBuf_get_addr();
-
-    //big enough to catch 2 sequences of largest format but don't exeed whats available in bigbuff.
-    size_t size = MIN(12800, BigBuf_max_traceLen()); //50 * 128 * 2;
-
+    size_t size;
     int dummyIdx = 0;
 
     BigBuf_Clear_keep_EM();
@@ -1278,10 +1286,9 @@ void CmdAWIDdemodFSK(int findone, uint32_t *high, uint32_t *low, int ledcontrol)
         DoAcquisition_default(-1, true);
         // FSK demodulator
 
-        size  = BigBuf_max_traceLen();
-        //askdemod and manchester decode
-        if (size > 12800) size = 12800; //big enough to catch 2 sequences of largest format
+        size = MIN(12800, BigBuf_max_traceLen());
 
+        //askdemod and manchester decode
         int idx = detectAWID(dest, &size, &dummyIdx);
 
         if (idx <= 0 || size != 96) continue;
@@ -1369,9 +1376,9 @@ void CmdEM410xdemod(int findone, uint32_t *high, uint64_t *low, int ledcontrol) 
 
         DoAcquisition_default(-1, true);
 
-        size  = BigBuf_max_traceLen();
-        //askdemod and manchester decode
-        if (size > 16385) size = 16385; //big enough to catch 2 sequences of largest format
+        size = MIN(16385, BigBuf_max_traceLen());
+        
+        //askdemod and manchester decode        
         int errCnt = askdemod(dest, &size, &clk, &invert, maxErr, 0, 1);
         WDT_HIT();
 
@@ -1434,11 +1441,9 @@ void CmdIOdemodFSK(int findone, uint32_t *high, uint32_t *low, int ledcontrol) {
 
         DoAcquisition_default(-1, true);
 
+        size = MIN(12000, BigBuf_max_traceLen());
+        
         //fskdemod and get start index
-        size  = BigBuf_max_traceLen();
-        //askdemod and manchester decode
-        if (size > 12000) size = 12000; //big enough to catch 2 sequences of largest format
-
         int idx = detectIOProx(dest, &size, &dummyIdx);
         if (idx < 0) continue;
         //valid tag found
@@ -1515,7 +1520,7 @@ void CmdIOdemodFSK(int findone, uint32_t *high, uint32_t *low, int ledcontrol) {
  */
 
 void TurnReadLFOn(uint32_t delay) {
-    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_ADC | FPGA_LF_ADC_READER_FIELD);
+    FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_READER | FPGA_LF_ADC_READER_FIELD);
 
     // measure antenna strength.
     //int adcval = ((MAX_ADC_LF_VOLTAGE * AvgAdc(ADC_CHAN_LF)) >> 10);
@@ -2473,7 +2478,7 @@ void Cotag(uint32_t arg0) {
 # define OFF(x)  { FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF); WaitUS((x)); }
 #endif
 #ifndef ON
-# define ON(x)   { FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_ADC | FPGA_LF_ADC_READER_FIELD); WaitUS((x)); }
+# define ON(x)   { FpgaWriteConfWord(FPGA_MAJOR_MODE_LF_READER | FPGA_LF_ADC_READER_FIELD); WaitUS((x)); }
 #endif
     uint8_t rawsignal = arg0 & 0xF;
 

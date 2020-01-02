@@ -2325,6 +2325,7 @@ static int CmdT55xxDump(const char *Cmd) {
         for (int i = 0; i < T55x7_BLOCK_COUNT; i++)
             data[i] = BSWAP_32(cardmem[i].blockdata);
 
+        saveFileJSON(preferredName, jsfT55x7, (uint8_t *)data, T55x7_BLOCK_COUNT * sizeof(uint32_t));
         saveFileEML(preferredName, (uint8_t *)data, T55x7_BLOCK_COUNT * sizeof(uint32_t), sizeof(uint32_t));
         saveFile(preferredName, ".bin", data, sizeof(data));
     }
@@ -3582,18 +3583,18 @@ static int CmdT55xxSetDeviceConfig(const char *Cmd) {
         configurations.m[T55XX_DLMODE_FIXED].write_3    = 0;
 
         // long leading reference
-        configurations.m[T55XX_DLMODE_LLR].start_gap  = 31 * 8;
-        configurations.m[T55XX_DLMODE_LLR].write_gap  = 20 * 8;
-        configurations.m[T55XX_DLMODE_LLR].write_0    = 18 * 8;
-        configurations.m[T55XX_DLMODE_LLR].write_1    = 50 * 8;
+        configurations.m[T55XX_DLMODE_LLR].start_gap  = 29 * 8;
+        configurations.m[T55XX_DLMODE_LLR].write_gap  = 17 * 8;
+        configurations.m[T55XX_DLMODE_LLR].write_0    = 15 * 8;
+        configurations.m[T55XX_DLMODE_LLR].write_1    = 47 * 8;
         configurations.m[T55XX_DLMODE_LLR].read_gap   = 15 * 8;
         configurations.m[T55XX_DLMODE_LLR].write_2    = 0;
         configurations.m[T55XX_DLMODE_LLR].write_3    = 0;
 
         // leading zero
-        configurations.m[T55XX_DLMODE_LEADING_ZERO].start_gap  = 31 * 8;
-        configurations.m[T55XX_DLMODE_LEADING_ZERO].write_gap  = 20 * 8;
-        configurations.m[T55XX_DLMODE_LEADING_ZERO].write_0    = 18 * 8;
+        configurations.m[T55XX_DLMODE_LEADING_ZERO].start_gap  = 29 * 8;
+        configurations.m[T55XX_DLMODE_LEADING_ZERO].write_gap  = 17 * 8;
+        configurations.m[T55XX_DLMODE_LEADING_ZERO].write_0    = 15 * 8;
         configurations.m[T55XX_DLMODE_LEADING_ZERO].write_1    = 40 * 8;
         configurations.m[T55XX_DLMODE_LEADING_ZERO].read_gap   = 15 * 8;
         configurations.m[T55XX_DLMODE_LEADING_ZERO].write_2    = 0;

@@ -46,25 +46,26 @@ static int usage_trace_list() {
     PrintAndLogEx(NORMAL, "    legic    - interpret data as LEGIC communications");
     PrintAndLogEx(NORMAL, "    felica   - interpret data as ISO18092 / FeliCa communications");
     PrintAndLogEx(NORMAL, "    hitag    - interpret data as Hitag2 / HitagS communications");
+    PrintAndLogEx(NORMAL, "    lto      - interpret data as LTO-CM communications");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "        trace list 14a f");
     PrintAndLogEx(NORMAL, "        trace list iclass");
-    return 0;
+    return PM3_SUCCESS;
 }
 static int usage_trace_load() {
     PrintAndLogEx(NORMAL, "Load protocol data from file to trace buffer.");
     PrintAndLogEx(NORMAL, "Usage:  trace load <filename>");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "        trace load mytracefile.bin");
-    return 0;
+    return PM3_SUCCESS;
 }
 static int usage_trace_save() {
     PrintAndLogEx(NORMAL, "Save protocol data from trace buffer to file.");
     PrintAndLogEx(NORMAL, "Usage:  trace save <filename>");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "        trace save mytracefile.bin");
-    return 0;
+    return PM3_SUCCESS;
 }
 
 static bool is_last_record(uint16_t tracepos, uint8_t *trace, uint16_t traceLen) {
@@ -264,6 +265,7 @@ static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *tr
                 break;
             case ISO_14443A:
             case MFDES:
+            case LTO:
                 crcStatus = iso14443A_CRC_check(isResponse, frame, data_len);
                 break;
             case THINFILM:
@@ -302,6 +304,7 @@ static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *tr
                 && protocol != PROTO_HITAG
                 && protocol != THINFILM
                 && protocol != FELICA
+                && protocol != LTO
                 && (isResponse || protocol == ISO_14443A)
                 && (oddparity8(frame[j]) != ((parityBits >> (7 - (j & 0x0007))) & 0x01))) {
 
@@ -378,6 +381,8 @@ static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *tr
                 break;
             case FELICA:
                 annotateFelica(explanation, sizeof(explanation), frame, data_len);
+            case LTO:
+                annotateLTO(explanation, sizeof(explanation), frame, data_len);
                 break;
             default:
                 break;
@@ -450,7 +455,7 @@ static int CmdTraceLoad(const char *Cmd) {
 
     if ((f = fopen(filename, "rb")) == NULL) {
         PrintAndLogEx(FAILED, "Could not open file " _YELLOW_("%s"), filename);
-        return 0;
+        return PM3_EIO;
     }
 
     // get filesize in order to malloc memory
@@ -461,12 +466,12 @@ static int CmdTraceLoad(const char *Cmd) {
     if (fsize < 0) {
         PrintAndLogEx(FAILED, "error, when getting filesize");
         fclose(f);
-        return 3;
+        return PM3_EIO;
     }
     if (fsize < 4) {
         PrintAndLogEx(FAILED, "error, file is too small");
         fclose(f);
-        return 4;
+        return PM3_ESOFT;
     }
 
     if (trace)
@@ -476,21 +481,21 @@ static int CmdTraceLoad(const char *Cmd) {
     if (!trace) {
         PrintAndLogEx(FAILED, "Cannot allocate memory for trace");
         fclose(f);
-        return 2;
+        return PM3_EMALLOC;
     }
 
     size_t bytes_read = fread(trace, 1, fsize, f);
     traceLen = bytes_read;
     fclose(f);
     PrintAndLogEx(SUCCESS, "Recorded Activity (TraceLen = %lu bytes) loaded from file %s", traceLen, filename);
-    return 0;
+    return PM3_SUCCESS;
 }
 
 static int CmdTraceSave(const char *Cmd) {
 
     if (traceLen == 0) {
         PrintAndLogEx(WARNING, "trace is empty, nothing to save");
-        return 0;
+        return PM3_SUCCESS;
     }
 
     char filename[FILE_PATH_SIZE];
@@ -499,7 +504,7 @@ static int CmdTraceSave(const char *Cmd) {
 
     param_getstr(Cmd, 0, filename, sizeof(filename));
     saveFile(filename, ".bin", trace, traceLen);
-    return 0;
+    return PM3_SUCCESS;
 }
 
 static command_t CommandTable[] = {
@@ -513,7 +518,7 @@ static command_t CommandTable[] = {
 static int CmdHelp(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
     CmdsHelp(CommandTable);
-    return 0;
+    return PM3_SUCCESS;
 }
 
 int CmdTrace(const char *Cmd) {
@@ -589,6 +594,7 @@ int CmdTraceList(const char *Cmd) {
             else if (strcmp(type, "mf") == 0)       protocol = PROTO_MIFARE;
             else if (strcmp(type, "hitag") == 0)    protocol = PROTO_HITAG;
             else if (strcmp(type, "thinfilm") == 0) protocol = THINFILM;
+            else if (strcmp(type, "lto") == 0)      protocol = LTO;
             else if (strcmp(type, "raw") == 0)      protocol = -1; //No crc, no annotations
             else errors = true;
 
@@ -604,15 +610,20 @@ int CmdTraceList(const char *Cmd) {
     uint16_t tracepos = 0;
 
     // reserv some space.
-    if (!trace)
+    if (!trace) {
         trace = calloc(PM3_CMD_DATA_SIZE, sizeof(uint8_t));
+        if (trace == NULL) {
+            PrintAndLogEx(FAILED, "Cannot allocate memory for trace");
+            return PM3_EMALLOC;
+        }
+    }
 
     if (isOnline) {
         // Query for the size of the trace,  downloading PM3_CMD_DATA_SIZE
         PacketResponseNG response;
         if (!GetFromDevice(BIG_BUF, trace, PM3_CMD_DATA_SIZE, 0, NULL, 0, &response, 4000, true)) {
             PrintAndLogEx(WARNING, "timeout while waiting for reply.");
-            return 1;
+            return PM3_ETIMEOUT;
         }
 
         traceLen = response.oldarg[2];
@@ -621,13 +632,13 @@ int CmdTraceList(const char *Cmd) {
             if (p == NULL) {
                 PrintAndLogEx(FAILED, "Cannot allocate memory for trace");
                 free(trace);
-                return 2;
+                return PM3_EMALLOC;
             }
             trace = p;
             if (!GetFromDevice(BIG_BUF, trace, traceLen, 0, NULL, 0, NULL, 2500, false)) {
                 PrintAndLogEx(WARNING, "command execution time out");
                 free(trace);
-                return 3;
+                return PM3_ETIMEOUT;
             }
         }
     }
@@ -646,7 +657,7 @@ int CmdTraceList(const char *Cmd) {
         }
     } else {
         PrintAndLogEx(NORMAL, "Start = Start of Start Bit, End = End of last modulation. Src = Source of Transfer");
-        if (protocol == ISO_14443A || protocol == PROTO_MIFARE || protocol == MFDES || protocol == TOPAZ)
+        if (protocol == ISO_14443A || protocol == PROTO_MIFARE || protocol == MFDES || protocol == TOPAZ || protocol == LTO)
             PrintAndLogEx(NORMAL, "ISO14443A - All times are in carrier periods (1/13.56MHz)");
         if (protocol == THINFILM)
             PrintAndLogEx(NORMAL, "Thinfilm - All times are in carrier periods (1/13.56MHz)");
@@ -678,6 +689,6 @@ int CmdTraceList(const char *Cmd) {
                 break;
         }
     }
-    return 0;
+    return PM3_SUCCESS;
 }
 

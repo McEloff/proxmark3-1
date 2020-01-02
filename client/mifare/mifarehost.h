@@ -39,7 +39,7 @@ typedef struct {
     uint32_t uid;
     uint32_t blockNo;
     uint32_t keyType;
-    uint32_t nt;
+    uint32_t nt_enc;
     uint32_t ks1;
 } StateList_t;
 
@@ -73,6 +73,7 @@ int mfEmlSetMem(uint8_t *data, int blockNum, int blocksCount);
 int mfEmlSetMem_xt(uint8_t *data, int blockNum, int blocksCount, int blockBtWidth);
 
 int mfCSetUID(uint8_t *uid, uint8_t *atqa, uint8_t *sak, uint8_t *oldUID, uint8_t wipecard);
+int mfCWipe(uint8_t *uid, uint8_t *atqa, uint8_t *sak);
 int mfCSetBlock(uint8_t blockNo, uint8_t *data, uint8_t *uid, uint8_t params);
 int mfCGetBlock(uint8_t blockNo, uint8_t *data, uint8_t params);
 
@@ -89,5 +90,6 @@ int tryDecryptWord(uint32_t nt, uint32_t ar_enc, uint32_t at_enc, uint8_t *data,
 int detect_classic_prng(void);
 int detect_classic_nackbug(bool verbose);
 void detect_classic_magic(void);
+int detect_classic_static_nonce(void);
 void mf_crypto1_decrypt(struct Crypto1State *pcs, uint8_t *data, int len, bool isEncrypted);
 #endif
