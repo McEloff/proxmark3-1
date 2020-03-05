@@ -10,6 +10,7 @@
 .profile
 *.log
 *.eml
+*.html
 *.o
 *.a
 *.d
@@ -20,6 +21,7 @@
 *.dll
 *.moc.cpp
 *.z
+*.gz
 *.Td
 *.DS_Store
 *.exe

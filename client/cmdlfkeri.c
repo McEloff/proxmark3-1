@@ -54,6 +54,103 @@ static int usage_lf_keri_sim(void) {
     return PM3_SUCCESS;
 }
 
+typedef enum  {Scramble = 0,Descramble = 1} KeriMSScramble_t;
+
+static int CmdKeriMSScramble (KeriMSScramble_t Action, uint32_t *FC, uint32_t *ID, uint32_t *CardID)
+{
+    // 255 = Not used/Unknown other values are the bit offset in the ID/FC values
+    uint8_t CardToID [] = { 255,255,255,255, 13, 12, 17,  5,255,  6,255, 18,  8,255,  0,  7,
+                             10,255,255, 11,  4,  1,255, 19,255, 20,  2,255,  3,  9,255,255 };
+    uint8_t CardToFC [] = { 255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
+                            255,255,  2,255,255,255,255,255,255,255,255,255,255,255,  1,255 };
+
+    uint8_t CardIdx; // 0 - 31
+    bool BitState;
+
+    // Used to track known bit states - remove when all bit maps are known
+    char IDDecodeState[33] = {0x00};
+    char FCDecodeState[33] = {0x00};
+    memset (IDDecodeState,'-',32);
+    memset (FCDecodeState,'-',32);
+
+    if (Action == Descramble) {
+        *FC = 0;
+        *ID = 0;
+        for (CardIdx = 0; CardIdx < 32; CardIdx++) {
+            // Get Bit State
+            BitState = (*CardID >> CardIdx) & 1;
+            // Card ID
+            if (CardToID[CardIdx] < 32) {
+                *ID = *ID | (BitState << CardToID[CardIdx]);
+                // Remove when all bits are known
+                IDDecodeState[31-CardToID[CardIdx]] = '0'+BitState;
+            }
+            // Card FC
+            if (CardToFC[CardIdx] < 32) {
+                *FC = *FC | (BitState << CardToFC[CardIdx]);
+                // Remove when all bits are known
+                FCDecodeState[31-CardToFC[CardIdx]] = '0'+BitState;
+            }
+        }
+
+        // Patch for bit order group unknown - remove when all Keri MS Bits maps are known
+        // Reverse order for easy mapping for unknowns
+        // I know that these bit groups are a in the correct location, unknown order.
+        if (IDDecodeState[31-17] == '1') IDDecodeState[31-17] = '?';
+        if (IDDecodeState[31-18] == '1') IDDecodeState[31-18] = '?';
+        if (IDDecodeState[31-19] == '1') IDDecodeState[31-19] = '?';
+        if (IDDecodeState[31-20] == '1') IDDecodeState[31-20] = '?';
+    
+        if (FCDecodeState[31- 1] == '1') FCDecodeState[31- 1] = '?';
+        if (FCDecodeState[31- 2] == '1') FCDecodeState[31- 2] = '?';
+
+        PrintAndLogEx(SUCCESS, "Partial Keri MS decode");
+        PrintAndLogEx(SUCCESS, "BitState ID : %s",IDDecodeState);
+        PrintAndLogEx(SUCCESS, "BitState FC : %s",FCDecodeState);
+    }
+
+    if (Action == Scramble)
+    {
+        *CardID = 0; // set to 0
+
+        for (CardIdx = 0; CardIdx < 32; CardIdx++) 
+        {
+            // Card ID 
+            if (CardToID[CardIdx] < 32) {
+                if ((*ID & (1 << CardToID[CardIdx])) > 0)
+                    *CardID |= (1 << CardIdx);
+            }          
+            // Card FC             
+            if (CardToFC[CardIdx] < 32) {
+                if ((*ID & (1 << CardToFC[CardIdx])) > 0)
+                    *CardID |= (1 << CardIdx);
+            }                
+        }
+
+        // Fixed bits and parity/check bits
+        /*
+            Add Parity and Fixed bits
+            Bit  3 - Note Used/Fixed 1 - TBC
+            Bit 31 - 1 Fixed Not in check/parity
+            Bit  0,1 - 2 Bit Parity
+        */
+        *CardID |= (1 <<  3);
+
+        // Check/Parity Bits
+        int Parity = 1;
+        for (CardIdx = 4; CardIdx <= 31; CardIdx += 2) {
+            Parity = Parity ^ ((*CardID >> CardIdx) & 11);
+        }
+        *CardID = *CardID | Parity;
+
+        // Bit 31 was fixed but not in check/parity bits
+        *CardID |= (1 << 31); 
+
+        PrintAndLogEx(SUCCESS, "Scrambled FC : %d - Card ID : %d to RAW : E0000000%08X",*FC,*ID,*CardID);
+    }
+    return PM3_SUCCESS;
+}
+
 static int CmdKeriDemod(const char *Cmd) {
     (void)Cmd; // Cmd is not used so far
 
@@ -84,7 +181,10 @@ static int CmdKeriDemod(const char *Cmd) {
     uint32_t raw2 = bytebits_to_byte(DemodBuffer + 32, 32);
 
     //get internal id
-    uint32_t ID = bytebits_to_byte(DemodBuffer + 29, 32);
+    // uint32_t ID = bytebits_to_byte(DemodBuffer + 29, 32);
+    // Due to the 3 sync bits being at the start of the capture
+    // We can take the last 32bits as the internal ID.
+    uint32_t ID = raw2;
     ID &= 0x7FFFFFFF;
 
     /*
@@ -103,6 +203,25 @@ static int CmdKeriDemod(const char *Cmd) {
 
     PrintAndLogEx(SUCCESS, "KERI Tag Found -- Internal ID: %u", ID);
     PrintAndLogEx(SUCCESS, "Raw: %08X%08X", raw1, raw2);
+/*
+    Descramble Data.
+*/
+    uint32_t fc = 0;
+    uint32_t cardid = 0;
+
+    // Just need to the low 32 bits without the 111 trailer
+    CmdKeriMSScramble (Descramble,&fc,&cardid,&raw2);
+
+    PrintAndLogEx (SUCCESS,"Descrambled MS : FC %d - Card ID %d\n",fc,cardid);
+    
+/*
+    Scamble: For dev testing only, will/should move to the create keri-ms code when added.
+    
+    uint32_t testCard = 0;
+    CmdKeriMSScramble (Scramble,&fc,&cardid,&testCard);
+*/
+
+// End Descramble test
 
     if (invert) {
         PrintAndLogEx(INFO, "Had to Invert - probably KERI");
@@ -115,7 +234,7 @@ static int CmdKeriDemod(const char *Cmd) {
 }
 
 static int CmdKeriRead(const char *Cmd) {
-    lf_read(true, 10000);
+    lf_read(false, 10000);
     return CmdKeriDemod(Cmd);
 }
 
@@ -128,8 +247,8 @@ static int CmdKeriClone(const char *Cmd) {
         T55x7_MODULATION_PSK1 |
         T55x7_PSKCF_RF_2 |
         2 << T55x7_MAXBLOCK_SHIFT,
-        0,
-        0
+          0,
+          0
     };
 
     // dynamic bitrate used
@@ -161,7 +280,10 @@ static int CmdKeriClone(const char *Cmd) {
 
     print_blocks(blocks,  ARRAYLEN(blocks));
 
-    return clone_t55xx_tag(blocks, ARRAYLEN(blocks));
+    int res = clone_t55xx_tag(blocks, ARRAYLEN(blocks));
+    PrintAndLogEx(SUCCESS, "Done");
+    PrintAndLogEx(INFO, "Hint: try " _YELLOW_("`lf keri read`") "to verify");
+    return res;
 }
 
 static int CmdKeriSim(const char *Cmd) {

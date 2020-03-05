@@ -135,7 +135,7 @@ static int CmdGallagherDemod(const char *Cmd) {
 }
 
 static int CmdGallagherRead(const char *Cmd) {
-    lf_read(true, 4096 * 2 + 20);
+    lf_read(false, 4096 * 2 + 20);
     return CmdGallagherDemod(Cmd);
 }
 
@@ -178,7 +178,10 @@ static int CmdGallagherClone(const char *Cmd) {
     PrintAndLogEx(INFO, "Preparing to clone Gallagher to T55x7 with raw hex");
     print_blocks(blocks,  ARRAYLEN(blocks));
 
-    return clone_t55xx_tag(blocks, ARRAYLEN(blocks));
+    int res = clone_t55xx_tag(blocks, ARRAYLEN(blocks));
+    PrintAndLogEx(SUCCESS, "Done");
+    PrintAndLogEx(INFO, "Hint: try " _YELLOW_("`lf gallagher read`") "to verify");
+    return res;
 }
 
 static int CmdGallagherSim(const char *Cmd) {

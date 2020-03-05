@@ -3,6 +3,7 @@
 // Merlok - 2017
 // Doegox - 2019
 // Iceman - 2019
+// Piwi - 2019
 //
 // This code is licensed to you under the terms of the GNU GPL, version 2 or,
 // at your option, any later version. See the LICENSE.txt file for the text of
@@ -12,11 +13,12 @@
 //-----------------------------------------------------------------------------
 #include "cmdhf.h"
 
-#include <ctype.h>        // tolower
+#include <ctype.h>          // tolower
 
-#include "cmdparser.h"    // command_t
-#include "comms.h"        // clearCommandBuffer
-
+#include "cmdparser.h"      // command_t
+#include "cliparser/cliparser.h"  // parse
+#include "comms.h"          // clearCommandBuffer
+#include "lfdemod.h"        // computeSignalProperties
 #include "cmdhf14a.h"       // ISO14443-A
 #include "cmdhf14b.h"       // ISO14443-B
 #include "cmdhf15.h"        // ISO15693
@@ -34,6 +36,9 @@
 #include "cmdhflto.h"       // LTO-CM
 #include "cmdtrace.h"       // trace list
 #include "ui.h"
+#include "cmddata.h"
+#include "graph.h"
+#include "../common_fpga/fpga.h"
 
 static int CmdHelp(const char *Cmd);
 
@@ -79,8 +84,6 @@ int CmdHFSearch(const char *Cmd) {
 
     char cmdp = tolower(param_getchar(Cmd, 0));
     if (cmdp == 'h') return usage_hf_search();
-
-    PrintAndLogEx(INFO, "Checking for known tags...");
 
     PROMPT_CLEARLINE;
     PrintAndLogEx(INPLACE, "Searching for ThinFilm tag...");
@@ -165,9 +168,8 @@ int CmdHFSearch(const char *Cmd) {
     }
 
     PROMPT_CLEARLINE;
-    PrintAndLogEx(INPLACE, "done");
+    PrintAndLogEx(INPLACE, _RED_("No known/supported 13.56 MHz tags found"));
     PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(FAILED, _RED_("No known/supported 13.56 MHz tags found"));
     return PM3_ESOFT;
 }
 
@@ -176,32 +178,40 @@ int CmdHFTune(const char *Cmd) {
     if (cmdp == 'h') return usage_hf_tune();
     int iter =  param_get32ex(Cmd, 0, 0, 10);
 
+    PrintAndLogEx(SUCCESS, "Measuring HF antenna, click " _GREEN_("pm3 button") "or press " _GREEN_("Enter") "to exit");
     PacketResponseNG resp;
-    PrintAndLogEx(SUCCESS, "Measuring HF antenna," _YELLOW_("click button") " or press" _YELLOW_("Enter") "to exit");
     clearCommandBuffer();
+
     uint8_t mode[] = {1};
     SendCommandNG(CMD_MEASURE_ANTENNA_TUNING_HF, mode, sizeof(mode));
     if (!WaitForResponseTimeout(CMD_MEASURE_ANTENNA_TUNING_HF, &resp, 1000)) {
         PrintAndLogEx(WARNING, "Timeout while waiting for Proxmark HF initialization, aborting");
         return PM3_ETIMEOUT;
     }
+
     mode[0] = 2;
     // loop forever (till button pressed) if iter = 0 (default)
     for (uint8_t i = 0; iter == 0 || i < iter; i++) {
-        if (kbd_enter_pressed()) { // abort by keyboard press
+        if (kbd_enter_pressed()) {
             break;
         }
+
         SendCommandNG(CMD_MEASURE_ANTENNA_TUNING_HF, mode, sizeof(mode));
         if (!WaitForResponseTimeout(CMD_MEASURE_ANTENNA_TUNING_HF, &resp, 1000)) {
+            PrintAndLogEx(NORMAL, "");
             PrintAndLogEx(WARNING, "Timeout while waiting for Proxmark HF measure, aborting");
             return PM3_ETIMEOUT;
         }
-        if ((resp.status == PM3_EOPABORTED) || (resp.length != sizeof(uint16_t)))
+
+        if ((resp.status == PM3_EOPABORTED) || (resp.length != sizeof(uint16_t))) {
             break;
+        }
+
         uint16_t volt = resp.data.asDwords[0] & 0xFFFF;
-        PrintAndLogEx(INPLACE, "%u mV / %5u V", volt, (uint16_t)(volt / 1000));
+        PrintAndLogEx(INPLACE, "%u mV / %2u V", volt, (uint16_t)(volt / 1000));
     }
     mode[0] = 3;
+
     SendCommandNG(CMD_MEASURE_ANTENNA_TUNING_HF, mode, sizeof(mode));
     if (!WaitForResponseTimeout(CMD_MEASURE_ANTENNA_TUNING_HF, &resp, 1000)) {
         PrintAndLogEx(WARNING, "Timeout while waiting for Proxmark HF shutdown, aborting");
@@ -224,6 +234,42 @@ int CmdHFSniff(const char *Cmd) {
     return PM3_SUCCESS;
 }
 
+int CmdHFPlot(const char *Cmd) {
+    CLIParserInit("hf plot",
+                  "Plots HF signal after RF signal path and A/D conversion.",
+                  "This can be used after any hf command and will show the last few milliseconds of the HF signal.\n"
+                  "Note: If the last hf command terminated because of a timeout you will most probably see nothing.\n");
+    void *argtable[] = {
+        arg_param_begin,
+        arg_param_end
+    };
+    CLIExecWithReturn(Cmd, argtable, true);
+
+    uint8_t buf[FPGA_TRACE_SIZE];
+
+    PacketResponseNG response;
+    if (!GetFromDevice(FPGA_MEM, buf, FPGA_TRACE_SIZE, 0, NULL, 0, &response, 4000, true)) {
+        PrintAndLogEx(WARNING, "timeout while waiting for reply.");
+        return PM3_ETIMEOUT;
+    }
+
+    for (size_t i = 0; i < FPGA_TRACE_SIZE; i++) {
+        GraphBuffer[i] = ((int)buf[i]) - 127;
+    }
+
+    GraphTraceLen = FPGA_TRACE_SIZE;
+
+    ShowGraphWindow();
+
+    // remove signal offset
+    CmdHpf("");
+
+    setClockGrid(0, 0);
+    DemodBufferLen = 0;
+    RepaintGraphWindow();
+    return PM3_SUCCESS;
+}
+
 static command_t CommandTable[] = {
     {"help",        CmdHelp,          AlwaysAvailable, "This help"},
     {"14a",         CmdHF14A,         AlwaysAvailable, "{ ISO14443A RFIDs...               }"},
@@ -231,16 +277,18 @@ static command_t CommandTable[] = {
     {"15",          CmdHF15,          AlwaysAvailable, "{ ISO15693 RFIDs...                }"},
     {"epa",         CmdHFEPA,         AlwaysAvailable, "{ German Identification Card...    }"},
     {"felica",      CmdHFFelica,      AlwaysAvailable, "{ ISO18092 / Felica RFIDs...       }"},
-    {"legic",       CmdHFLegic,       AlwaysAvailable, "{ LEGIC RFIDs...                   }"},
+    {"fido",        CmdHFFido,        AlwaysAvailable, "{ FIDO and FIDO2 authenticators... }"},
     {"iclass",      CmdHFiClass,      AlwaysAvailable, "{ ICLASS RFIDs...                  }"},
+    {"legic",       CmdHFLegic,       AlwaysAvailable, "{ LEGIC RFIDs...                   }"},
+    {"lto",         CmdHFLTO,         AlwaysAvailable, "{ LTO Cartridge Memory RFIDs...    }"},
     {"mf",          CmdHFMF,          AlwaysAvailable, "{ MIFARE RFIDs...                  }"},
     {"mfp",         CmdHFMFP,         AlwaysAvailable, "{ MIFARE Plus RFIDs...             }"},
     {"mfu",         CmdHFMFUltra,     AlwaysAvailable, "{ MIFARE Ultralight RFIDs...       }"},
     {"mfdes",       CmdHFMFDes,       AlwaysAvailable, "{ MIFARE Desfire RFIDs...          }"},
-    {"topaz",       CmdHFTopaz,       AlwaysAvailable, "{ TOPAZ (NFC Type 1) RFIDs...      }"},
-    {"fido",        CmdHFFido,        AlwaysAvailable, "{ FIDO and FIDO2 authenticators... }"},
     {"thinfilm",    CmdHFThinfilm,    AlwaysAvailable, "{ Thinfilm RFIDs...                }"},
+    {"topaz",       CmdHFTopaz,       AlwaysAvailable, "{ TOPAZ (NFC Type 1) RFIDs...      }"},
     {"list",        CmdTraceList,     AlwaysAvailable,    "List protocol data in trace buffer"},
+    {"plot",        CmdHFPlot,        IfPm3Hfplot,     "Plot signal"},
     {"tune",        CmdHFTune,        IfPm3Present,    "Continuously measure HF antenna tuning"},
     {"search",      CmdHFSearch,      AlwaysAvailable, "Search for known HF tags"},
     {"sniff",       CmdHFSniff,       IfPm3Hfsniff,    "<samples to skip (10000)> <triggers to skip (1)> Generic HF Sniff"},

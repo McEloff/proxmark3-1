@@ -23,6 +23,7 @@
 
 uint8_t g_debugMode;
 uint8_t g_printAndLog;
+
 #define PRINTANDLOG_PRINT 1
 #define PRINTANDLOG_LOG   2
 
@@ -85,7 +86,7 @@ uint8_t GetParity(uint8_t *bits, uint8_t type, int length);
 void wiegand_add_parity(uint8_t *target, uint8_t *source, uint8_t length);
 void wiegand_add_parity_swapped(uint8_t *target, uint8_t *source, uint8_t length);
 
-void xor(unsigned char *dst, unsigned char *src, size_t len);
+//void xor(unsigned char *dst, unsigned char *src, size_t len);
 int32_t le24toh(uint8_t data[3]);
 
 uint32_t PackBits(uint8_t start, uint8_t len, uint8_t *bits);
@@ -99,6 +100,7 @@ bool str_endswith(const char *s,  const char *suffix);    // check for suffix in
 void clean_ascii(unsigned char *buf, size_t len);
 void strcleanrn(char *buf, size_t len);
 void strcreplace(char *buf, size_t len, char from, char to);
-char *strmcopy(const char *buf);
+char *str_dup(const char *src);
+char *str_ndup(const char *src, size_t len);
 int hexstring_to_u96(uint32_t *hi2, uint32_t *hi, uint32_t *lo, const char *str);
 #endif

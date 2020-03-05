@@ -918,13 +918,18 @@ void strcreplace(char *buf, size_t len, char from, char to) {
     }
 }
 
-char *strmcopy(const char *buf) {
-    char *str = (char *) calloc(strlen(buf) + 1, sizeof(uint8_t));
-    if (str != NULL) {
-        memset(str, 0, strlen(buf) + 1);
-        strcpy(str, buf);
+
+char *str_dup(const char *src) {
+    return str_ndup(src, strlen(src));
+}
+char *str_ndup(const char *src, size_t len) {
+
+    char *dest = (char *) calloc(len + 1, sizeof(uint8_t));
+    if (dest != NULL) {
+        memcpy(dest, src, len);
+        dest[len] = '\0';
     }
-    return str;
+    return dest;
 }
 
 /**

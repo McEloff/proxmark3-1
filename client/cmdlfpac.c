@@ -10,6 +10,8 @@
 #include "cmdlfpac.h"
 
 #include <ctype.h>          //tolower
+#include <string.h>
+#include <stdlib.h>
 
 #include "commonutil.h"     // ARRAYLEN
 #include "common.h"
@@ -39,7 +41,19 @@ static int usage_lf_pac_clone(void) {
     PrintAndLogEx(NORMAL, "       lf pac clone b FF2049906D8511C593155B56D5B2649F ");
     return PM3_SUCCESS;
 }
-
+static int usage_lf_pac_sim(void) {
+    PrintAndLogEx(NORMAL, "Enables simulation of PAC/Stanley card with specified card number.");
+    PrintAndLogEx(NORMAL, "Simulation runs until the button is pressed or another USB command is issued.");
+    PrintAndLogEx(NORMAL, "The card ID is 8 byte number. Larger values are truncated.");
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(NORMAL, "Usage:  lf pac sim <Card-ID>");
+    PrintAndLogEx(NORMAL, "Options:");
+    PrintAndLogEx(NORMAL, "  <Card ID>       : 8 byte PAC/Stanley card id");
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(NORMAL, "Examples:");
+    PrintAndLogEx(NORMAL, "       lf pac sim 12345678");
+    return PM3_SUCCESS;
+}
 // by danshuk
 // PAC_8byte format: preamble (8 mark/idle bits), ascii STX (02), ascii '2' (32), ascii '0' (30), ascii bytes 0..7 (cardid), then xor checksum of cardid bytes
 // all bytes following 8 bit preamble are one start bit (0), 7 data bits (lsb first), odd parity bit, and one stop bit (1)
@@ -167,7 +181,7 @@ static int CmdPacDemod(const char *Cmd) {
 }
 
 static int CmdPacRead(const char *Cmd) {
-    lf_read(true, 4096 * 2 + 20);
+    lf_read(false, 4096 * 2 + 20);
     return CmdPacDemod(Cmd);
 }
 
@@ -225,13 +239,50 @@ static int CmdPacClone(const char *Cmd) {
     PrintAndLogEx(INFO, "Preparing to clone PAC/Stanley tag to T55x7 with raw hex");
     print_blocks(blocks,  ARRAYLEN(blocks));
 
-    return clone_t55xx_tag(blocks, ARRAYLEN(blocks));
+    int res = clone_t55xx_tag(blocks, ARRAYLEN(blocks));
+    PrintAndLogEx(SUCCESS, "Done");
+    PrintAndLogEx(INFO, "Hint: try " _YELLOW_("`lf pac read`") "to verify");
+    return res;
 }
 
 static int CmdPacSim(const char *Cmd) {
 
     // NRZ sim.
-    PrintAndLogEx(INFO, " To be implemented, feel free to contribute!");
+    char cardid[9] = { 0 };
+    uint8_t rawBytes[16] = { 0 };
+    uint32_t rawBlocks[4];
+    char cmdp = tolower(param_getchar(Cmd, 0));
+    if (strlen(Cmd) == 0 || cmdp == 'h') return usage_lf_pac_sim();
+
+    int res = param_getstr(Cmd, 0, cardid, sizeof(cardid));
+    if (res < 8) return usage_lf_pac_sim();
+
+    uint8_t bs[128];
+    pacCardIdToRaw(rawBytes, cardid);
+    for (size_t i = 0; i < ARRAYLEN(rawBlocks); i++) {
+        rawBlocks[i] = bytes_to_num(rawBytes + (i * sizeof(uint32_t)), sizeof(uint32_t));
+        num_to_bytebits(rawBlocks[i], sizeof(uint32_t) * 8, bs + (i * sizeof(uint32_t) * 8));
+    }
+
+    PrintAndLogEx(SUCCESS, "Simulating PAC/Stanley - ID " _YELLOW_("%s")" raw "_YELLOW_("%08X%08X%08X%08X"), cardid, rawBlocks[0], rawBlocks[1], rawBlocks[2], rawBlocks[3]);
+
+    lf_nrzsim_t *payload = calloc(1, sizeof(lf_nrzsim_t) + sizeof(bs));
+    payload->invert = 0;
+    payload->separator = 0;
+    payload->clock = 32;
+    memcpy(payload->data, bs, sizeof(bs));
+
+    clearCommandBuffer();
+    SendCommandNG(CMD_LF_NRZ_SIMULATE, (uint8_t *)payload,  sizeof(lf_nrzsim_t) + sizeof(bs));
+    free(payload);
+
+    PacketResponseNG resp;
+    WaitForResponse(CMD_LF_NRZ_SIMULATE, &resp);
+
+    PrintAndLogEx(INFO, "Done");
+    if (resp.status != PM3_EOPABORTED)
+        return resp.status;
+
     return PM3_SUCCESS;
 }
 

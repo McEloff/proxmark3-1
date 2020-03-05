@@ -41,7 +41,6 @@
 
 #include <dirent.h>
 #include <ctype.h>
-#include <sndfile.h>
 
 #include "pm3_cmd.h"
 #include "commonutil.h"
@@ -52,6 +51,26 @@
 #endif
 
 #define PATH_MAX_LENGTH 200
+
+struct wave_info_t {
+    char signature[4];
+    uint32_t filesize;
+    char type[4];
+    struct {
+        char tag[4];
+        uint32_t size;
+        uint16_t codec;
+        uint16_t nb_channel;
+        uint32_t sample_per_sec;
+        uint32_t byte_per_sec;
+        uint16_t block_align;
+        uint16_t bit_per_sample;
+    } PACKED format;
+    struct {
+        char tag[4];
+        uint32_t size;
+    } PACKED audio_data;
+} PACKED wave_info;
 
 /**
  * @brief checks if a file exists
@@ -161,7 +180,7 @@ int saveFile(const char *preferredName, const char *suffix, const void *data, si
     fwrite(data, 1, datalen, f);
     fflush(f);
     fclose(f);
-    PrintAndLogEx(SUCCESS, "saved %zu bytes to binary file " _YELLOW_("%s"), datalen, fileName);
+    PrintAndLogEx(SUCCESS, "saved " _YELLOW_("%zu")" bytes to binary file " _YELLOW_("%s"), datalen, fileName);
     free(fileName);
     return PM3_SUCCESS;
 }
@@ -204,7 +223,7 @@ int saveFileEML(const char *preferredName, uint8_t *data, size_t datalen, size_t
     }
     fflush(f);
     fclose(f);
-    PrintAndLogEx(SUCCESS, "saved %d blocks to text file " _YELLOW_("%s"), blocks, fileName);
+    PrintAndLogEx(SUCCESS, "saved " _YELLOW_("%" PRId32)" blocks to text file " _YELLOW_("%s"), blocks, fileName);
 
 out:
     free(fileName);
@@ -405,31 +424,38 @@ int saveFileWAVE(const char *preferredName, int *data, size_t datalen) {
     if (data == NULL) return PM3_EINVARG;
     char *fileName = newfilenamemcopy(preferredName, ".wav");
     if (fileName == NULL) return PM3_EMALLOC;
-
     int retval = PM3_SUCCESS;
 
-    SF_INFO wave_info;
+    struct wave_info_t wave_info = {
+        .signature = "RIFF",
+        .filesize = sizeof(wave_info) - sizeof(wave_info.signature) - sizeof(wave_info.filesize) + datalen,
+        .type = "WAVE",
+        .format.tag = "fmt ",
+        .format.size = sizeof(wave_info.format) - sizeof(wave_info.format.tag) - sizeof(wave_info.format.size),
+        .format.codec = 1, // PCM
+        .format.nb_channel = 1,
+        .format.sample_per_sec = 125000,  // TODO update for other tag types
+        .format.byte_per_sec = 125000,    // TODO update for other tag types
+        .format.block_align = 1,
+        .format.bit_per_sample = 8,
+        .audio_data.tag = "data",
+        .audio_data.size = datalen,
+    };
 
-    // TODO update for other tag types
-    wave_info.samplerate = 125000;
-    wave_info.channels = 1;
-    wave_info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_U8;
-    SNDFILE *wave_file = sf_open(fileName, SFM_WRITE, &wave_info);
-
+    FILE *wave_file = fopen(fileName, "wb");
     if (!wave_file) {
         PrintAndLogEx(WARNING, "file not found or locked. "_YELLOW_("'%s'"), fileName);
         retval = PM3_EFILE;
         goto out;
     }
-
-    // unfortunately need to upconvert to 16-bit samples because libsndfile doesn't do 8-bit(?)
+    fwrite(&wave_info, sizeof(wave_info), 1, wave_file);
     for (int i = 0; i < datalen; i++) {
-        short sample = data[i] * 256;
-        sf_write_short(wave_file, &sample, 1);
+        uint8_t sample = data[i] + 128;
+        fwrite(&sample, 1, 1, wave_file);
     }
+    fclose(wave_file);
 
-    sf_close(wave_file);
-    PrintAndLogEx(SUCCESS, "saved " _YELLOW_("%d")" bytes to wave file " _YELLOW_("'%s'"), 2 * datalen, fileName);
+    PrintAndLogEx(SUCCESS, "saved " _YELLOW_("%zu")" bytes to wave file " _YELLOW_("'%s'"), 2 * datalen, fileName);
 
 out:
     free(fileName);
@@ -456,7 +482,7 @@ int saveFilePM3(const char *preferredName, int *data, size_t datalen) {
 
     fflush(f);
     fclose(f);
-    PrintAndLogEx(SUCCESS, "saved " _YELLOW_("%d")" bytes to PM3 file " _YELLOW_("'%s'"), datalen, fileName);
+    PrintAndLogEx(SUCCESS, "saved " _YELLOW_("%zu")" bytes to PM3 file " _YELLOW_("'%s'"), datalen, fileName);
 
 out:
     free(fileName);
@@ -473,6 +499,7 @@ int createMfcKeyDump(const char *preferredName, uint8_t sectorsCnt, sector_t *e_
     FILE *f = fopen(fileName, "wb");
     if (f == NULL) {
         PrintAndLogEx(WARNING, "Could not create file " _YELLOW_("%s"), fileName);
+        free(fileName);
         return PM3_EFILE;
     }
     PrintAndLogEx(SUCCESS, "Generating binary key file");
@@ -617,6 +644,7 @@ int loadFile_safe(const char *preferredName, const char *suffix, void **pdata, s
 int loadFileEML(const char *preferredName, void *data, size_t *datalen) {
 
     if (data == NULL) return PM3_EINVARG;
+
     char *fileName = filenamemcopy(preferredName, ".eml");
     if (fileName == NULL) return PM3_EMALLOC;
 
@@ -634,6 +662,8 @@ int loadFileEML(const char *preferredName, void *data, size_t *datalen) {
     char line[131];
     memset(line, 0, sizeof(line));
     uint8_t buf[64] = {0x00};
+
+    uint8_t *udata = (uint8_t *)data;
 
     while (!feof(f)) {
 
@@ -653,7 +683,7 @@ int loadFileEML(const char *preferredName, void *data, size_t *datalen) {
 
         int res = param_gethex_to_eol(line, 0, buf, sizeof(buf), &hexlen);
         if (res == 0 || res == 1) {
-            memcpy(data + counter, buf, hexlen);
+            memcpy(udata + counter, buf, hexlen);
             counter += hexlen;
         }
     }
@@ -831,10 +861,11 @@ int loadFileDICTIONARY(const char *preferredName, void *data, size_t *datalen, u
 
 int loadFileDICTIONARYEx(const char *preferredName, void *data, size_t maxdatalen, size_t *datalen, uint8_t keylen, uint16_t *keycnt,
                          size_t startFilePosition, size_t *endFilePosition, bool verbose) {
+
+    if (data == NULL) return PM3_EINVARG;
+
     if (endFilePosition)
         *endFilePosition = 0;
-    if (data == NULL) return PM3_EINVARG;
-    uint16_t vkeycnt = 0;
 
     char *path;
     if (searchFile(&path, DICTIONARIES_SUBDIR, preferredName, ".dic", false) != PM3_SUCCESS)
@@ -844,7 +875,7 @@ int loadFileDICTIONARYEx(const char *preferredName, void *data, size_t maxdatale
     keylen <<= 1;
 
     char line[255];
-
+    uint16_t vkeycnt = 0;
     size_t counter = 0;
     int retval = PM3_SUCCESS;
 
@@ -855,8 +886,15 @@ int loadFileDICTIONARYEx(const char *preferredName, void *data, size_t maxdatale
         goto out;
     }
 
-    if (startFilePosition)
-        fseek(f, startFilePosition, SEEK_SET);
+    if (startFilePosition) {
+        if (fseek(f, startFilePosition, SEEK_SET) < 0) {
+            fclose(f);
+            retval = PM3_EFILE;
+            goto out;
+        }
+    }
+
+    uint8_t *udata = (uint8_t *)data;
 
     // read file
     while (!feof(f)) {
@@ -889,7 +927,7 @@ int loadFileDICTIONARYEx(const char *preferredName, void *data, size_t maxdatale
             break;
         }
 
-        if (hex_to_bytes(line, data + counter, keylen >> 1) != (keylen >> 1))
+        if (hex_to_bytes(line, udata + counter, keylen >> 1) != (keylen >> 1))
             continue;
 
         vkeycnt++;
@@ -978,7 +1016,7 @@ int loadFileDICTIONARY_safe(const char *preferredName, void **pdata, uint8_t key
         if (line[0] == '#')
             continue;
 
-        if (CheckStringIsHEXValue(line))
+        if (!CheckStringIsHEXValue(line))
             continue;
 
         uint64_t key = strtoull(line, NULL, 16);
