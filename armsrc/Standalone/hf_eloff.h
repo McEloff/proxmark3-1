@@ -28,6 +28,9 @@
 #include "string.h"
 #include "lfdemod.h"
 
-void StandaloneReplyStatus();
+void StandaloneReplyStatus(void);
+uint32_t DemodLF(int trigger_threshold);
+void WorkWithLF(void);
+void WorkWithHF(void);
 
 #endif /* __HF_ELOFF_H */

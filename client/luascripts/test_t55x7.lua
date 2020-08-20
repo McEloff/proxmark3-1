@@ -2,13 +2,14 @@ local cmds = require('commands')
 local getopt = require('getopt')
 local bin = require('bin')
 local utils = require('utils')
+local ansicolors = require('ansicolors')
 
 local format = string.format
 local floor = math.floor
 
 copyright = ''
 author = "Iceman"
-version  = 'v1.0.1'
+version  = 'v1.0.3'
 desc =[[
 This script will program a T55x7 TAG with a configuration and four blocks of data.
 It will then try to detect and read back those block data and compare if read data matches the expected data.
@@ -30,13 +31,17 @@ testsuit for T55XX commands demodulation
 ]]
 example = [[
     1. script run test_t55x7
+    2. script run test_t55x7 -t FSK2A
+    3. script run test_t55x7 -t PSK1
 ]]
 usage = [[
-
-script run test_t55x7
-
-Arguments:
+script run test_t55x7 [-h] [-t <modulation type>
+]]
+arguments = [[
     -h       this help
+    -t       (optional, defaults to ASK) 'PSK1', 'PSK2', 'PSK3',
+             'FSK1', 'FSK2', 'FSK1A', 'FSK2A',
+             'ASK', 'BI'
 ]]
 
 local DEBUG = true -- the debug flag
@@ -79,9 +84,12 @@ local function help()
     print(author)
     print(version)
     print(desc)
-    print("Example usage")
-    print(example)
+    print(ansicolors.cyan..'Usage'..ansicolors.reset)
     print(usage)
+    print(ansicolors.cyan..'Arguments'..ansicolors.reset)
+    print(arguments)
+    print(ansicolors.cyan..'Example usage'..ansicolors.reset)
+    print(example)
 end
 ---
 -- Exit message
@@ -300,9 +308,11 @@ local function main(args)
     print( string.rep('--',20) )
     print( string.rep('--',20) )
 
+    local modulation_type = 'ASK'
     -- Arguments for the script
-    for o, arg in getopt.getopt(args, 'h') do
+    for o, arg in getopt.getopt(args, 'ht:') do
         if o == 'h' then return help() end
+        if o == 't' then modulation_type = arg end
     end
 
     core.clearCommandBuffer()
@@ -310,7 +320,8 @@ local function main(args)
 
     -- Adjust this table to set which configurations should be tested
 --    local test_modes = { 'PSK1', 'PSK2', 'PSK3', 'FSK1', 'FSK2', 'FSK1A', 'FSK2A', 'ASK', 'BI' }
-    local test_modes = { 'ASK' }
+    --local test_modes = { 'PSK1' }
+    local test_modes = { modulation_type }
 
     for _ = 1, #test_modes do
         res = WipeCard()

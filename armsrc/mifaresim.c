@@ -534,13 +534,13 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
 
         // find reader field
         if (cardSTATE == MFEMUL_NOFIELD) {
-            
+
 #if defined RDV4
-            vHf = (MAX_ADC_HF_VOLTAGE_RDV40 * AvgAdc(ADC_CHAN_HF_RDV40)) >> 10;
+            vHf = (MAX_ADC_HF_VOLTAGE_RDV40 * SumAdc(ADC_CHAN_HF_RDV40, 32)) >> 15;
 #else
-            vHf = (MAX_ADC_HF_VOLTAGE * AvgAdc(ADC_CHAN_HF)) >> 10;
+            vHf = (MAX_ADC_HF_VOLTAGE * SumAdc(ADC_CHAN_HF, 32)) >> 15;
 #endif
-          
+
             if (vHf > MF_MINFIELDV) {
                 cardSTATE_TO_IDLE();
                 LED_A_ON();
@@ -554,7 +554,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
         int res = EmGetCmd(receivedCmd, &receivedCmd_len, receivedCmd_par);
 
         if (res == 2) { //Field is off!
-            FpgaDisableTracing();
+            //FpgaDisableTracing();
             LEDsoff();
             cardSTATE = MFEMUL_NOFIELD;
             if (DBGLEVEL >= DBG_EXTENDED)
@@ -601,14 +601,16 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
         }
 
         switch (cardSTATE) {
-            case MFEMUL_NOFIELD:
+            case MFEMUL_NOFIELD: {
                 if (DBGLEVEL >= DBG_EXTENDED)
                     Dbprintf("MFEMUL_NOFIELD");
                 break;
-            case MFEMUL_HALTED:
+            }
+            case MFEMUL_HALTED: {
                 if (DBGLEVEL >= DBG_EXTENDED)
                     Dbprintf("MFEMUL_HALTED");
                 break;
+            }
             case MFEMUL_IDLE: {
                 LogTrace(uart->output, uart->len, uart->startTime * 16 - DELAY_AIR2ARM_AS_TAG, uart->endTime * 16 - DELAY_AIR2ARM_AS_TAG, uart->parity, true);
                 if (DBGLEVEL >= DBG_EXTENDED)
@@ -712,8 +714,9 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
             // WORK
             case MFEMUL_WORK: {
 
-                if (DBGLEVEL >= DBG_EXTENDED)
+                if (DBGLEVEL >= DBG_EXTENDED) {
                     Dbprintf("[MFEMUL_WORK] Enter in case");
+                }
 
                 if (receivedCmd_len == 0) {
                     if (DBGLEVEL >= DBG_EXTENDED) Dbprintf("[MFEMUL_WORK] NO CMD received");
@@ -724,13 +727,14 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                 if (encrypted_data) {
                     // decrypt seqence
                     mf_crypto1_decryptEx(pcs, receivedCmd, receivedCmd_len, receivedCmd_dec);
-                    if (DBGLEVEL >= DBG_EXTENDED) Dbprintf("[MFEMUL_WORK] Decrypt seqence");
+                    if (DBGLEVEL >= DBG_EXTENDED) Dbprintf("[MFEMUL_WORK] Decrypt sequence");
                 } else {
                     // Data in clear
                     memcpy(receivedCmd_dec, receivedCmd, receivedCmd_len);
                 }
 
-                if (!CheckCrc14A(receivedCmd_dec, receivedCmd_len)) { // all commands must have a valid CRC
+                // all commands must have a valid CRC
+                if (!CheckCrc14A(receivedCmd_dec, receivedCmd_len)) {
                     EmSend4bit(encrypted_data ? mf_crypto1_encrypt4bit(pcs, CARD_NACK_NA) : CARD_NACK_NA);
                     FpgaDisableTracing();
 
@@ -1255,6 +1259,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
         }  // End Switch Loop
     }  // End While Loop
 
+    FpgaDisableTracing();
 
     Dbprintf("Emulator stopped. Tracing: %d  trace length: %d ", get_tracing(), BigBuf_get_traceLen());
 

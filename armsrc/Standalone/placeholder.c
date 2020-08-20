@@ -6,7 +6,7 @@ void ModInfo(void) {
     DbpString("  No standalone mode present");
 }
 
-void RunMod() {
+void RunMod(void) {
 }
 
 void StandaloneReplyStatus() {

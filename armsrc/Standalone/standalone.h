@@ -11,8 +11,8 @@
 #ifndef __STANDALONE_H
 #define __STANDALONE_H
 
-void RunMod();
-void ModInfo();
-void StandaloneReplyStatus();
+void RunMod(void);
+void ModInfo(void);
+void StandaloneReplyStatus(void);
 
 #endif /* __STANDALONE_H */

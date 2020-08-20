@@ -135,7 +135,7 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define ICLASS_CMD_ACT              0xE
 
 #define ICLASS_CREDIT(x)            (((x) & 0x10) == 0x10)
-#define ICLASS_DEBIT(x)             !(ICLASS_CREDIT(x))
+#define ICLASS_DEBIT(x)             (((x) & 0x80) == 0x80)
 
 
 #define ISO14443A_CMD_REQA          0x26
@@ -163,6 +163,10 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 
 #define MIFARE_EV1_PERSONAL_UID     0x40
 #define MIFARE_EV1_SETMODE          0x43
+#define MIFARE_EV1_UIDF0            0x00
+#define MIFARE_EV1_UIDF1            0x40
+#define MIFARE_EV1_UIDF2            0x20
+#define MIFARE_EV1_UIDF3            0x60
 
 #define MIFARE_ULC_WRITE            0xA2
 #define MIFARE_ULC_COMP_WRITE       0xA0
@@ -236,6 +240,40 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define ISO14443B_PING         0xBA
 #define ISO14443B_PONG         0xAB
 
+
+// defined crypto RF commands
+// only interpreting channel 1 communication
+#define CRYPTORF_SET_USER_ZONE      0x11
+#define CRYPTORF_READ_USER_ZONE     0x12
+#define CRYPTORF_WRITE_USER_ZONE    0x13
+#define CRYPTORF_WRITE_SYSTEM_ZONE  0x14
+#define CRYPTORF_READ_SYSTEM_ZONE   0x16
+#define CRYPTORF_VERIFY_CRYPTO      0x18
+#define CRYPTORF_SEND_CHECKSUM      0x19
+#define CRYPTORF_DESELECT           0x1A
+#define CRYPTORF_IDLE               0x1B
+#define CRYPTORF_CHECK_PASSWORD     0x1C
+
+// defined Crypto RF errors
+#define CRYPTORF_ERR_ACCESS_DENIED_ZONE               0x99
+#define CRYPTORF_ERR_PARAM_INVALID                    0xA1
+#define CRYPTORF_ERR_ADDRES_INVALID                   0xA2
+#define CRYPTORF_ERR_LENGTH_INVALID                   0xA3
+#define CRYPTORF_ERR_AUTH_ENC_REQ                     0xA9
+#define CRYPTORF_ERR_ACCESS_DENIED_WLOCK              0xB9
+#define CRYPTORF_ERR_BYTE_ACCESS_DENIED_NOT_ALLOWED   0xBA
+#define CRYPTORF_ERR_ACCESS_DENIED_NOT_ALLOWED        0xBA
+#define CRYPTORF_ERR_BYTE_ACCESS_DENIED_PASSWD_REQ    0xBC
+#define CRYPTORF_ERR_CHECKSUM_FAIL2                   0xC8
+#define CRYPTORF_ERR_CHECKSUM_FAIL                    0xC9
+#define CRYPTORF_ERR_PASSWD_REQ                       0xD9
+#define CRYPTORF_ERR_FUSE_ACCESS_DENIED               0xDF
+#define CRYPTORF_ERR_MODIFY_FORBIDDEN                 0xE9
+#define CRYPTORF_ERR_ACCESS_DENIED_FUSE_ORDR          0xE9
+#define CRYPTORF_ERR_MEMORY_WRITE_DATA_M              0xED
+#define CRYPTORF_ERR_MEMORY_ACCESS                    0xEE
+#define CRYPTORF_ERR_MEMORY_ACCESS_SEC                0xF9
+
 //First byte is 26
 #define ISO15693_INVENTORY     0x01
 #define ISO15693_STAYQUIET     0x02
@@ -293,7 +331,6 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define TOPAZ_WRITE_E8                0x54 // Write-with-erase (eight bytes)
 #define TOPAZ_WRITE_NE8               0x1B // Write-no-erase (eight bytes)
 
-
 // Definitions of which protocol annotations there are available
 #define ISO_14443A       0
 #define ICLASS           1
@@ -308,10 +345,11 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define PROTO_HITAG1    10
 #define THINFILM        11
 #define LTO             12
-#define PROTO_HITAG2    13 
+#define PROTO_HITAG2    13
 #define PROTO_HITAGS    14
+#define PROTO_CRYPTORF  15
 
-//-- Picopass fuses
+// Picopass fuses
 #define FUSE_FPERS   0x80
 #define FUSE_CODING1 0x40
 #define FUSE_CODING0 0x20
@@ -320,6 +358,11 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define FUSE_FPROD1  0x04
 #define FUSE_FPROD0  0x02
 #define FUSE_RA      0x01
+
+// Picopass Pagemode fuses
+#define PICOPASS_NON_SECURE_PAGEMODE 0x01
+#define PICOPASS_SECURE_PAGEMODE     0x11
+
 
 // ISO 7816-4 Basic interindustry commands. For command APDU's.
 #define ISO7816_READ_BINARY             0xB0
@@ -345,42 +388,74 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 // 6x xx = ERROR
 
 // MIFARE DESFire command set:
-#define MFDES_CREATE_APPLICATION        0xca
-#define MFDES_DELETE_APPLICATION        0xda
-#define MFDES_GET_APPLICATION_IDS       0x6a
-#define MFDES_SELECT_APPLICATION        0x5a
-#define MFDES_FORMAT_PICC               0xfc
-#define MFDES_GET_VERSION               0x60
-#define MFDES_READ_DATA                 0xbd
-#define MFDES_WRITE_DATA                0x3d
-#define MFDES_GET_VALUE                 0x6c
-#define MFDES_CREDIT                    0x0c
-#define MFDES_DEBIT                     0xdc
-#define MFDES_LIMITED_CREDIT            0x1c
-#define MFDES_WRITE_RECORD              0x3b
-#define MFDES_READ_RECORDS              0xbb
-#define MFDES_CLEAR_RECORD_FILE         0xeb
-#define MFDES_COMMIT_TRANSACTION        0xc7
-#define MFDES_ABORT_TRANSACTION         0xa7
-#define MFDES_GET_FREE_MEMORY           0x6e
-#define MFDES_GET_FILE_IDS              0x6f
-#define MFDES_GET_ISOFILE_IDS           0x61
-#define MFDES_GET_FILE_SETTINGS         0xf5
-#define MFDES_CHANGE_FILE_SETTINGS      0x5f
-#define MFDES_CREATE_STD_DATA_FILE      0xcd
-#define MFDES_CREATE_BACKUP_DATA_FILE   0xcb
-#define MFDES_CREATE_VALUE_FILE         0xcc
-#define MFDES_CREATE_LINEAR_RECORD_FILE 0xc1
-#define MFDES_CREATE_CYCLIC_RECORD_FILE 0xc0
-#define MFDES_DELETE_FILE               0xdf
-#define MFDES_AUTHENTICATE              0x0a  // AUTHENTICATE_NATIVE
-#define MFDES_AUTHENTICATE_ISO          0x1a  // AUTHENTICATE_STANDARD
-#define MFDES_AUTHENTICATE_AES          0xaa
-#define MFDES_CHANGE_KEY_SETTINGS       0x54
+#define MFDES_AUTHENTICATE              0x0A  // AUTHENTICATE_NATIVE
+#define MFDES_AUTHENTICATE_ISO          0x1A  // AUTHENTICATE_STANDARD
+#define MFDES_AUTHENTICATE_AES          0xAA
+
+#define MFDES_CREDIT                    0x0C
+#define MFDES_LIMITED_CREDIT            0x1C
+#define MFDES_WRITE_RECORD              0x3B
+#define MFDES_READSIG                   0x3C
+#define MFDES_WRITE_DATA                0x3D
 #define MFDES_GET_KEY_SETTINGS          0x45
-#define MFDES_CHANGE_KEY                0xc4
+#define MFDES_GET_UID                   0x51
+#define MFDES_CHANGE_KEY_SETTINGS       0x54
+#define MFDES_SELECT_APPLICATION        0x5A
+#define MFDES_CHANGE_FILE_SETTINGS      0x5F
+#define MFDES_GET_VERSION               0x60
+#define MFDES_GET_ISOFILE_IDS           0x61
 #define MFDES_GET_KEY_VERSION           0x64
-#define MFDES_AUTHENTICATION_FRAME      0xAF
+#define MFDES_GET_APPLICATION_IDS       0x6A
+#define MFDES_GET_VALUE                 0x6C
+#define MFDES_GET_FREE_MEMORY           0x6E
+#define MFDES_GET_DF_NAMES              0x6D
+#define MFDES_GET_FILE_IDS              0x6F
+#define MFDES_ABORT_TRANSACTION         0xA7
+#define MFDES_ADDITIONAL_FRAME          0xAF
+#define MFDES_READ_RECORDS              0xBB
+#define MFDES_READ_DATA                 0xBD
+#define MFDES_CREATE_CYCLIC_RECORD_FILE 0xC0
+#define MFDES_CREATE_LINEAR_RECORD_FILE 0xC1
+#define MFDES_CHANGE_KEY                0xC4
+#define MFDES_COMMIT_TRANSACTION        0xC7
+#define MFDES_CREATE_APPLICATION        0xCA
+#define MFDES_CREATE_BACKUP_DATA_FILE   0xCB
+#define MFDES_CREATE_VALUE_FILE         0xCC
+#define MFDES_CREATE_STD_DATA_FILE      0xCD
+#define MFDES_DELETE_APPLICATION        0xDA
+#define MFDES_DEBIT                     0xDC
+#define MFDES_DELETE_FILE               0xDF
+#define MFDES_CLEAR_RECORD_FILE         0xEB
+#define MFDES_GET_FILE_SETTINGS         0xF5
+#define MFDES_FORMAT_PICC               0xFC
+
+
+// MIFARE DESFire status & error codes:
+#define MFDES_S_OPERATION_OK            0x00
+#define MFDES_S_NO_CHANGES              0x0C
+#define MFDES_S_SIGNATURE               0x90
+#define MFDES_S_ADDITIONAL_FRAME        0xAF
+
+#define MFDES_E_OUT_OF_EEPROM           0x0E
+#define MFDES_E_ILLEGAL_COMMAND_CODE    0x1C
+#define MFDES_E_INTEGRITY_ERROR         0x1E
+#define MFDES_E_NO_SUCH_KEY             0x40
+#define MFDES_E_LENGTH                  0x7E
+#define MFDES_E_PERMISSION_DENIED       0x9D
+#define MFDES_E_PARAMETER_ERROR         0x9E
+#define MFDES_E_APPLICATION_NOT_FOUND   0xA0
+#define MFDES_E_APPL_INTEGRITY          0xA1
+#define MFDES_E_AUTHENTIFICATION_ERROR  0xAE
+#define MFDES_E_BOUNDARY                0xBE
+#define MFDES_E_PICC_INTEGRITY          0xC1
+#define MFDES_E_COMMAND_ABORTED         0xCA
+#define MFDES_E_PICC_DISABLED           0xCD
+#define MFDES_E_COUNT                   0xCE
+#define MFDES_E_DUPLICATE               0xDE
+#define MFDES_E_EEPROM                  0xEE
+#define MFDES_E_FILE_NOT_FOUND          0xF0
+#define MFDES_E_FILE_INTEGRITY          0xF1
+
 
 // LEGIC Commands
 #define LEGIC_MIM_22                    0x0D
@@ -595,7 +670,7 @@ ISO 7816-4 Basic interindustry commands. For command APDU's.
 
 #define HITAG2_READ_PAGE                0x3    // page number in bits 5 to 3, page number inverted in bit 0 and following 2 bits
 #define HITAG2_READ_PAGE_INVERTED       0x1    // page number in bits 5 to 3, page number inverted in bit 0 and following 2 bits
-#define HITAG2_WRITE_PAGE               0x2   // page number in bits 5 to 3, page number 
+#define HITAG2_WRITE_PAGE               0x2   // page number in bits 5 to 3, page number
 
 
 // HITAG S commands

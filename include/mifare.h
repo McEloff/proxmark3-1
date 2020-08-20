@@ -70,6 +70,31 @@ typedef struct {
     uint32_t ProxToAirDuration;
     uint8_t  par; // enough for precalculated parity of 8 Byte responses
 } PACKED tag_response_info_t;
+
+// DESFIRE_RAW flag enums
+typedef enum DESFIRE_COMMAND {
+    NONE         = 0x00,
+    INIT         = 0x01,
+    DISCONNECT   = 0x02,
+    CLEARTRACE   = 0x04,
+    BAR          = 0x10,
+} desfire_command_t;
+
+typedef enum {
+    MFDES_AUTH_DES = 1,
+    MFDES_AUTH_ISO = 2,
+    MFDES_AUTH_AES = 3,
+    MFDES_AUTH_PICC = 4
+} mifare_des_authmode_t;
+
+typedef enum {
+    MFDES_ALGO_DES = 1,
+    MFDES_ALGO_3DES = 2,
+    MFDES_ALGO_3K3DES = 3,
+    MFDES_ALGO_AES = 4
+} mifare_des_authalgo_t;
+
+
 //-----------------------------------------------------------------------------
 // ISO 14443B
 //-----------------------------------------------------------------------------
@@ -137,6 +162,8 @@ typedef enum SMARTCARD_COMMAND {
     SC_RAW = (1 << 2),
     SC_SELECT = (1 << 3),
     SC_RAW_T0 = (1 << 4),
+    SC_CLEARLOG = (1 << 5),
+    SC_LOG = (1 << 6),
 } smartcard_command_t;
 
 //-----------------------------------------------------------------------------

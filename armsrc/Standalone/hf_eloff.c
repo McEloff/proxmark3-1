@@ -11,7 +11,7 @@
 
 uint32_t eloff_lf_bits = 0;
 
-void StandaloneReplyStatus() {
+void StandaloneReplyStatus(void) {
     if (eloff_lf_bits != 0) {
         reply_ng(CMD_GET_STANDALONE_DONE_STATUS, STANDALONE_ELOFF_LF_SUCCESS, (uint8_t *) &eloff_lf_bits, sizeof(eloff_lf_bits));
     } else {
@@ -37,7 +37,7 @@ uint32_t DemodLF(int trigger_threshold) {
     return ret;
 }
 
-void WorkWithLF() {
+void WorkWithLF(void) {
     FpgaDownloadAndGo(FPGA_BITSTREAM_LF);
 
     int step = 0;
@@ -71,7 +71,7 @@ void WorkWithLF() {
     }
  }
 
-void WorkWithHF() {
+void WorkWithHF(void) {
     FpgaDownloadAndGo(FPGA_BITSTREAM_HF);
 
     int step = 0;
@@ -139,7 +139,7 @@ void WorkWithHF() {
     }
 }
 
-void RunMod() {
+void RunMod(void) {
     StandAloneMode();
 
     if (BUTTON_HELD(5000) > 0) {
