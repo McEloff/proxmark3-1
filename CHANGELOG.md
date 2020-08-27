@@ -8,6 +8,7 @@
  - Trace list mifare add parameter for nested keys check
  - Ignore BCC errors in select iso1443a tags process
  - Mikron JSC Russia Ultralight EV1 41 pages tag type support
+ - Add test for Ultralight gen2 magic 'hf search'
 
 # Change Log
 All notable changes to this project will be documented in this file.
