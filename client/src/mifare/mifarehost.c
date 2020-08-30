@@ -58,8 +58,8 @@ int mfDarkside(uint8_t blockno, uint8_t key_type, uint64_t *key) {
 
         // wait cycle
         while (true) {
-            printf(".");
-            fflush(stdout);
+            PrintAndLogEx(NORMAL, "." NOLF);
+
             if (kbd_enter_pressed()) {
                 return PM3_EOPABORTED;
             }
@@ -206,8 +206,7 @@ int mfCheckKeys_fast(uint8_t sectorsCnt, uint8_t firstChunk, uint8_t lastChunk, 
 
     while (!WaitForResponseTimeout(CMD_ACK, &resp, 2000)) {
         timeout++;
-        printf(".");
-        fflush(stdout);
+        PrintAndLogEx(NORMAL, "." NOLF);
         // max timeout for one chunk of 85keys, 60*3sec = 180seconds
         // s70 with 40*2 keys to check, 80*85 = 6800 auth.
         // takes about 97s, still some margin before abort
@@ -865,7 +864,7 @@ int mfCSetUID(uint8_t *uid, uint8_t *atqa, uint8_t *sak, uint8_t *oldUID, uint8_
 
 int mfCWipe(uint8_t *uid, uint8_t *atqa, uint8_t *sak) {
     uint8_t block0[16] = {0x01, 0x02, 0x03, 0x04, 0x04, 0x08, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xBE, 0xAF};
-    //uint8_t blockD[16] = {0x00};
+    uint8_t blockD[16] = {0x00};
     uint8_t blockK[16] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x08, 0x77, 0x8F, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
     uint8_t params = MAGIC_SINGLE;
 
@@ -887,12 +886,12 @@ int mfCWipe(uint8_t *uid, uint8_t *atqa, uint8_t *sak) {
             PrintAndLogEx(INPLACE, "wipe block %d", blockNo);
 
             if (blockNo == 0) {
-                res = mfCSetBlock(blockNo, block0, NULL, (params | MAGIC_WIPE));
+                res = mfCSetBlock(blockNo, block0, NULL, params);
             } else {
                 if (mfIsSectorTrailer(blockNo))
                     res = mfCSetBlock(blockNo, blockK, NULL, params);
-//                else
-//                    res = mfCSetBlock(blockNo, blockD, NULL, params);
+                else
+                    res = mfCSetBlock(blockNo, blockD, NULL, params);
             }
 
             if (res == PM3_SUCCESS)
@@ -1037,13 +1036,15 @@ int detect_classic_nackbug(bool verbose) {
         PrintAndLogEx(SUCCESS, "press pm3-button on the Proxmark3 device to abort both Proxmark3 and client.\n");
 
     while (true) {
-        printf(".");
-        fflush(stdout);
+        
+        PrintAndLogEx(NORMAL, "." NOLF);
         if (kbd_enter_pressed()) {
             return PM3_EOPABORTED;
         }
 
         if (WaitForResponseTimeout(CMD_HF_MIFARE_NACK_DETECT, &resp, 500)) {
+
+            PrintAndLogEx(NORMAL, "");
 
             if (resp.status == PM3_EOPABORTED) {
                 PrintAndLogEx(WARNING, "button pressed. Aborted.");
@@ -1053,7 +1054,6 @@ int detect_classic_nackbug(bool verbose) {
             uint8_t ok = resp.data.asBytes[0];
             uint8_t nacks = resp.data.asBytes[1];
             uint16_t auths = bytes_to_num(resp.data.asBytes + 2, 2);
-            PrintAndLogEx(NORMAL, "");
 
             if (verbose) {
                 PrintAndLogEx(SUCCESS, "num of auth requests  : %u", auths);
@@ -1070,7 +1070,7 @@ int detect_classic_nackbug(bool verbose) {
                 case 97 : {
                     if (verbose) {
                         PrintAndLogEx(FAILED, "card random number generator seems to be based on the well-known generating polynomial");
-                        PrintAndLogEx(NORMAL, "[- ]with 16 effective bits only, but shows unexpected behavior, try again.");
+                        PrintAndLogEx(FAILED, "with 16 effective bits only, but shows unexpected behavior, try again.");
                     }
                     return PM3_SUCCESS;
                 }

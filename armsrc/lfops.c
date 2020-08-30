@@ -27,6 +27,7 @@
 #include "protocols.h"
 #include "pmflash.h"
 #include "flashmem.h" // persistence on flash
+#include "appmain.h" // print stack
 
 /*
 Notes about EM4xxx timings.
@@ -2012,13 +2013,12 @@ void T55xxReadBlock(uint8_t page, bool pwd_mode, bool brute_mem, uint8_t block, 
     flags                |= (downlink_mode & 3) << 3;
     if (brute_mem) flags |= 0x0100;
 
-//    T55xxReadBlockExt (flags,block,pwd);
+
     size_t samples = 12000;
-    // bool brute_mem = (flags & 0x0100) >> 8;
 
     LED_A_ON();
 
-    if (brute_mem) samples = 1024;
+    if (brute_mem) samples = 2048;
 
     //-- Set Read Flag to ensure SendCMD does not add "data" to the packet
     //-- flags |= 0x40;
@@ -2046,44 +2046,59 @@ void T55xxReadBlock(uint8_t page, bool pwd_mode, bool brute_mem, uint8_t block, 
     DoPartialAcquisition(0, false, samples, 0);
 
     // Turn the field off
-    if (!brute_mem) {
+    if (brute_mem == false) {
         FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
         reply_ng(CMD_LF_T55XX_READBL, PM3_SUCCESS, NULL, 0);
         LED_A_OFF();
     }
-
 }
+
 
 void T55xx_ChkPwds(uint8_t flags) {
 
-    DbpString("[+] T55XX Check pwds using flashmemory starting");
+#define CHK_SAMPLES_SIGNAL 2048
+
+#ifdef WITH_FLASH
+    DbpString(_CYAN_("T55XX Check pwds using flashmemory starting"));
+#else
+    DbpString(_CYAN_("T55XX Check pwds starting"));
+#endif
 
     // First get baseline and setup LF mode.
-    // tends to mess up BigBuf
     uint8_t *buf = BigBuf_get_addr();
-    uint8_t ret = 0;
     uint8_t downlink_mode = (flags >> 3) & 0x03;
-    uint32_t b1, baseline = 0;
+    uint64_t b1, baseline_faulty = 0;
 
-    // collect baseline for failed attempt
+    DbpString("Determine baseline...");
+
+    // collect baseline for failed attempt  ( should give me block1 )
     uint8_t x = 32;
     while (x--) {
         b1 = 0;
-        T55xxReadBlock(0, 0, true, 1, 0, downlink_mode);
-        for (uint16_t j = 0; j < 1024; ++j)
-            b1 += buf[j];
-
+        T55xxReadBlock(0, 0, true, 0, 0, downlink_mode);
+        for (uint16_t j = 0; j < CHK_SAMPLES_SIGNAL; ++j) {
+            b1 += (buf[j] * buf[j]);
+        }
         b1 *= b1;
         b1 >>= 8;
-        baseline += b1;
+        baseline_faulty += b1;
     }
+    baseline_faulty >>= 5;
 
-    baseline >>= 5;
-    Dbprintf("[=] Baseline determined [%u]", baseline);
+    if (DBGLEVEL >= DBG_DEBUG)
+        Dbprintf("Baseline " _YELLOW_("%llu"), baseline_faulty);    
 
     uint8_t *pwds = BigBuf_get_EM_addr();
     uint16_t pwd_count = 0;
-    uint32_t candidate = 0;
+
+    struct p {
+        bool found;
+        uint32_t candidate;
+    } PACKED payload;
+
+    payload.found = false;
+    payload.candidate = 0;
+
 #ifdef WITH_FLASH
 
     BigBuf_Clear_EM();
@@ -2109,48 +2124,51 @@ void T55xx_ChkPwds(uint8_t flags) {
     if (isok != pwd_size_available)
         goto OUT;
 
-    Dbprintf("[=] Password dictionary count %d ", pwd_count);
+    Dbprintf("Password dictionary count " _YELLOW_("%d"), pwd_count);
+
 #endif
 
-    uint32_t pwd = 0, curr = 0, prev = 0;
-    for (uint16_t i = 0; i < pwd_count; ++i) {
+    uint64_t curr = 0, prev = 0;
+    int32_t idx = -1;
 
-        if (BUTTON_PRESS() && !data_available()) {
-            goto OUT;
-        }
+    for (uint32_t i = 0; i < pwd_count; i++) {
 
-        pwd = bytes_to_num(pwds + i * 4, 4);
+        uint32_t pwd = bytes_to_num(pwds + (i * 4), 4);
 
         T55xxReadBlock(0, true, true, 0, pwd, downlink_mode);
 
-        // calc mean of BigBuf 1024 samples.
-        uint32_t sum = 0;
-        for (uint16_t j = 0; j < 1024; ++j) {
-            sum += buf[j];
+        uint64_t sum = 0;
+        for (uint16_t j = 0; j < CHK_SAMPLES_SIGNAL; ++j) {
+            sum += (buf[j] * buf[j]);
         }
-
         sum *= sum;
         sum >>= 8;
 
-        int32_t tmp = (sum - baseline);
-        curr = ABS(tmp);
+        int64_t tmp_dist = (baseline_faulty - sum);
+        curr = ABS(tmp_dist);
 
-        Dbprintf("[=] Pwd %08X  | ABS %u", pwd, curr);
-
+        if (DBGLEVEL >= DBG_DEBUG)
+            Dbprintf("%08x has distance " _YELLOW_("%llu"), pwd, curr);
+            
         if (curr > prev) {
-            Dbprintf("[=]  --> ABS %u  Candidate %08X <--", curr, pwd);
-            candidate = pwd;
+            idx = i;
             prev = curr;
         }
     }
 
-    if (candidate)
-        ret = 1;
+    if (idx != -1) {
+        payload.found = true;
+        payload.candidate = bytes_to_num(pwds + (idx * 4), 4);
+    }
 
+#ifdef WITH_FLASH
 OUT:
+#endif
+
     FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
-    reply_mix(CMD_ACK, ret, candidate, 0, 0, 0);
     LEDsoff();
+    reply_ng(CMD_LF_T55XX_CHK_PWDS, PM3_SUCCESS, (uint8_t*)&payload, sizeof(payload));
+    BigBuf_free();
 }
 
 void T55xxWakeUp(uint32_t pwd, uint8_t flags) {
@@ -2596,44 +2614,53 @@ void Cotag(uint32_t arg0) {
 
     LED_A_ON();
 
-    LFSetupFPGAForADC(LF_FREQ2DIV(132), true);
+    LFSetupFPGAForADC(LF_DIVISOR_125, true);
 
     //clear buffer now so it does not interfere with timing later
     BigBuf_free();
     BigBuf_Clear_ext(false);
 
     //send COTAG start pulse
-    /*
-        ON(740)  OFF(2035)
-        ON(3330) OFF(2035)
-        ON(740)  OFF(2035)
-        ON(1000)
-    */
+    ON(740)  OFF(2035)
+    ON(3330) OFF(2035)
+    ON(740)  OFF(2035)
+    ON(1000)
 
+
+/*
     ON(800)  OFF(2200)
     ON(3600) OFF(2200)
     ON(800)  OFF(2200)
     ON(3400)
-
-    FpgaSendCommand(FPGA_CMD_SET_DIVISOR, LF_FREQ2DIV(125));
-
+*/
     switch (rawsignal) {
-        case 0:
+        case 0: {
             doCotagAcquisition();
+            reply_ng(CMD_LF_COTAG_READ, PM3_SUCCESS, NULL, 0);
             break;
-        case 1:
-            doCotagAcquisitionManchester();
+        }
+        case 1: {
+            uint8_t *dest = BigBuf_malloc(COTAG_BITS);
+            uint16_t bits = doCotagAcquisitionManchester(dest, COTAG_BITS);
+            reply_ng(CMD_LF_COTAG_READ, PM3_SUCCESS, dest, bits);
             break;
+        }
         case 2: {
             DoAcquisition_config(false, 0);
+            reply_ng(CMD_LF_COTAG_READ, PM3_SUCCESS, NULL, 0);
+            break;
+        }
+        default: {
+            reply_ng(CMD_LF_COTAG_READ, PM3_SUCCESS, NULL, 0);
             break;
         }
     }
 
+
     // Turn the field off
-    FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF); // field off
-    reply_ng(CMD_LF_COTAG_READ, PM3_SUCCESS, NULL, 0);
+    FpgaWriteConfWord(FPGA_MAJOR_MODE_OFF);
     LEDsoff();
+
 }
 
 /*
