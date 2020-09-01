@@ -10,6 +10,7 @@
  - Mikron JSC Russia Ultralight EV1 41 pages tag type support
  - Add test for Ultralight gen2 magic 'hf search'
  - Add test for Ultralight EV1 gen2 magic 'hf search'
+ - Add gen 3 magic card operations 'hf mf gen3*'
 
 # Change Log
 All notable changes to this project will be documented in this file.
