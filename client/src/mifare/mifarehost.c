@@ -948,7 +948,7 @@ int mfGen3UID(uint8_t *uid, uint8_t uidlen, uint8_t *oldUid) {
     clearCommandBuffer();
     SendCommandMIX(CMD_HF_MIFARE_GEN3UID, uidlen, 0, 0, uid, uidlen);
     PacketResponseNG resp;
-    if (WaitForResponseTimeout(CMD_HF_MIFARE_GEN3UID, &resp, 2500)) {
+    if (WaitForResponseTimeout(CMD_HF_MIFARE_GEN3UID, &resp, 3500)) {
         if (resp.status == PM3_SUCCESS && oldUid) {
             memcpy(oldUid, resp.data.asBytes, uidlen);
         }
@@ -978,7 +978,7 @@ int mfGen3Freez(void) {
     clearCommandBuffer();
     SendCommandNG(CMD_HF_MIFARE_GEN3FREEZ, NULL, 0);
     PacketResponseNG resp;
-    if (WaitForResponseTimeout(CMD_HF_MIFARE_GEN3FREEZ, &resp, 2000)) {
+    if (WaitForResponseTimeout(CMD_HF_MIFARE_GEN3FREEZ, &resp, 3500)) {
         return resp.status;
     } else {
         PrintAndLogEx(WARNING, "Command execute timeout");
