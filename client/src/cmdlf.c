@@ -372,7 +372,7 @@ int CmdLFCommandRead(const char *Cmd) {
     if (resp.status == PM3_SUCCESS) {
         if (i) {
             PrintAndLogEx(SUCCESS, "downloading response signal data");
-            getSamples(0, true);
+            getSamples(0, false);
             return PM3_SUCCESS;
         } else {
             PrintAndLogEx(WARNING, "timeout while waiting for reply.");
@@ -595,7 +595,7 @@ int lf_read(bool verbose, uint32_t samples) {
     if (!session.pm3_present) return PM3_ENOTTY;
 
     struct p {
-        uint8_t verbose;
+        bool verbose;
         uint32_t samples;
     } PACKED;
 
@@ -605,21 +605,19 @@ int lf_read(bool verbose, uint32_t samples) {
 
     clearCommandBuffer();
     SendCommandNG(CMD_LF_ACQ_RAW_ADC, (uint8_t *)&payload, sizeof(payload));
-
     PacketResponseNG resp;
     if (g_lf_threshold_set) {
         WaitForResponse(CMD_LF_ACQ_RAW_ADC, &resp);
     } else {
         if (!WaitForResponseTimeout(CMD_LF_ACQ_RAW_ADC, &resp, 2500)) {
-            PrintAndLogEx(WARNING, "command execution time out");
+            PrintAndLogEx(WARNING, "(lf_read) command execution time out");
             return PM3_ETIMEOUT;
         }
     }
 
-    // resp.oldarg[0] is bits read not bytes read.
-    uint32_t bits = (resp.data.asDwords[0] / 8);
-    getSamples(bits, verbose);
-
+    // response is number of bits read
+    uint32_t size = (resp.data.asDwords[0] / 8);
+    getSamples(size, verbose);
     return PM3_SUCCESS;
 }
 
@@ -1191,7 +1189,7 @@ static bool CheckChipType(bool getDeviceData) {
     //check for em4x05/em4x69 chips first
     uint32_t word = 0;
     if (EM4x05IsBlock0(&word)) {
-        PrintAndLogEx(SUCCESS, "Chipset detection: " _GREEN_("EM4x05/EM4x69"));
+        PrintAndLogEx(SUCCESS, "Chipset detection: " _GREEN_("EM4x05 / EM4x69"));
         PrintAndLogEx(HINT, "Hint: try " _YELLOW_("`lf em 4x05`") " commands");
         retval = true;
         goto out;
@@ -1212,6 +1210,7 @@ static bool CheckChipType(bool getDeviceData) {
         goto out;
     }
 
+    PrintAndLogEx(NORMAL, "Couldn't identify a chipset");
 out:
     save_restoreGB(GRAPH_RESTORE);
     save_restoreDB(GRAPH_RESTORE);

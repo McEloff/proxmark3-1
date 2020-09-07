@@ -5,18 +5,17 @@
  - 'hf mf sim', 'hf 14a sim' online and offline ar/nr nonces collection
  - 'hf mf sim' and 'hf 14a sim' correct offline simulation
  - Mifare classic simulation, number of writes limit
- - Trace list mifare add parameter for nested keys check
- - Ignore BCC errors in select iso1443a tags process
- - Mikron JSC Russia Ultralight EV1 41 pages tag type support
- - Add test for Ultralight gen2 magic 'hf search'
- - Add test for Ultralight EV1 gen2 magic 'hf search'
- - Add gen 3 magic card operations 'hf mf gen3*'
 
 # Change Log
 All notable changes to this project will be documented in this file.
 This project uses the changelog in accordance with [keepchangelog](http://keepachangelog.com/). Please use this to write notable changes, which is not the same as git commit log...
 
 ## [unreleased][unreleased]
+ - Add `hf 14a config` to deal with badly configured cards: invalid ATQA/BCC/SAK (@doegox)"
+ - Mikron JSC Russia Ultralight EV1 41 pages tag type support (@McEloff)
+ - Add test for Ultralight gen2 magic 'hf search' (@McEloff)
+ - Add test for Ultralight EV1 gen2 magic 'hf search' (@McEloff)
+ - Added `hf mf gen3*`magic gen 3 card operations (@McEloff)
  - Readded verichip command which seems missing (@iceman1001)
  - Fix missing t55x7 config block detection (@iceman1001)
  - Fix missing define on proxspace (@mwalker33)
