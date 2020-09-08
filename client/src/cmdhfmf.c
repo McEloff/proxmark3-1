@@ -4261,6 +4261,8 @@ static int CmdHF14AMfCLoad(const char *Cmd) {
         datalen -= 16;
 
         PrintAndLogEx(NORMAL, "." NOLF);
+        fflush(stdout);
+
         blockNum++;
 
         // magic card type - mifare 1K
@@ -4548,6 +4550,9 @@ static int CmdHF14AMfCView(const char *Cmd) {
             free(dump);
             return PM3_ESOFT;
         }
+        
+        PrintAndLogEx(NORMAL, "." NOLF);
+        fflush(stdout);
     }
 
     PrintAndLogEx(NORMAL, "");
