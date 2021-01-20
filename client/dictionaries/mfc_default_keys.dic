@@ -57,6 +57,9 @@ f1d83f964314 # RKF RejskortDanmark KeyB
 # 
 4b0b20107ccb # TNP3xxx
 #
+# Access control system
+605F5E5D5C5B
+#
 # more Keys from mfc_default_keys.lua
 000000000001
 000000000002
@@ -102,6 +105,11 @@ c934fe34d934
 cccccccccccc
 dddddddddddd
 eeeeeeeeeeee
+#
+# elevator
+# data from forum 
+FFFFFF545846
+#
 f1a97341a9fc
 44ab09010845 # hotel system
 85fed980ea5a # hotel system
@@ -650,7 +658,7 @@ C01FC822C6E5
 # More keys:
 8a19d40cf2b5
 ae8587108640
-135b88a94b8b, SafLock standalone door locks.
+135b88a94b8b # SafLock standalone door locks.
 #
 # Russian Troika card
 08B386463229
@@ -1129,7 +1137,150 @@ e2a9e88bfe16
 aade86b1f9c1
 5ea088c824c9
 c67beb41ffbf
-5ea088c824c9
-c67beb41ffbf
 b84d52971107
 52b0d3f6116e
+#
+# Data from https://pastebin.com/cLSQQ9xN
+ca3a24669d45
+4087c6a75a96
+160a91d29a9c
+b7bf0c13066e
+403f09848b87
+d73438698eea
+5f31f6fcd3a0
+a0974382c4c5
+a82045a10949
+#
+# Data from https://pastebin.com/2iV8h93h
+#
+# funnivarium
+# forum ankara
+#
+2602FFFFFFFF
+#
+# macera adasi
+# ankara kentpark
+# INACTIVE
+#
+0A4600FF00FF
+DFF293979FA7
+4D6F62692E45
+4118D7EF0902
+#
+# petrol ofisi
+# positive card
+# ode-gec
+#
+0406080A0C0E
+#
+# konya elkart
+#
+988ACDECDFB0
+120D00FFFFFF
+#
+# bowlingo
+# serdivan avym
+#
+4AE23A562A80
+#
+#  kart54
+#
+2AFFD6F88B97
+A9F3F289B70C
+DB6819558A25
+6130DFA578A0
+B16B2E573235
+42EF7BF572AB
+274E6101FC5E
+#
+# crazy park
+# kizilay avm
+#
+00DD300F4F10
+#
+# kartsistem B
+#
+FEE2A3FBC5B6
+#
+# toru ent
+# taurus avm
+#
+005078565703
+#
+# Ving?
+#
+0602721E8F06
+FC0B50AF8700
+F7BA51A9434E
+#
+# eskart
+# eskisehir transport card
+E902395C1744
+4051A85E7F2D
+7357EBD483CC
+D8BA1AA9ABA0
+76939DDD9E97
+3BF391815A8D
+#
+# muzekart
+# museum card for turkey
+7C87013A648A
+E8794FB14C63
+9F97C182585B
+EC070A52E539
+C229CE5123D5
+E495D6E69D9C
+26BF1A68B00F
+B1D3BC5A7CCA
+734EBE504CE8
+974A36E2B1BA
+C197AE6D6990
+4D80A10649DF
+037F64F470AD
+C9CD8D7C65E5
+B70B1957FE71
+CE7712C5071D
+C0AD1B72921A
+45FEE09C1D06
+E592ED478E59
+F3C1F1DB1D83
+704A81DDACED
+89E00BC444EF
+AFAAFCC40DEC
+ECC58C5D34CA
+57D83754711D
+D0DDDF2933EC
+240F0BB84681
+9E7168064993
+2F8A867B06B4
+#
+# bursakart
+# bursa transport card
+#
+A0A1A2A3A4A5
+755D49191A78
+DAC7E0CBA8FD
+68D3263A8CD6
+865B6472B1C0
+0860318A3A89
+1927A45A83D3
+B2FE3B2875A6
+#
+# playland
+# maltepe park
+#
+ABCC1276FCB0
+AABAFFCC7612
+#
+# lunasan
+# kocaeli fair
+#
+26107E7006A0
+#
+# gamefactory
+# ozdilek
+#
+17D071403C20
+#
+534F4C415249
+534f4c303232

@@ -64,6 +64,9 @@ typedef enum {
     jsfMfPlusKeys,
     jsfCustom,
     jsfMfDesfireKeys,
+    jsfEM4x05,
+    jsfEM4x69,
+    jsfEM4x50,
 } JSONFileType;
 
 typedef enum {
@@ -75,7 +78,7 @@ typedef enum {
 
 int fileExists(const char *filename);
 //bool create_path(const char *dirname);
-//bool setDefaultPath (savePaths_t pathIndex,const char *Path);  // set a path in the path list session.defaultPaths
+bool setDefaultPath(savePaths_t pathIndex, const char *Path);  // set a path in the path list session.defaultPaths
 
 char *newfilenamemcopy(const char *preferredName, const char *suffix);
 

@@ -575,6 +575,7 @@ void RunMod(void) {
             }
         }
     }
+    LEDsoff();
 }
 
 void StandaloneReplyStatus() {

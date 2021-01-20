@@ -122,7 +122,7 @@ void WorkWithHF(void) {
                 ptr += 16;
             }
             // start simulation
-            SimulateIso14443aTag(7, FLAG_UID_IN_EMUL, data);
+            SimulateIso14443aTag(7, FLAG_UID_IN_EMUL, data, 0);
         }
 
         // exit, send a usbcommand.

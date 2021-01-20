@@ -15,12 +15,12 @@
 #include "commonutil.h"  // ARRAYLEN
 #include "comms.h"
 #include "ui.h"
+#include "util.h"
 #include "cmdhf14a.h"
 #include "mifare/mifare4.h"
 #include "mifare/mad.h"
 #include "mifare/ndef.h"
 #include "cliparser.h"
-#include "emv/dump.h"
 #include "mifare/mifaredefault.h"
 #include "util_posix.h"
 #include "fileutils.h"
@@ -58,9 +58,9 @@ static char *getCardSizeStr(uint8_t fsize) {
 
     // is  LSB set?
     if (fsize & 1)
-        snprintf(retStr, sizeof(buf), "0x%02X (" _YELLOW_("%d - %d bytes") ")", fsize, usize, lsize);
+        snprintf(retStr, sizeof(buf), "0x%02X (" _GREEN_("%d - %d bytes") ")", fsize, usize, lsize);
     else
-        snprintf(retStr, sizeof(buf), "0x%02X (" _YELLOW_("%d bytes") ")", fsize, lsize);
+        snprintf(retStr, sizeof(buf), "0x%02X (" _GREEN_("%d bytes") ")", fsize, lsize);
     return buf;
 }
 
@@ -88,18 +88,17 @@ static char *getVersionStr(uint8_t major, uint8_t minor) {
     char *retStr = buf;
 
     if (major == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x (" _YELLOW_("DESFire MF3ICD40") ")", major, minor);
+        snprintf(retStr, sizeof(buf), "%x.%x (" _GREEN_("DESFire MF3ICD40") ")", major, minor);
     else if (major == 0x01 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x (" _YELLOW_("DESFire EV1") ")", major, minor);
+        snprintf(retStr, sizeof(buf), "%x.%x (" _GREEN_("DESFire EV1") ")", major, minor);
     else if (major == 0x12 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x (" _YELLOW_("DESFire EV2") ")", major, minor);
+        snprintf(retStr, sizeof(buf), "%x.%x (" _GREEN_("DESFire EV2") ")", major, minor);
     else if (major == 0x33 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x (" _YELLOW_("DESFire EV3") ")", major, minor);
+        snprintf(retStr, sizeof(buf), "%x.%x (" _GREEN_("DESFire EV3") ")", major, minor);
     else if (major == 0x30 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x (" _YELLOW_("DESFire Light") ")", major, minor);
-
+        snprintf(retStr, sizeof(buf), "%x.%x (" _GREEN_("DESFire Light") ")", major, minor);
     else if (major == 0x11 && minor == 0x00)
-        snprintf(retStr, sizeof(buf), "%x.%x (" _YELLOW_("Plus EV1") ")", major, minor);
+        snprintf(retStr, sizeof(buf), "%x.%x (" _GREEN_("Plus EV1") ")", major, minor);
     else
         snprintf(retStr, sizeof(buf), "%x.%x (" _YELLOW_("Unknown") ")", major, minor);
     return buf;
@@ -186,21 +185,26 @@ static int plus_print_signature(uint8_t *uid, uint8_t uidlen, uint8_t *signature
     PrintAndLogEx(INFO, "--- " _CYAN_("Tag Signature"));
 
     if (is_valid == false || i == ARRAYLEN(nxp_plus_public_keys)) {
-        PrintAndLogEx(SUCCESS, "Signature verification " _RED_("failed"));
+        PrintAndLogEx(INFO, "    Elliptic curve parameters: NID_secp224r1");
+        PrintAndLogEx(INFO, "             TAG IC Signature: %s", sprint_hex_inrow(signature, 16));
+        PrintAndLogEx(INFO, "                             : %s", sprint_hex_inrow(signature + 16, 16));
+        PrintAndLogEx(INFO, "                             : %s", sprint_hex_inrow(signature + 32, 16));
+        PrintAndLogEx(INFO, "                             : %s", sprint_hex_inrow(signature + 48, signature_len - 48));
+        PrintAndLogEx(SUCCESS, "       Signature verification: " _RED_("failed"));
         return PM3_ESOFT;
     }
 
     PrintAndLogEx(INFO, " IC signature public key name: " _GREEN_("%s"), nxp_plus_public_keys[i].desc);
     PrintAndLogEx(INFO, "IC signature public key value: %.32s", nxp_plus_public_keys[i].value);
-    PrintAndLogEx(INFO, "                             : %.32s", nxp_plus_public_keys[i].value + 16);
     PrintAndLogEx(INFO, "                             : %.32s", nxp_plus_public_keys[i].value + 32);
-    PrintAndLogEx(INFO, "                             : %.32s", nxp_plus_public_keys[i].value + 48);
+    PrintAndLogEx(INFO, "                             : %.32s", nxp_plus_public_keys[i].value + 64);
+    PrintAndLogEx(INFO, "                             : %.32s", nxp_plus_public_keys[i].value + 96);
     PrintAndLogEx(INFO, "    Elliptic curve parameters: NID_secp224r1");
     PrintAndLogEx(INFO, "             TAG IC Signature: %s", sprint_hex_inrow(signature, 16));
     PrintAndLogEx(INFO, "                             : %s", sprint_hex_inrow(signature + 16, 16));
     PrintAndLogEx(INFO, "                             : %s", sprint_hex_inrow(signature + 32, 16));
     PrintAndLogEx(INFO, "                             : %s", sprint_hex_inrow(signature + 48, signature_len - 48));
-    PrintAndLogEx(SUCCESS, "           Signature verified: " _GREEN_("successful"));
+    PrintAndLogEx(SUCCESS, "       Signature verification: " _GREEN_("successful"));
     return PM3_SUCCESS;
 }
 
@@ -229,6 +233,7 @@ static int plus_print_version(uint8_t *version) {
     PrintAndLogEx(SUCCESS, "  Production date: week " _GREEN_("%02x") " / " _GREEN_("20%02x"), version[7 + 7 + 7 + 5], version[7 + 7 + 7 + 5 + 1]);
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(INFO, "--- " _CYAN_("Hardware Information"));
+    PrintAndLogEx(INFO, "          Raw : %s", sprint_hex(version, 7));
     PrintAndLogEx(INFO, "     Vendor Id: " _YELLOW_("%s"), getTagInfo(version[0]));
     PrintAndLogEx(INFO, "          Type: %s", getTypeStr(version[1]));
     PrintAndLogEx(INFO, "       Subtype: " _YELLOW_("0x%02X"), version[2]);
@@ -237,6 +242,7 @@ static int plus_print_version(uint8_t *version) {
     PrintAndLogEx(INFO, "      Protocol: %s", getProtocolStr(version[6], true));
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(INFO, "--- " _CYAN_("Software Information"));
+    PrintAndLogEx(INFO, "          Raw : %s", sprint_hex(version + 7, 6));
     PrintAndLogEx(INFO, "     Vendor Id: " _YELLOW_("%s"), getTagInfo(version[7]));
     PrintAndLogEx(INFO, "          Type: %s", getTypeStr(version[8]));
     PrintAndLogEx(INFO, "       Subtype: " _YELLOW_("0x%02X"), version[9]);
@@ -260,13 +266,31 @@ static int get_plus_version(uint8_t *version, int *version_len) {
 }
 
 static int CmdHFMFPInfo(const char *Cmd) {
+    CLIParserContext *ctx;
+    CLIParserInit(&ctx, "hf mfp info",
+                  "Get info from MIFARE Plus tags",
+                  "hf mfp info");
 
-    if (Cmd && strlen(Cmd) > 0)
-        PrintAndLogEx(WARNING, "command don't have any parameters.\n");
+    void *argtable[] = {
+        arg_param_begin,
+        arg_param_end
+    };
+    CLIExecWithReturn(ctx, Cmd, argtable, true);
 
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(INFO, "--- " _CYAN_("Tag Information") " ---------------------------");
     PrintAndLogEx(INFO, "-------------------------------------------------------------");
+
+    // Mifare Plus info
+    SendCommandMIX(CMD_HF_ISO14443A_READER, ISO14A_CONNECT, 0, 0, NULL, 0);
+    PacketResponseNG resp;
+    WaitForResponse(CMD_ACK, &resp);
+
+    iso14a_card_select_t card;
+    memcpy(&card, (iso14a_card_select_t *)resp.data.asBytes, sizeof(iso14a_card_select_t));
+
+    uint64_t select_status = resp.oldarg[0]; // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS, 3: proprietary Anticollision
+
 
     bool supportVersion = false;
     bool supportSignature = false;
@@ -280,17 +304,11 @@ static int CmdHFMFPInfo(const char *Cmd) {
     } else {
         // info about 14a part
         infoHF14A(false, false, false);
+
+        // Historical bytes.
+
     }
 
-    // Mifare Plus info
-    SendCommandMIX(CMD_HF_ISO14443A_READER, ISO14A_CONNECT, 0, 0, NULL, 0);
-    PacketResponseNG resp;
-    WaitForResponse(CMD_ACK, &resp);
-
-    iso14a_card_select_t card;
-    memcpy(&card, (iso14a_card_select_t *)resp.data.asBytes, sizeof(iso14a_card_select_t));
-
-    uint64_t select_status = resp.oldarg[0]; // 0: couldn't read, 1: OK, with ATS, 2: OK, no ATS, 3: proprietary Anticollision
 
     // Signature originality check
     uint8_t signature[56] = {0};
@@ -356,10 +374,8 @@ static int CmdHFMFPInfo(const char *Cmd) {
         }
 
         if (card.sak == 0x20) {
-            PrintAndLogEx(INFO, "           SAK: " _GREEN_("MIFARE Plus SL0/SL3") " or " _GREEN_("MIFARE DESFire"));
-
             if (card.ats_len > 0) {
-
+                PrintAndLogEx(INFO, "           SAK: " _GREEN_("MIFARE Plus SL0/SL3") " or " _GREEN_("MIFARE DESFire"));
                 SLmode = 3;
                 // check SL0
                 uint8_t data[250] = {0};
@@ -368,15 +384,25 @@ static int CmdHFMFPInfo(const char *Cmd) {
                 uint8_t cmd[3 + 16] = {0xa8, 0x90, 0x90, 0x00};
                 int res = ExchangeRAW14a(cmd, sizeof(cmd), true, false, data, sizeof(data), &datalen, false);
 
-                // DESFire answers 0x1C
-                // Plus answers 0x0B, 0x09
-                PrintAndLogEx(INFO, "ICEE: %s", sprint_hex(data, datalen));
+                // DESFire answers 0x1C or 67 00
+                // Plus answers 0x0B, 0x09, 0x06
+                // Which tag answers 6D 00 ??
+                if (data[0] != 0x0b && data[0] != 0x09 && data[0] != 0x1C && data[0] != 0x67 && data[0] != 0x6d) {
+                    PrintAndLogEx(INFO, _RED_("Send copy to iceman of this command output!"));
+                    PrintAndLogEx(INFO, "data: %s", sprint_hex(data, datalen));
+                }
 
-                if (memcmp(data, "\x67\x00", 2) == 0) {
-                    PrintAndLogEx(INFO, "\tMost likely a MIFARE DESFire tag");
+                if ((memcmp(data, "\x67\x00", 2) == 0) ||
+                        (memcmp(data, "\x1C\x83\x0C", 3) == 0)
+                   ) {
+                    PrintAndLogEx(INFO, "        result: " _RED_("MIFARE DESFire"));
                     PrintAndLogEx(HINT, "Hint:  Try " _YELLOW_("`hf mfdes info`"));
                     DropField();
                     return PM3_SUCCESS;
+                } else if (memcmp(data, "\x6D\x00", 2) == 0) {
+                    isPlus = false;
+                } else {
+                    PrintAndLogEx(INFO, "        result: " _GREEN_("MIFARE Plus SL0/SL3"));
                 }
 
                 if (!res && datalen > 1 && data[0] == 0x09) {
@@ -427,12 +453,12 @@ static int CmdHFMFPWritePerso(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfp wrp",
                   "Executes Write Perso command. Can be used in SL0 mode only.",
-                  "Usage:\n\thf mfp wrp 4000 000102030405060708090a0b0c0d0e0f -> write key (00..0f) to key number 4000 \n"
-                  "\thf mfp wrp 4000 -> write default key(0xff..0xff) to key number 4000");
+                  "hf mfp wrp 4000 000102030405060708090a0b0c0d0e0f -> write key (00..0f) to key number 4000 \n"
+                  "hf mfp wrp 4000 -> write default key(0xff..0xff) to key number 4000");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("vV",  "verbose", "show internal data."),
+        arg_lit0("v",  "verbose", "show internal data."),
         arg_str1(NULL,  NULL,      "<HEX key number (2b)>", NULL),
         arg_strx0(NULL,  NULL,     "<HEX key (16b)>", NULL),
         arg_param_end
@@ -494,12 +520,12 @@ static int CmdHFMFPInitPerso(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfp initp",
                   "Executes Write Perso command for all card's keys. Can be used in SL0 mode only.",
-                  "Usage:\n\thf mfp initp 000102030405060708090a0b0c0d0e0f -> fill all the keys with key (00..0f)\n"
-                  "\thf mfp initp -vv -> fill all the keys with default key(0xff..0xff) and show all the data exchange");
+                  "hf mfp initp 000102030405060708090a0b0c0d0e0f -> fill all the keys with key (00..0f)\n"
+                  "hf mfp initp -vv -> fill all the keys with default key(0xff..0xff) and show all the data exchange");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_litn("vV",  "verbose", 0, 2, "show internal data."),
+        arg_litn("v",  "verbose", 0, 2, "show internal data."),
         arg_strx0(NULL,  NULL,      "<HEX key (16b)>", NULL),
         arg_param_end
     };
@@ -562,11 +588,11 @@ static int CmdHFMFPCommitPerso(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfp commitp",
                   "Executes Commit Perso command. Can be used in SL0 mode only.",
-                  "Usage:\n\thf mfp commitp ->  \n");
+                  "hf mfp commitp");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("vV",  "verbose", "show internal data."),
+        arg_lit0("v",  "verbose", "show internal data."),
         arg_int0(NULL,  NULL,      "SL mode", NULL),
         arg_param_end
     };
@@ -609,12 +635,12 @@ static int CmdHFMFPAuth(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfp auth",
                   "Executes AES authentication command for Mifare Plus card",
-                  "Usage:\n\thf mfp auth 4000 000102030405060708090a0b0c0d0e0f -> executes authentication\n"
-                  "\thf mfp auth 9003 FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -v -> executes authentication and shows all the system data\n");
+                  "hf mfp auth 4000 000102030405060708090a0b0c0d0e0f -> executes authentication\n"
+                  "hf mfp auth 9003 FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF -v -> executes authentication and shows all the system data");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("vV",  "verbose", "show internal data."),
+        arg_lit0("v",  "verbose", "show internal data."),
         arg_str1(NULL,  NULL,     "<Key Num (HEX 2 bytes)>", NULL),
         arg_str1(NULL,  NULL,     "<Key Value (HEX 16 bytes)>", NULL),
         arg_param_end
@@ -647,15 +673,15 @@ static int CmdHFMFPRdbl(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfp rdbl",
                   "Reads several blocks from Mifare Plus card.",
-                  "Usage:\n\thf mfp rdbl 0 000102030405060708090a0b0c0d0e0f -> executes authentication and read block 0 data\n"
-                  "\thf mfp rdbl 1 -v -> executes authentication and shows sector 1 data with default key 0xFF..0xFF and some additional data\n");
+                  "hf mfp rdbl 0 000102030405060708090a0b0c0d0e0f -> executes authentication and read block 0 data\n"
+                  "hf mfp rdbl 1 -v -> executes authentication and shows sector 1 data with default key 0xFF..0xFF and some additional data");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("vV",  "verbose", "show internal data."),
-        arg_int0("nN",  "count",   "blocks count (by default 1).", NULL),
-        arg_lit0("bB",  "keyb",    "use key B (by default keyA)."),
-        arg_lit0("pP",  "plain",   "plain communication mode between reader and card."),
+        arg_lit0("v",  "verbose", "show internal data."),
+        arg_int0("n",  "count",   "blocks count (by default 1).", NULL),
+        arg_lit0("b",  "keyb",    "use key B (by default keyA)."),
+        arg_lit0("p",  "plain",   "plain communication mode between reader and card."),
         arg_int1(NULL,  NULL,      "<Block Num (0..255)>", NULL),
         arg_str0(NULL,  NULL,      "<Key Value (HEX 16 bytes)>", NULL),
         arg_param_end
@@ -760,14 +786,14 @@ static int CmdHFMFPRdsc(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfp rdsc",
                   "Reads one sector from Mifare Plus card.",
-                  "Usage:\n\thf mfp rdsc 0 000102030405060708090a0b0c0d0e0f -> executes authentication and read sector 0 data\n"
-                  "\thf mfp rdsc 1 -v -> executes authentication and shows sector 1 data with default key 0xFF..0xFF and some additional data\n");
+                  "hf mfp rdsc 0 000102030405060708090a0b0c0d0e0f -> executes authentication and read sector 0 data\n"
+                  "hf mfp rdsc 1 -v -> executes authentication and shows sector 1 data with default key 0xFF..0xFF and some additional data");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("vV",  "verbose", "show internal data."),
-        arg_lit0("bB",  "keyb",    "use key B (by default keyA)."),
-        arg_lit0("pP",  "plain",   "plain communication mode between reader and card."),
+        arg_lit0("v",  "verbose", "show internal data."),
+        arg_lit0("b",  "keyb",    "use key B (by default keyA)."),
+        arg_lit0("p",  "plain",   "plain communication mode between reader and card."),
         arg_int1(NULL,  NULL,      "<Sector Num (0..255)>", NULL),
         arg_str0(NULL,  NULL,      "<Key Value (HEX 16 bytes)>", NULL),
         arg_param_end
@@ -859,13 +885,13 @@ static int CmdHFMFPWrbl(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfp wrbl",
                   "Writes one block to Mifare Plus card.",
-                  "Usage:\n\thf mfp wrbl 1 ff0000000000000000000000000000ff 000102030405060708090a0b0c0d0e0f -> writes block 1 data\n"
-                  "\thf mfp wrbl 2 ff0000000000000000000000000000ff -v -> writes block 2 data with default key 0xFF..0xFF and some additional data\n");
+                  "hf mfp wrbl 1 ff0000000000000000000000000000ff 000102030405060708090a0b0c0d0e0f -> writes block 1 data\n"
+                  "hf mfp wrbl 2 ff0000000000000000000000000000ff -v -> writes block 2 data with default key 0xFF..0xFF and some additional data");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("vV",  "verbose", "show internal data."),
-        arg_lit0("bB",  "keyb",    "use key B (by default keyA)."),
+        arg_lit0("v",  "verbose", "show internal data."),
+        arg_lit0("b",  "keyb",    "use key B (by default keyA)."),
         arg_int1(NULL,  NULL,      "<Block Num (0..255)>", NULL),
         arg_str1(NULL,  NULL,      "<Data (HEX 16 bytes)>", NULL),
         arg_str0(NULL,  NULL,      "<Key (HEX 16 bytes)>", NULL),
@@ -1061,26 +1087,25 @@ static int CmdHFMFPChk(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfp chk",
                   "Checks keys with Mifare Plus card.",
-                  "Usage:\n"
-                  "    hf mfp chk -k 000102030405060708090a0b0c0d0e0f -> check key on sector 0 as key A and B\n"
-                  "    hf mfp chk -s 2 -a -> check default key list on sector 2, key A\n"
-                  "    hf mfp chk -d mfp_default_keys -s0 -e6 -> check keys from dictionary against sectors 0-6\n"
-                  "    hf mfp chk --pattern1b -j keys -> check all 1-byte keys pattern and save found keys to json\n"
-                  "    hf mfp chk --pattern2b --startp2b FA00 -> check all 2-byte keys pattern. Start from key FA00FA00...FA00\n");
+                  "hf mfp chk -k 000102030405060708090a0b0c0d0e0f -> check key on sector 0 as key A and B\n"
+                  "hf mfp chk -s 2 -a -> check default key list on sector 2, key A\n"
+                  "hf mfp chk -d mfp_default_keys -s0 -e6 -> check keys from dictionary against sectors 0-6\n"
+                  "hf mfp chk --pattern1b -j keys -> check all 1-byte keys pattern and save found keys to json\n"
+                  "hf mfp chk --pattern2b --startp2b FA00 -> check all 2-byte keys pattern. Start from key FA00FA00...FA00");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("aA",  "keya",      "check only key A (by default check all keys)."),
-        arg_lit0("bB",  "keyb",      "check only key B (by default check all keys)."),
-        arg_int0("sS",  "startsec",  "Start sector Num (0..255)", NULL),
-        arg_int0("eE",  "endsec",    "End sector Num (0..255)", NULL),
-        arg_str0("kK",  "key",       "<Key>", "Key for checking (HEX 16 bytes)"),
-        arg_str0("dD",  "dict",      "<file>", "file with keys dictionary"),
+        arg_lit0("a",  "keya",      "check only key A (by default check all keys)."),
+        arg_lit0("b",  "keyb",      "check only key B (by default check all keys)."),
+        arg_int0("s",  "startsec",  "Start sector Num (0..255)", NULL),
+        arg_int0("e",  "endsec",    "End sector Num (0..255)", NULL),
+        arg_str0("k",  "key",       "<Key>", "Key for checking (HEX 16 bytes)"),
+        arg_str0("d",  "dict",      "<file>", "file with keys dictionary"),
         arg_lit0(NULL,  "pattern1b", "check all 1-byte combinations of key (0000...0000, 0101...0101, 0202...0202, ...)"),
         arg_lit0(NULL,  "pattern2b", "check all 2-byte combinations of key (0000...0000, 0001...0001, 0002...0002, ...)"),
         arg_str0(NULL,  "startp2b",  "<Pattern>", "Start key (2-byte HEX) for 2-byte search (use with `--pattern2b`)"),
-        arg_str0("jJ",  "json",      "<file>",  "json file to save keys"),
-        arg_lit0("vV",  "verbose",   "verbose mode."),
+        arg_str0("j",  "json",      "<file>",  "json file to save keys"),
+        arg_lit0("v",  "verbose",   "verbose mode."),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -1294,17 +1319,17 @@ static int CmdHFMFPMAD(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfp mad",
                   "Checks and prints Mifare Application Directory (MAD)",
-                  "Usage:\n\thf mfp mad                                     -> shows MAD if exists\n"
-                  "\thf mfp mad -a e103 -k d3f7d3f7d3f7d3f7d3f7d3f7d3f7d3f7 -> shows NDEF data if exists\n");
+                  "hf mfp mad -> shows MAD if exists\n"
+                  "hf mfp mad -a e103 -k d3f7d3f7d3f7d3f7d3f7d3f7d3f7d3f7 -> shows NDEF data if exists");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_lit0("vV",  "verbose",  "show technical data"),
-        arg_str0("",    "aid",      "<aid>", "print all sectors with aid"),
-        arg_str0("kK",  "key",      "<key>", "key for printing sectors"),
-        arg_lit0("bB",  "keyb",     "use key B for access printing sectors (by default: key A)"),
-        arg_lit0("",    "be",       "(optional, BigEndian)"),
-        arg_lit0("",    "dch",      "decode Card Holder information"),
+        arg_lit0("v",  "verbose",  "show technical data"),
+        arg_str0(NULL,    "aid",      "<aid>", "print all sectors with aid"),
+        arg_str0("k",  "key",      "<key>", "key for printing sectors"),
+        arg_lit0("b",  "keyb",     "use key B for access printing sectors (by default: key A)"),
+        arg_lit0(NULL,    "be",       "(optional, BigEndian)"),
+        arg_lit0(NULL,    "dch",      "decode Card Holder information"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -1434,17 +1459,16 @@ static int CmdHFMFPNDEF(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf mfp ndef",
                   "Prints NFC Data Exchange Format (NDEF)",
-                  "Usage:\n"
-                  _YELLOW_("\thf mfp ndef") "                                             -> shows NDEF data\n"
-                  _YELLOW_("\thf mfp ndef -vv") "                                         -> shows NDEF parsed and raw data\n"
-                  _YELLOW_("\thf mfp ndef -a e103 -k d3f7d3f7d3f7d3f7d3f7d3f7d3f7d3f7") " -> shows NDEF data with custom AID and key\n");
+                  "hf mfp ndef -> shows NDEF data\n"
+                  "hf mfp ndef -vv -> shows NDEF parsed and raw data\n"
+                  "hf mfp ndef -a e103 -k d3f7d3f7d3f7d3f7d3f7d3f7d3f7d3f7 -> shows NDEF data with custom AID and key");
 
     void *argtable[] = {
         arg_param_begin,
-        arg_litn("vV",  "verbose",  0, 2, "show technical data"),
-        arg_str0("",    "aid",      "<aid>", "replace default aid for NDEF"),
-        arg_str0("kK",  "key",      "<key>", "replace default key for NDEF"),
-        arg_lit0("bB",  "keyb",     "use key B for access sectors (by default: key A)"),
+        arg_litn("v",  "verbose",  0, 2, "show technical data"),
+        arg_str0(NULL,    "aid",      "<aid>", "replace default aid for NDEF"),
+        arg_str0("k",  "key",      "<key>", "replace default key for NDEF"),
+        arg_lit0("b",  "keyb",     "use key B for access sectors (by default: key A)"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -1537,7 +1561,7 @@ static int CmdHFMFPNDEF(const char *Cmd) {
     if (verbose2) {
         PrintAndLogEx(NORMAL, "");
         PrintAndLogEx(INFO, "--- " _CYAN_("MF Plus NDEF raw") " ----------------");
-        dump_buffer(data, datalen, stdout, 1);
+        print_buffer(data, datalen, 1);
     }
 
     NDEFDecodeAndPrint(data, datalen, verbose);

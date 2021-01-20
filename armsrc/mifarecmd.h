@@ -20,7 +20,7 @@ void MifareUC_Auth(uint8_t arg0, uint8_t *keybytes);
 void MifareUReadCard(uint8_t arg0, uint16_t arg1, uint8_t arg2, uint8_t *datain);
 void MifareReadSector(uint8_t arg0, uint8_t arg1, uint8_t *datain);
 void MifareWriteBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain);
-//void MifareUWriteBlockCompat(uint8_t arg0,uint8_t *datain);
+void MifareUWriteBlockCompat(uint8_t arg0, uint8_t arg1, uint8_t *datain);
 
 void MifareUWriteBlock(uint8_t arg0, uint8_t arg1, uint8_t *datain);
 void MifareNested(uint8_t blockNo, uint8_t keyType, uint8_t targetBlockNo, uint8_t targetKeyType, bool calibrate, uint8_t *key);
@@ -41,7 +41,7 @@ int MifareECardLoadExt(uint8_t sectorcnt, uint8_t keytype);
 
 void MifareCSetBlock(uint32_t arg0, uint32_t arg1, uint8_t *datain);  // Work with "magic Chinese" card
 void MifareCGetBlock(uint32_t arg0, uint32_t arg1, uint8_t *datain);
-void MifareCIdent(void);  // is "magic chinese" card?
+void MifareCIdent(bool is_mfc);  // is "magic chinese" card?
 void MifareHasStaticNonce(void);  // Has the tag a static nonce?
 
 int DoGen3Cmd(uint8_t *cmd, uint8_t cmd_len);
@@ -64,5 +64,5 @@ void Mifare_DES_Auth2(uint32_t arg0, uint8_t *datain);
 
 // Tear-off test for MFU
 void MifareU_Otp_Tearoff(uint8_t arg0, uint32_t arg1, uint8_t *datain);
-
+void MifareU_Counter_Tearoff(uint8_t counter, uint32_t tearoff_time, uint8_t *datain);
 #endif

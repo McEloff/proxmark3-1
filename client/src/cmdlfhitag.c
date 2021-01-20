@@ -7,18 +7,16 @@
 //-----------------------------------------------------------------------------
 // Low frequency Hitag support
 //-----------------------------------------------------------------------------
-
 #include "cmdlfhitag.h"
-
 #include <ctype.h>
-
-#include "cmdparser.h"    // command_t
+#include "cmdparser.h"   // command_t
 #include "comms.h"
 #include "cmdtrace.h"
 #include "commonutil.h"
 #include "hitag.h"
-#include "fileutils.h"  // savefile
-#include "protocols.h"  // defines
+#include "fileutils.h"   // savefile
+#include "protocols.h"   // defines
+#include "cliparser.h"
 
 static int CmdHelp(const char *Cmd);
 
@@ -52,17 +50,7 @@ static size_t nbytes(size_t nbits) {
     return (nbits / 8) + ((nbits % 8) > 0);
 }
 */
-static int usage_hitag_sniff(void) {
-    PrintAndLogEx(NORMAL, "Sniff traffic between Hitag reader and tag. Use " _YELLOW_("`lf hitag list`")" to view collected data.");
-    PrintAndLogEx(NORMAL, "Usage:   lf hitag sniff [h] ");
-    PrintAndLogEx(NORMAL, "Options:");
-    PrintAndLogEx(NORMAL, "       h             This help");
-//    PrintAndLogEx(NORMAL, "       p <pwd>       Password");
-    PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(NORMAL, "Examples:");
-    PrintAndLogEx(NORMAL, "         lf hitag sniff");
-    return PM3_SUCCESS;
-}
+
 static int usage_hitag_sim(void) {
     PrintAndLogEx(NORMAL, "Simulate " _YELLOW_("Hitag2 / HitagS")" transponder");
     PrintAndLogEx(NORMAL, "Usage:   lf hitag sim [h] [2|s] e|j|b <filename w/o extension>");
@@ -75,15 +63,6 @@ static int usage_hitag_sim(void) {
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(NORMAL, "Examples:");
     PrintAndLogEx(NORMAL, "         lf hitag sim 2 b lf-hitag-dump");
-    return PM3_SUCCESS;
-}
-static int usage_hitag_info(void) {
-    PrintAndLogEx(NORMAL, "Usage:   lf hitag info [h] p <pwd>");
-    PrintAndLogEx(NORMAL, "Options:");
-    PrintAndLogEx(NORMAL, "       h          This help");
-    PrintAndLogEx(NORMAL, "       p <pwd>    password");
-    PrintAndLogEx(NORMAL, "Examples:");
-    PrintAndLogEx(NORMAL, "         lf hitag info");
     return PM3_SUCCESS;
 }
 /*
@@ -149,9 +128,14 @@ static int usage_hitag_checkchallenges(void) {
 }
 
 static int CmdLFHitagList(const char *Cmd) {
-    (void)Cmd; // Cmd is not used so far
-    CmdTraceList("hitag2");
-    return PM3_SUCCESS;
+    char args[128] = {0};
+    if (strlen(Cmd) == 0) {
+        snprintf(args, sizeof(args), "-t hitag2");
+    } else {
+        strncpy(args, Cmd, sizeof(args) - 1);
+    }
+    return CmdTraceList(args);
+
 
     /*
     uint8_t *got = calloc(PM3_CMD_DATA_SIZE, sizeof(uint8_t));
@@ -282,12 +266,23 @@ static int CmdLFHitagList(const char *Cmd) {
 }
 
 static int CmdLFHitagSniff(const char *Cmd) {
+    CLIParserContext *ctx;
+    CLIParserInit(&ctx, "lf hitag sniff",
+                  "Sniff traffic between Hitag reader and tag.\n"
+                  "Use " _YELLOW_("`lf hitag list`")" to view collected data.",
+                  "lf hitag sniff"
+                 );
 
-    char ctmp = tolower(param_getchar(Cmd, 0));
-    if (ctmp == 'h') return usage_hitag_sniff();
+    void *argtable[] = {
+        arg_param_begin,
+        arg_param_end
+    };
+    CLIExecWithReturn(ctx, Cmd, argtable, true);
+    CLIParserFree(ctx);
 
     clearCommandBuffer();
     SendCommandNG(CMD_LF_HITAG_SNIFF, NULL, 0);
+    PrintAndLogEx(HINT, "HINT: Try " _YELLOW_("`lf hitag list`")" to view collected data");
     return PM3_SUCCESS;
 }
 
@@ -503,8 +498,18 @@ static bool getHitagUid(uint32_t *uid) {
 }
 
 static int CmdLFHitagInfo(const char *Cmd) {
-    char ctmp = tolower(param_getchar(Cmd, 0));
-    if (ctmp == 'h') return usage_hitag_info();
+    CLIParserContext *ctx;
+    CLIParserInit(&ctx, "lf hitag info",
+                  "Sniff traffic between Hitag reader and tag.",
+                  "lf hitag info"
+                 );
+
+    void *argtable[] = {
+        arg_param_begin,
+        arg_param_end
+    };
+    CLIExecWithReturn(ctx, Cmd, argtable, true);
+    CLIParserFree(ctx);
 
     // read UID
     uint32_t uid = 0;
