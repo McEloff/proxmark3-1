@@ -564,7 +564,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
         int res = EmGetCmd(receivedCmd, &receivedCmd_len, receivedCmd_par);
 
         if (res == 2) { //Field is off!
-            //FpgaDisableTracing();
+            FpgaDisableTracing();
             LEDsoff();
             cardSTATE = MFEMUL_NOFIELD;
             if (DBGLEVEL >= DBG_EXTENDED)
@@ -572,7 +572,6 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
             if (reinit) {
                 BigBuf_free_keep_EM();
                 if (MifareSimInit(FLAG_UID_IN_EMUL, datain, atqa, sak, &responses, &cuid, &uid_len, &rats, &rats_len) == false) {
-                    BigBuf_free_keep_EM();
                     break;
                 }
                 if (DBGLEVEL >= DBG_EXTENDED)	Dbprintf("Mifare1ksim - tag reinitialized");
@@ -580,7 +579,6 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
             }
             continue;
         } else if (res == 1) { // button pressed
-            FpgaDisableTracing();
             button_pushed = true;
             if (DBGLEVEL >= DBG_EXTENDED)
                 Dbprintf("Button pressed");

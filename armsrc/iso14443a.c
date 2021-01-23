@@ -1257,6 +1257,8 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
     uint8_t pages = 0;
     bool reinit = false;
 
+    int vHf = 0;	// in mV
+
     // Here, we collect CUID, block1, keytype1, NT1, NR1, AR1, CUID, block2, keytyp2, NT2, NR2, AR2
     // it should also collect block, keytype.
     uint8_t cardAUTHSC = 0;
@@ -1302,9 +1304,10 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
 
     iso14a_set_timeout(201400); // 106 * 19ms default *100?
 
-    int len = 0;
+    uint16_t len = 0;
 
     // To control where we are in the protocol
+#define ORDER_NO_FIELD       255
 #define ORDER_NONE           0
 //#define ORDER_REQA           1
 //#define ORDER_SELECT_ALL_CL1 2
@@ -1319,7 +1322,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
 #define ORDER_EV1_COMP_WRITE 40
 //#define ORDER_RATS           70
 
-    uint8_t order = ORDER_NONE;
+    uint8_t order = ORDER_NO_FIELD;
 
     int retval = PM3_SUCCESS;
 
@@ -1336,7 +1339,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
 
     clear_trace();
     set_tracing((flags & FLAG_NO_TRACE) == 0);
-    LED_A_ON();
+    LED_D_ON();
 
     // main loop
     //for (;;) {
@@ -1345,25 +1348,42 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
     while (!button_pushed && !finished) {
         WDT_HIT();
 
-        tag_response_info_t *p_response = NULL;
-
-        if (reinit) {
-            BigBuf_free_keep_EM();
-            if (SimulateIso14443aInit(tagType, FLAG_UID_IN_EMUL, data, &responses, &cuid, counters, tearings, &pages) == false) {
-                BigBuf_free_keep_EM();
-                if ((flags & FLAG_INTERACTIVE) == FLAG_INTERACTIVE)
-                    reply_ng(CMD_HF_MIFARE_SIMULATE, PM3_EINIT, NULL, 0);
-                return;
+        // find reader field
+        if (order == ORDER_NO_FIELD) {
+#if defined RDV4
+            vHf = (MAX_ADC_HF_VOLTAGE_RDV40 * SumAdc(ADC_CHAN_HF_RDV40, 32)) >> 15;
+#else
+            vHf = (MAX_ADC_HF_VOLTAGE * SumAdc(ADC_CHAN_HF, 32)) >> 15;
+#endif
+            if (vHf > MF_MINFIELDV) {
+                order = ORDER_NONE;
+                LED_A_ON();
             }
-            reinit = false;
+            button_pushed = BUTTON_PRESS() || data_available();
+            continue;
         }
 
-        // Clean receive command buffer
-        if (GetIso14443aCommandFromReader(receivedCmd, receivedCmdPar, &len) == false) {
-            Dbprintf("Emulator stopped. Trace length: %d ", BigBuf_get_traceLen());
+        //Now, get data
+        int res = EmGetCmd(receivedCmd, &len, receivedCmdPar);
+
+        if (res == 2) { //Field is off!
+            LEDsoff();
+            order = ORDER_NO_FIELD;
+            if (reinit) {
+                BigBuf_free_keep_EM();
+                if (SimulateIso14443aInit(tagType, FLAG_UID_IN_EMUL, data, &responses, &cuid, counters, tearings, &pages) == false) {
+                    retval = PM3_EINIT;
+                    break;
+                }
+                reinit = false;
+            }
+            continue;
+        } else if (res == 1) { // button pressed
             retval = PM3_EOPABORTED;
             break;
         }
+
+        tag_response_info_t *p_response = NULL;
 
         // we need to check "ordered" states before, because received data may be same to any command - is wrong!!!
         if (order == ORDER_EV1_COMP_WRITE && len == 18) {
