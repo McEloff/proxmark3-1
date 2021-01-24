@@ -1350,6 +1350,13 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
 
         // find reader field
         if (order == ORDER_NO_FIELD) {
+            button_pushed = BUTTON_PRESS() || data_available();
+            if (button_pushed) {
+                if (DBGLEVEL >= DBG_EXTENDED)
+                    Dbprintf("----------- " _GREEN_("BREAKING") " ----------");
+                break;
+            }
+
 #if defined RDV4
             vHf = (MAX_ADC_HF_VOLTAGE_RDV40 * SumAdc(ADC_CHAN_HF_RDV40, 32)) >> 15;
 #else
@@ -1359,7 +1366,6 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
                 order = ORDER_NONE;
                 LED_A_ON();
             }
-            button_pushed = BUTTON_PRESS() || data_available();
             continue;
         }
 
@@ -1367,7 +1373,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
         int res = EmGetCmd(receivedCmd, &len, receivedCmdPar);
 
         if (res == 2) { //Field is off!
-            LEDsoff();
+            LED_D_ON();
             order = ORDER_NO_FIELD;
             if (reinit) {
                 BigBuf_free_keep_EM();
@@ -1380,6 +1386,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
             }
             continue;
         } else if (res == 1) { // button pressed
+            button_pushed = true;
             retval = PM3_EOPABORTED;
             break;
         }
@@ -2054,9 +2061,10 @@ int EmGetCmd(uint8_t *received, uint16_t *len, uint8_t *par) {
     for (;;) {
         WDT_HIT();
 
-        if (check == 1000) {
+        if (check == 4000) {
             if (BUTTON_PRESS() || data_available()) {
-                Dbprintf("----------- " _GREEN_("BREAKING") " ----------");
+                if (DBGLEVEL >= DBG_EXTENDED)
+                    Dbprintf("----------- " _GREEN_("BREAKING") " ----------");
                 return 1;
             }
             check = 0;

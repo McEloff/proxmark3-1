@@ -454,8 +454,6 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
     uint8_t uid_len = 0; // 4,7, 10
     uint32_t cuid = 0;
 
-    int vHf = 0; // in mV
-
     uint32_t selTimer = 0;
     uint32_t authTimer = 0;
 
@@ -525,47 +523,41 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
     LED_D_ON();
     ResetSspClk();
 
-    int counter = 0;
     bool finished = false;
     bool button_pushed = BUTTON_PRESS();
 
-    while (!button_pushed) {
+    while (!button_pushed && !finished) {
         WDT_HIT();
-
-        if (counter == 1000) {
-            if (data_available()) {
-                Dbprintf("----------- " _GREEN_("BREAKING") " ----------");
-                break;
-            }
-            counter = 0;
-        } else {
-            counter++;
-        }
 
         // find reader field
         if (cardSTATE == MFEMUL_NOFIELD) {
+            button_pushed = BUTTON_PRESS() || data_available();
+            if (button_pushed) {
+                if (DBGLEVEL >= DBG_EXTENDED)
+                    Dbprintf("----------- " _GREEN_("BREAKING") " ----------");
+                break;
+            }
 
 #if defined RDV4
-            vHf = (MAX_ADC_HF_VOLTAGE_RDV40 * SumAdc(ADC_CHAN_HF_RDV40, 32)) >> 15;
+            int vHf = (MAX_ADC_HF_VOLTAGE_RDV40 * SumAdc(ADC_CHAN_HF_RDV40, 32)) >> 15;
 #else
-            vHf = (MAX_ADC_HF_VOLTAGE * SumAdc(ADC_CHAN_HF, 32)) >> 15;
+            int vHf = (MAX_ADC_HF_VOLTAGE * SumAdc(ADC_CHAN_HF, 32)) >> 15;
 #endif
 
             if (vHf > MF_MINFIELDV) {
                 cardSTATE_TO_IDLE();
                 LED_A_ON();
             }
-            button_pushed = BUTTON_PRESS() || data_available();
             continue;
         }
 
         FpgaEnableTracing();
-        //Now, get data
+        //Now, get data, or check buttom, or usb ready
         int res = EmGetCmd(receivedCmd, &receivedCmd_len, receivedCmd_par);
 
         if (res == 2) { //Field is off!
             FpgaDisableTracing();
-            LEDsoff();
+            LED_D_ON();
             cardSTATE = MFEMUL_NOFIELD;
             if (DBGLEVEL >= DBG_EXTENDED)
                 Dbprintf("cardSTATE = MFEMUL_NOFIELD");
@@ -575,14 +567,13 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                 if (MifareSimInit(FLAG_UID_IN_EMUL, datain, atqa, sak, &responses, &cuid, &uid_len, &rats, &rats_len) == false) {
                     break;
                 }
-                if (DBGLEVEL >= DBG_EXTENDED)	Dbprintf("Mifare1ksim - tag reinitialized");
+                if (DBGLEVEL >= DBG_EXTENDED)
+                    Dbprintf("Mifare1ksim - tag reinitialized");
                 reinit = false;
             }
             continue;
         } else if (res == 1) { // button pressed
             button_pushed = true;
-            if (DBGLEVEL >= DBG_EXTENDED)
-                Dbprintf("Button pressed");
             break;
         }
 
