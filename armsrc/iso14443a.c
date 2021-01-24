@@ -1371,6 +1371,7 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
             order = ORDER_NO_FIELD;
             if (reinit) {
                 BigBuf_free_keep_EM();
+                clear_trace();
                 if (SimulateIso14443aInit(tagType, FLAG_UID_IN_EMUL, data, &responses, &cuid, counters, tearings, &pages) == false) {
                     retval = PM3_EINIT;
                     break;

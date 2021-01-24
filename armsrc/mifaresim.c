@@ -571,6 +571,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
                 Dbprintf("cardSTATE = MFEMUL_NOFIELD");
             if (reinit) {
                 BigBuf_free_keep_EM();
+                clear_trace();
                 if (MifareSimInit(FLAG_UID_IN_EMUL, datain, atqa, sak, &responses, &cuid, &uid_len, &rats, &rats_len) == false) {
                     break;
                 }
