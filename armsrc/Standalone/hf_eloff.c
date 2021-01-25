@@ -123,15 +123,35 @@ void WorkWithHF(void) {
             }
             // start simulation
             SimulateIso14443aTag(7, FLAG_UID_IN_EMUL, data, 0);
+        } else if (step == 3) {
+            // start sniffer triggered by card answer
+            // no interrupts by usb ready, need button click only
+            SniffIso14443a(0x1);
         }
 
         // exit, send a usbcommand.
         if (data_available()) break;
+        
+        // internal state to check exit by usb ready
+        while (BUTTON_PRESS())
+            WDT_HIT();
+        LED_A_ON();
+        LED_B_ON();
+        LED_C_ON();
+        LED_D_ON();
+        bool isDataReady = false;
+        while (!BUTTON_PRESS() && !isDataReady) {
+            WDT_HIT();
+            isDataReady = data_available();
+        }
+        LEDsoff();
 
+        if (isDataReady) break;
+        
         // Was our button held down or pressed?
         if (BUTTON_HELD(1000) > 0) {
             step++;
-            if (step > 2) {
+            if (step > 3) {
                 step = 0;
             }
             SpinDown(50);
