@@ -558,6 +558,9 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
         if (res == 2) { //Field is off!
             FpgaDisableTracing();
             LED_D_ON();
+            LED_A_OFF();
+            LED_B_OFF();
+            LED_C_OFF();
             cardSTATE = MFEMUL_NOFIELD;
             if (DBGLEVEL >= DBG_EXTENDED)
                 Dbprintf("cardSTATE = MFEMUL_NOFIELD");

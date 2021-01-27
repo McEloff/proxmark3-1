@@ -1374,6 +1374,9 @@ void SimulateIso14443aTag(uint8_t tagType, uint8_t flags, uint8_t *data, uint8_t
 
         if (res == 2) { //Field is off!
             LED_D_ON();
+            LED_A_OFF();
+            LED_B_OFF();
+            LED_C_OFF();
             order = ORDER_NO_FIELD;
             if (reinit) {
                 BigBuf_free_keep_EM();
