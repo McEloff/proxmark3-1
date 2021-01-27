@@ -1008,7 +1008,7 @@ void pm3_get_standalone_done_status(void) {
                 uint32_t bits = (resp.data.asDwords[0] / 8 );
                 if (bits != 0) {
                     if(getSamples(bits, false) == PM3_SUCCESS) {
-                        CmdLFfind("1");
+                        CmdLFfind("-1");
                     }
                 }
                 break;
