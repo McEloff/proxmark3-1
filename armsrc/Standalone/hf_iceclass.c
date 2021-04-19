@@ -109,7 +109,7 @@ static bool have_aa2(void) {
     return memcmp(aa2_key, "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 8);
 }
 
-static uint8_t get_pagemap(const picopass_hdr *hdr) {
+static uint8_t get_pagemap(const picopass_hdr_t *hdr) {
     return (hdr->conf.fuses & (FUSE_CRYPT0 | FUSE_CRYPT1)) >> 3;
 }
 
@@ -130,27 +130,27 @@ static void download_instructions(uint8_t t) {
     switch (t) {
         case ICE_STATE_FULLSIM: {
             DbpString("The emulator memory was saved to SPIFFS");
-            DbpString("1. " _YELLOW_("mem spiffs dump o " HF_ICLASS_FULLSIM_MOD_BIN " f " HF_ICLASS_FULLSIM_MOD" e"));
+            DbpString("1. " _YELLOW_("mem spiffs dump -s " HF_ICLASS_FULLSIM_MOD_BIN " -d " HF_ICLASS_FULLSIM_MOD" -e"));
             DbpString("2. " _YELLOW_("hf iclass view -f " HF_ICLASS_FULLSIM_MOD_BIN));
             break;
         }
         case ICE_STATE_ATTACK: {
             DbpString("The collected data was saved to SPIFFS. The file names below may differ");
             DbpString("1. " _YELLOW_("mem spiffs tree"));
-            DbpString("2. " _YELLOW_("mem spiffs dump o " HF_ICLASS_ATTACK_BIN " f " HF_ICLASS_ATTACK_BIN));
+            DbpString("2. " _YELLOW_("mem spiffs dump -s " HF_ICLASS_ATTACK_BIN " -d " HF_ICLASS_ATTACK_BIN));
             DbpString("3. " _YELLOW_("hf iclass loclass -f " HF_ICLASS_ATTACK_BIN));
             break;
         }
         case ICE_STATE_READER: {
             DbpString("The found tags was saved to SPIFFS");
             DbpString("1. " _YELLOW_("mem spiffs tree"));
-            DbpString("2. " _YELLOW_("mem spiffs dump h"));
+            DbpString("2. " _YELLOW_("mem spiffs dump -h"));
             break;
         }
         case ICE_STATE_DUMP_SIM: {
             DbpString("The found tag will be dumped to " HF_ICALSSS_READSIM_TEMP_BIN);
             DbpString("1. " _YELLOW_("mem spiffs tree"));
-            DbpString("2. " _YELLOW_("mem spiffs dump h"));
+            DbpString("2. " _YELLOW_("mem spiffs dump -h"));
             break;
         }
     }
@@ -170,12 +170,9 @@ static void save_to_flash(uint8_t *data, uint16_t datalen, char *filename) {
                 data[4], data[5], data[6], data[7]
                );
     } else {
-        int name_len = SPIFFS_OBJ_NAME_LEN;
-        int filename_len = strlen(filename);
-
+        int fnlen = MIN(strlen(filename), SPIFFS_OBJ_NAME_LEN);
         // if the given name len longer than buffer allows, cut it down to size
-        name_len = (name_len >= SPIFFS_OBJ_NAME_LEN) ? SPIFFS_OBJ_NAME_LEN : filename_len;
-        memcpy(fn, filename, name_len);
+        memcpy(fn, filename, fnlen);
     }
 
     int res;
@@ -325,7 +322,7 @@ static int reader_dump_mode(void) {
         set_tracing(false);
 
 
-        picopass_hdr *hdr = (picopass_hdr *)card_data;
+        picopass_hdr_t *hdr = (picopass_hdr_t *)card_data;
 
         // select tag.
         uint32_t eof_time = 0;
@@ -461,7 +458,7 @@ static int dump_sim_mode(void) {
         set_tracing(false);
 
 
-        picopass_hdr *hdr = (picopass_hdr *)card_data;
+        picopass_hdr_t *hdr = (picopass_hdr_t *)card_data;
 
         // select tag.
         uint32_t eof_time = 0;

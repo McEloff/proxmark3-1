@@ -660,10 +660,14 @@ static double p_hypergeometric(uint16_t i_K, uint16_t n, uint16_t k) {
         if (n - k == N - K) { // special case. The published recursion below would fail with a divide by zero exception
             double log_result = 0.0;
             for (int16_t i = k + 1; i <= n; i++) {
-                log_result += log(i);
+                if (i) {
+                    log_result += log(i);
+                }
             }
             for (int16_t i = K + 1; i <= N; i++) {
-                log_result -= log(i);
+                if (i) {
+                    log_result -= log(i);
+                }
             }
             return exp(log_result);
         } else {          // recursion
@@ -1145,7 +1149,7 @@ __attribute__((force_align_arg_pointer))
         // for (uint16_t bitflip = 0x001; bitflip < 0x200; bitflip++) {
         for (uint16_t bitflip_idx = 0; bitflip_idx < num_1st_byte_effective_bitflips; bitflip_idx++) {
             uint16_t bitflip = all_effective_bitflip[bitflip_idx];
-            if (time_budget & timeout()) {
+            if (time_budget && timeout()) {
 #if defined (DEBUG_REDUCTION)
                 PrintAndLogEx(NORMAL, "break at bitflip_idx %d...", bitflip_idx);
 #endif
@@ -1187,7 +1191,7 @@ __attribute__((force_align_arg_pointer))
     if (hardnested_stage & CHECK_2ND_BYTES) {
         for (uint16_t bitflip_idx = num_1st_byte_effective_bitflips; bitflip_idx < num_all_effective_bitflips; bitflip_idx++) {
             uint16_t bitflip = all_effective_bitflip[bitflip_idx];
-            if (time_budget & timeout()) {
+            if (time_budget && timeout()) {
 #if defined (DEBUG_REDUCTION)
                 PrintAndLogEx(NORMAL, "break at bitflip_idx %d...", bitflip_idx);
 #endif
@@ -2172,6 +2176,46 @@ static void set_test_state(uint8_t byte) {
     crypto1_destroy(pcs);
 }
 
+static void init_it_all(void) {
+    memset(nonces, 0, sizeof(nonces));
+    maximum_states = 0;
+    best_first_byte_smallest_bitarray = 0;
+    first_byte_Sum = 0;
+    first_byte_num = 0;
+    write_stats = false;
+    all_bitflips_bitarray[0] = NULL;
+    all_bitflips_bitarray[1] = NULL;
+    num_all_bitflips_bitarray[0] = 0;
+    num_all_bitflips_bitarray[1] = 0;
+    all_bitflips_bitarray_dirty[0] = false;
+    all_bitflips_bitarray_dirty[1] = false;
+    last_sample_clock = 0;
+    sample_period = 0;
+    num_keys_tested = 0;
+    candidates = NULL;
+    num_acquired_nonces = 0;
+    start_time = 0;
+    num_effective_bitflips[0] = 0;
+    num_effective_bitflips[1] = 0;
+    num_all_effective_bitflips = 0;
+    num_1st_byte_effective_bitflips = 0;
+    hardnested_stage = CHECK_1ST_BYTES;
+    known_target_key = 0;
+    test_state[0] = 0;
+    test_state[1] = 0;
+    brute_force_per_second = 0;
+    init_book_of_work();
+    real_sum_a8 = 0;
+
+    memset(effective_bitflip, 0, sizeof(effective_bitflip));
+    memset(all_effective_bitflip, 0, sizeof(all_effective_bitflip));
+    memset(bitflip_bitarrays, 0, sizeof(bitflip_bitarrays));
+    memset(count_bitflip_bitarrays, 0, sizeof(count_bitflip_bitarrays));
+    memset(part_sum_a0_bitarrays, 0, sizeof(part_sum_a0_bitarrays));
+    memset(part_sum_a8_bitarrays, 0, sizeof(part_sum_a8_bitarrays));
+    memset(sum_a0_bitarrays, 0, sizeof(sum_a0_bitarrays));
+}
+
 int mfnestedhard(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t trgBlockNo, uint8_t trgKeyType, uint8_t *trgkey, bool nonce_file_read, bool nonce_file_write, bool slow, int tests, uint64_t *foundkey, char *filename) {
     char progress_text[80];
     char instr_set[12] = {0};
@@ -2179,8 +2223,9 @@ int mfnestedhard(uint8_t blockNo, uint8_t keyType, uint8_t *key, uint8_t trgBloc
     get_SIMD_instruction_set(instr_set);
     PrintAndLogEx(SUCCESS, "Using %s SIMD core.", instr_set);
 
+    // initialize static arrays
     memset(part_sum_count, 0, sizeof(part_sum_count));
-    real_sum_a8 = 0;
+    init_it_all();
 
     srand((unsigned) time(NULL));
     brute_force_per_second = brute_force_benchmark();

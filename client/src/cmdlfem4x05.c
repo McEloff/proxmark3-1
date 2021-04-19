@@ -125,10 +125,9 @@ static int doPreambleSearch(size_t *startIdx) {
 
     // skip first two 0 bits as they might have been missed in the demod
     uint8_t preamble[EM_PREAMBLE_LEN] = {0, 0, 0, 0, 1, 0, 1, 0};
-    uint8_t errpreamble[EM_PREAMBLE_LEN] = {0, 0, 0, 0, 0, 0, 0, 1};
-
     if (!preambleSearchEx(DemodBuffer, preamble, EM_PREAMBLE_LEN, &size, startIdx, true)) {
 
+        uint8_t errpreamble[EM_PREAMBLE_LEN] = {0, 0, 0, 0, 0, 0, 0, 1};
         if (!preambleSearchEx(DemodBuffer, errpreamble, EM_PREAMBLE_LEN, &size, startIdx, true)) {
             PrintAndLogEx(DEBUG, "DEBUG: Error - EM4305 preamble not found :: %zu", *startIdx);
             return PM3_ESOFT;
@@ -258,10 +257,10 @@ static int em4x05_setdemod_buffer(uint32_t *word, size_t idx) {
 // should cover 90% of known used configs
 // the rest will need to be manually demoded for now...
 static int em4x05_demod_resp(uint32_t *word, bool onlyPreamble) {
-    size_t idx = 0;
     *word = 0;
+    int res;
+    size_t idx = 0;
     bool found_err = false;
-    int res = PM3_SUCCESS;
     do {
         if (detectASK_MAN()) {
             res = doPreambleSearch(&idx);
@@ -505,7 +504,7 @@ int CmdEM4x05Dump(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_str0("p", "pwd", "<hex>", "password (00000000)"),
-        arg_str0("f", "file", "<filename>", "override filename prefix (optional).  Default is based on UID"),
+        arg_str0("f", "file", "<fn>", "override filename prefix (optional).  Default is based on UID"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -558,12 +557,12 @@ int CmdEM4x05Dump(const char *Cmd) {
         // Test first if the password is correct
         status = em4x05_login_ext(pwd);
         if (status == PM3_SUCCESS) {
-            PrintAndLogEx(INFO, "Password is " _GREEN_("correct"));
+            PrintAndLogEx(INFO, "password is " _GREEN_("correct"));
         } else if (status == PM3_EFAILED) {
-            PrintAndLogEx(WARNING, "Password is " _RED_("incorrect") ", will try without password");
+            PrintAndLogEx(WARNING, "password is " _RED_("incorrect") ", will try without password");
             usePwd = false;
         } else if (status != PM3_EFAILED) {
-            PrintAndLogEx(WARNING, "Login attempt: No answer from tag");
+            PrintAndLogEx(WARNING, "Login attempt: no answer from tag");
             return status;
         }
     }
@@ -706,7 +705,6 @@ int CmdEM4x05Dump(const char *Cmd) {
         }
         PrintAndLogEx(NORMAL, "");
         saveFileJSON(filename, (card_type == EM_4369 || card_type == EM_4469) ? jsfEM4x69 : jsfEM4x05, (uint8_t *)data, 16 * sizeof(uint32_t), NULL);
-
         saveFileEML(filename, (uint8_t *)data, 16 * sizeof(uint32_t), sizeof(uint32_t));
         saveFile(filename, ".bin", data, sizeof(data));
     }
@@ -773,15 +771,38 @@ int CmdEM4x05Write(const char *Cmd) {
     void *argtable[] = {
         arg_param_begin,
         arg_int0("a", "addr", "<dec>", "memory address to write to. (0-13)"),
-        arg_str1("d", "data", "<hex>", "data to write, 4 bytes hex"),
-        arg_str0("p", "pwd", "<hex>", "optional - password, 4 bytes hex"),
+        arg_str1("d", "data", "<hex>", "data to write (4 hex bytes)"),
+        arg_str0("p", "pwd", "<hex>", "password (4 hex bytes)"),
         arg_lit0(NULL, "po", "protect operation"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
     uint8_t addr = (uint8_t)arg_get_int_def(ctx, 1, 50);
-    uint32_t data = arg_get_u32(ctx, 2);
-    uint64_t inputpwd = arg_get_u64_hexstr_def(ctx, 3, 0xFFFFFFFFFFFFFFFF);
+    uint32_t data = 0;
+    int res = arg_get_u32_hexstr_def(ctx, 2, 0, &data);
+    if (res == 2) {
+        CLIParserFree(ctx);
+        PrintAndLogEx(WARNING, "Data must be 4 hex bytes");
+        return PM3_EINVARG;
+    } else if (res == 0) {
+        CLIParserFree(ctx);
+        PrintAndLogEx(WARNING, "Data must be 4 hex bytes");
+        return PM3_EINVARG;
+    }
+
+    bool use_pwd = false;
+    uint32_t pwd = 0;
+    res = arg_get_u32_hexstr_def_nlen(ctx, 3, 0, &pwd, 4, true);
+    if (res == 2) {
+        CLIParserFree(ctx);
+        PrintAndLogEx(WARNING, "Password must be 4 hex bytes");
+        return PM3_EINVARG;
+    } else if (res == 3) {
+        use_pwd = false;
+    } else if (res == 1) {
+        use_pwd = true;
+    }
+
     bool protect_operation = arg_get_lit(ctx, 4);
     CLIParserFree(ctx);
 
@@ -790,22 +811,19 @@ int CmdEM4x05Write(const char *Cmd) {
         return PM3_EINVARG;
     }
 
-    bool use_pwd = false;
-    uint32_t pwd = (inputpwd != 0xFFFFFFFFFFFFFFFF) ? (inputpwd & 0xFFFFFFFF) : 0;
-    if (pwd == 0xFFFFFFFF) {
-        if (protect_operation)
-            PrintAndLogEx(INFO, "Writing protection words data %08X", data);
-        else
-            PrintAndLogEx(INFO, "Writing address %d data %08X", addr, data);
-    } else {
-        use_pwd = true;
+    if (use_pwd) {
         if (protect_operation)
             PrintAndLogEx(INFO, "Writing protection words data %08X using password %08X", data, pwd);
         else
             PrintAndLogEx(INFO, "Writing address %d data %08X using password %08X", addr, data, pwd);
+    } else {
+        if (protect_operation)
+            PrintAndLogEx(INFO, "Writing protection words data %08X", data);
+        else
+            PrintAndLogEx(INFO, "Writing address %d data %08X", addr, data);
     }
 
-    int res = PM3_SUCCESS;
+    res = PM3_SUCCESS;
     // set Protect Words
     if (protect_operation) {
         res = em4x05_protect(pwd, use_pwd, data);
@@ -1357,7 +1375,7 @@ int CmdEM4x05Chk(const char *Cmd) {
             return PM3_ESOFT;
         }
 
-        PrintAndLogEx(INFO, "press " _YELLOW_("'enter'") " to cancel the command");
+        PrintAndLogEx(INFO, "press " _GREEN_("<Enter>") " to exit");
 
         for (uint32_t c = 0; c < keycount; ++c) {
 
@@ -1607,7 +1625,7 @@ int CmdEM4x05Unlock(const char *Cmd) {
 
     PrintAndLogEx(INFO, "----------------------------------------------------------------------------\n");
     PrintAndLogEx(NORMAL, "");
-    PrintAndLogEx(INFO, "press " _YELLOW_("'enter'") " to cancel the command");
+    PrintAndLogEx(INFO, "press " _GREEN_("<Enter>'") " to exit");
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(INFO, "--------------- " _CYAN_("start") " -----------------------\n");
 
@@ -1673,7 +1691,8 @@ int CmdEM4x05Unlock(const char *Cmd) {
         }
 
         // write
-        res = unlock_write_protect(use_pwd, pwd, write_value, verbose);
+        // don't check the return value. As a tear-off occurred, the write failed.
+        unlock_write_protect(use_pwd, pwd, write_value, verbose);
 
         // read after trigger
         res = em4x05_read_word_ext(14, pwd, use_pwd, &word14);
@@ -1833,7 +1852,7 @@ int CmdEM4x05Unlock(const char *Cmd) {
         PrintAndLogEx(INFO, "Old protection word => " _YELLOW_("%08X"), search_value);
         char bitstring[9] = {0};
         for (int i = 0; i < 8; i++) {
-            bitstring[i] = bitflips & (0xF << ((7 - i) * 4)) ? 'x' : '.';
+            bitstring[i] = (bitflips & (0xF << ((7 - i) * 4))) ? 'x' : '.';
         }
         // compute number of bits flipped
 
@@ -1935,30 +1954,15 @@ uint32_t static em4x05_Sniff_GetBlock(char *bits, bool fwd) {
 
 int CmdEM4x05Sniff(const char *Cmd) {
 
-    bool sampleData = true;
-    bool haveData = false;
-    size_t idx = 0;
-    char cmdText [100];
-    char dataText [100];
-    char blkAddr[4];
-    char bits[80];
-    int bitidx;
-    int ZeroWidth;    // 32-42 "1" is 32
-    int CycleWidth;
-    size_t pulseSamples;
-    size_t pktOffset;
-    int i;
-    bool eop = false;
-    uint32_t tmpValue;
-    bool pwd = false;
-    bool fwd = false;
+    bool pwd = false, fwd = false;
+    bool haveData, sampleData = true;
 
     CLIParserContext *ctx;
-    CLIParserInit(&ctx, "lf em 4x05_sniff",
+    CLIParserInit(&ctx, "lf em 4x05 sniff",
                   "Sniff EM4x05 commands sent from a programmer",
-                  "lf em 4x05_sniff -> sniff via lf sniff\n"
-                  "lf em 4x05_sniff -1 -> sniff from data loaded into the buffer\n"
-                  "lf em 4x05_sniff -r -> reverse the bit order when showing block data"
+                  "lf em 4x05 sniff     --> sniff via lf sniff\n"
+                  "lf em 4x05 sniff -1  --> sniff from data loaded into the buffer\n"
+                  "lf em 4x05 sniff -r  --> reverse the bit order when showing block data"
                  );
 
     void *argtable[] = {
@@ -1968,11 +1972,20 @@ int CmdEM4x05Sniff(const char *Cmd) {
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
-
-    sampleData = !arg_get_lit(ctx, 1);
+    sampleData = (arg_get_lit(ctx, 1) == false);
     fwd = arg_get_lit(ctx, 2);
-
     CLIParserFree(ctx);
+
+    char cmdText[100];
+    char dataText[100];
+    char blkAddr[4];
+    char bits[80];
+    int i, bitidx;
+    int ZeroWidth;    // 32-42 "1" is 32
+    int CycleWidth;
+    size_t idx = 0, pulseSamples, pktOffset;
+    uint32_t tmpValue;
+    bool eop = false;
 
     // setup and sample data from Proxmark
     // if not directed to existing sample/graphbuffer
@@ -2056,7 +2069,7 @@ int CmdEM4x05Sniff(const char *Cmd) {
                             haveData = true;
                             sprintf(cmdText, "Write");
                             tmpValue = (bits[4] - '0') + ((bits[5] - '0') << 1) + ((bits[6] - '0') << 2)  + ((bits[7] - '0') << 3);
-                            sprintf(blkAddr, "%d", tmpValue);
+                            sprintf(blkAddr, "%u", tmpValue);
                             if (tmpValue == 2) {
                                 pwd = true;
                             }
@@ -2070,7 +2083,7 @@ int CmdEM4x05Sniff(const char *Cmd) {
                             pwd = false;
                             sprintf(cmdText, "Read");
                             tmpValue = (bits[4] - '0') + ((bits[5] - '0') << 1) + ((bits[6] - '0') << 2)  + ((bits[7] - '0') << 3);
-                            sprintf(blkAddr, "%d", tmpValue);
+                            sprintf(blkAddr, "%u", tmpValue);
                             sprintf(dataText, " ");
                         }
 

@@ -58,6 +58,7 @@ static int emrtd_print_ef_com_info(uint8_t *data, size_t datalen);
 static int emrtd_print_ef_dg1_info(uint8_t *data, size_t datalen);
 static int emrtd_print_ef_dg11_info(uint8_t *data, size_t datalen);
 static int emrtd_print_ef_dg12_info(uint8_t *data, size_t datalen);
+static int emrtd_print_ef_cardaccess_info(uint8_t *data, size_t datalen);
 
 typedef enum  { // list must match dg_table
     EF_COM = 0,
@@ -83,27 +84,27 @@ typedef enum  { // list must match dg_table
 } emrtd_dg_enum;
 
 static emrtd_dg_t dg_table[] = {
-//  tag    dg# fileid  filename           desc                                                  pace   eac    req    fast   parser                    dumper
-    {0x60, 0,  "011E", "EF_COM",          "Header and Data Group Presence Information",         false, false, true,  true,  emrtd_print_ef_com_info,  NULL},
-    {0x61, 1,  "0101", "EF_DG1",          "Details recorded in MRZ",                            false, false, true,  true,  emrtd_print_ef_dg1_info,  NULL},
-    {0x75, 2,  "0102", "EF_DG2",          "Encoded Face",                                       false, false, true,  false, NULL,                     emrtd_dump_ef_dg2},
-    {0x63, 3,  "0103", "EF_DG3",          "Encoded Finger(s)",                                  false, true,  false, false, NULL,                     NULL},
-    {0x76, 4,  "0104", "EF_DG4",          "Encoded Eye(s)",                                     false, true,  false, false, NULL,                     NULL},
-    {0x65, 5,  "0105", "EF_DG5",          "Displayed Portrait",                                 false, false, false, false, NULL,                     emrtd_dump_ef_dg5},
-    {0x66, 6,  "0106", "EF_DG6",          "Reserved for Future Use",                            false, false, false, false, NULL,                     NULL},
-    {0x67, 7,  "0107", "EF_DG7",          "Displayed Signature or Usual Mark",                  false, false, false, false, NULL,                     emrtd_dump_ef_dg7},
-    {0x68, 8,  "0108", "EF_DG8",          "Data Feature(s)",                                    false, false, false, true,  NULL,                     NULL},
-    {0x69, 9,  "0109", "EF_DG9",          "Structure Feature(s)",                               false, false, false, true,  NULL,                     NULL},
-    {0x6a, 10, "010A", "EF_DG10",         "Substance Feature(s)",                               false, false, false, true,  NULL,                     NULL},
-    {0x6b, 11, "010B", "EF_DG11",         "Additional Personal Detail(s)",                      false, false, false, true,  emrtd_print_ef_dg11_info, NULL},
-    {0x6c, 12, "010C", "EF_DG12",         "Additional Document Detail(s)",                      false, false, false, true,  emrtd_print_ef_dg12_info, NULL},
-    {0x6d, 13, "010D", "EF_DG13",         "Optional Detail(s)",                                 false, false, false, true,  NULL,                     NULL},
-    {0x6e, 14, "010E", "EF_DG14",         "Security Options",                                   false, false, false, true,  NULL,                     NULL},
-    {0x6f, 15, "010F", "EF_DG15",         "Active Authentication Public Key Info",              false, false, false, true,  NULL,                     NULL},
-    {0x70, 16, "0110", "EF_DG16",         "Person(s) to Notify",                                false, false, false, true,  NULL,                     NULL},
-    {0x77, 0,  "011D", "EF_SOD",          "Document Security Object",                           false, false, false, false, NULL,                     emrtd_dump_ef_sod},
-    {0xff, 0,  "011C", "EF_CardAccess",   "PACE SecurityInfos",                                 true,  false, true,  true,  NULL,                     NULL},
-    {0xff, 0,  "011D", "EF_CardSecurity", "PACE SecurityInfos for Chip Authentication Mapping", true,  false, false, true,  NULL,                     NULL},
+//  tag    dg# fileid  filename           desc                                                  pace   eac    req    fast   parser                          dumper
+    {0x60, 0,  "011E", "EF_COM",          "Header and Data Group Presence Information",         false, false, true,  true,  emrtd_print_ef_com_info,        NULL},
+    {0x61, 1,  "0101", "EF_DG1",          "Details recorded in MRZ",                            false, false, true,  true,  emrtd_print_ef_dg1_info,        NULL},
+    {0x75, 2,  "0102", "EF_DG2",          "Encoded Face",                                       false, false, true,  false, NULL,                           emrtd_dump_ef_dg2},
+    {0x63, 3,  "0103", "EF_DG3",          "Encoded Finger(s)",                                  false, true,  false, false, NULL,                           NULL},
+    {0x76, 4,  "0104", "EF_DG4",          "Encoded Eye(s)",                                     false, true,  false, false, NULL,                           NULL},
+    {0x65, 5,  "0105", "EF_DG5",          "Displayed Portrait",                                 false, false, false, false, NULL,                           emrtd_dump_ef_dg5},
+    {0x66, 6,  "0106", "EF_DG6",          "Reserved for Future Use",                            false, false, false, false, NULL,                           NULL},
+    {0x67, 7,  "0107", "EF_DG7",          "Displayed Signature or Usual Mark",                  false, false, false, false, NULL,                           emrtd_dump_ef_dg7},
+    {0x68, 8,  "0108", "EF_DG8",          "Data Feature(s)",                                    false, false, false, true,  NULL,                           NULL},
+    {0x69, 9,  "0109", "EF_DG9",          "Structure Feature(s)",                               false, false, false, true,  NULL,                           NULL},
+    {0x6a, 10, "010A", "EF_DG10",         "Substance Feature(s)",                               false, false, false, true,  NULL,                           NULL},
+    {0x6b, 11, "010B", "EF_DG11",         "Additional Personal Detail(s)",                      false, false, false, true,  emrtd_print_ef_dg11_info,       NULL},
+    {0x6c, 12, "010C", "EF_DG12",         "Additional Document Detail(s)",                      false, false, false, true,  emrtd_print_ef_dg12_info,       NULL},
+    {0x6d, 13, "010D", "EF_DG13",         "Optional Detail(s)",                                 false, false, false, true,  NULL,                           NULL},
+    {0x6e, 14, "010E", "EF_DG14",         "Security Options",                                   false, false, false, true,  NULL,                           NULL},
+    {0x6f, 15, "010F", "EF_DG15",         "Active Authentication Public Key Info",              false, false, false, true,  NULL,                           NULL},
+    {0x70, 16, "0110", "EF_DG16",         "Person(s) to Notify",                                false, false, false, true,  NULL,                           NULL},
+    {0x77, 0,  "011D", "EF_SOD",          "Document Security Object",                           false, false, false, false, NULL,                           emrtd_dump_ef_sod},
+    {0xff, 0,  "011C", "EF_CardAccess",   "PACE SecurityInfos",                                 true,  false, true,  true,  emrtd_print_ef_cardaccess_info, NULL},
+    {0xff, 0,  "011D", "EF_CardSecurity", "PACE SecurityInfos for Chip Authentication Mapping", true,  false, false, true,  NULL,                           NULL},
     {0x00, 0,  NULL, NULL, NULL, false, false, false, false, NULL, NULL}
 };
 
@@ -115,6 +116,46 @@ static emrtd_hashalg_t hashalg_table[] = {
     {"SHA-256", sha256hash, 32, 11, {0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01}},
     {"SHA-512", sha512hash, 64, 11, {0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03}},
     {NULL,      NULL,       0,  0,  {}}
+};
+
+static emrtd_pacealg_t pacealg_table[] = {
+//  name                                       keygen descriptor
+    {"DH, Generic Mapping, 3DES-CBC-CBC",      NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x01, 0x01}},
+    {"DH, Generic Mapping, AES-CMAC-128",      NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x01, 0x02}},
+    {"DH, Generic Mapping, AES-CMAC-192",      NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x01, 0x03}},
+    {"DH, Generic Mapping, AES-CMAC-256",      NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x01, 0x04}},
+    {"ECDH, Generic Mapping, 3DES-CBC-CBC",    NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x02, 0x01}},
+    {"ECDH, Generic Mapping, AES-CMAC-128",    NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x02, 0x02}},
+    {"ECDH, Generic Mapping, AES-CMAC-192",    NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x02, 0x03}},
+    {"ECDH, Generic Mapping, AES-CMAC-256",    NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x02, 0x04}},
+    {"DH, Integrated Mapping, 3DES-CBC-CBC",   NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x03, 0x01}},
+    {"DH, Integrated Mapping, AES-CMAC-128",   NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x03, 0x02}},
+    {"DH, Integrated Mapping, AES-CMAC-192",   NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x03, 0x03}},
+    {"DH, Integrated Mapping, AES-CMAC-256",   NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x03, 0x04}},
+    {"ECDH, Integrated Mapping, 3DES-CBC-CBC", NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x04, 0x01}},
+    {"ECDH, Integrated Mapping, AES-CMAC-128", NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x04, 0x02}},
+    {"ECDH, Integrated Mapping, AES-CMAC-192", NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x04, 0x03}},
+    {"ECDH, Integrated Mapping, AES-CMAC-256", NULL, {0x04, 0x00, 0x7F, 0x00, 0x07, 0x02, 0x02, 0x04, 0x04, 0x04}},
+    {NULL, NULL, {}}
+};
+
+static emrtd_pacesdp_t pacesdp_table[] = {
+//   id  name                                                     size
+    {0,  "1024-bit MODP Group with 160-bit Prime Order Subgroup", 1024},
+    {1,  "2048-bit MODP Group with 224-bit Prime Order Subgroup", 2048},
+    {2,  "2048-bit MODP Group with 256-bit Prime Order Subgroup", 2048},
+    {8,  "NIST P-192 (secp192r1)",                                192},
+    {10, "NIST P-224 (secp224r1)",                                224},
+    {12, "NIST P-256 (secp256r1)",                                256},
+    {15, "NIST P-384 (secp384r1)",                                384},
+    {18, "NIST P-521 (secp521r1)",                                521},
+    {9,  "BrainpoolP192r1",                                       192},
+    {11, "BrainpoolP224r1",                                       224},
+    {13, "BrainpoolP256r1",                                       256},
+    {14, "BrainpoolP320r1",                                       320},
+    {16, "BrainpoolP384r1",                                       384},
+    {17, "BrainpoolP521r1",                                       521},
+    {32, NULL, 0}
 };
 
 static emrtd_dg_t *emrtd_tag_to_dg(uint8_t tag) {
@@ -191,12 +232,10 @@ static int emrtd_exchange_commands_noout(const char *cmd, bool activate_field, b
 
 static char emrtd_calculate_check_digit(char *data) {
     int mrz_weight[] = {7, 3, 1};
-    int cd = 0;
-    int value = 0;
-    char d;
+    int value, cd = 0;
 
     for (int i = 0; i < strlen(data); i++) {
-        d = data[i];
+        char d = data[i];
         if ('A' <= d && d <= 'Z') {
             value = d - 55;
         } else if ('a' <= d && d <= 'z') {
@@ -223,13 +262,22 @@ static int emrtd_get_asn1_data_length(uint8_t *datain, int datainlen, int offset
         // https://wf.lavatech.top/ave-but-random/emrtd-data-quirks#EF_SOD
         return datainlen;
     } else if (lenfield == 0x81) {
-        return ((int) * (datain + offset + 1));
+        int tmp = (*(datain + offset + 1) << 8);
+        return tmp;
+        //return ((int) * (datain + offset + 1));
     } else if (lenfield == 0x82) {
-        return ((int) * (datain + offset + 1) << 8) | ((int) * (datain + offset + 2));
+        int tmp = (*(datain + offset + 1) << 8);
+        tmp |= *(datain + offset + 2);
+        return tmp;
+        //return ((int) * (datain + offset + 1) << 8) | ((int) * (datain + offset + 2));
     } else if (lenfield == 0x83) {
-        return (((int) * (datain + offset + 1) << 16) | ((int) * (datain + offset + 2)) << 8) | ((int) * (datain + offset + 3));
+        int tmp = (*(datain + offset + 1) << 16);
+        tmp |= (*(datain + offset + 2) << 8);
+        tmp |= *(datain + offset + 3);
+        return tmp;
+        //return (((int) * (datain + offset + 1) << 16) | ((int) * (datain + offset + 2)) << 8) | ((int) * (datain + offset + 3));
     }
-    return false;
+    return 0;
 }
 
 static int emrtd_get_asn1_field_length(uint8_t *datain, int datainlen, int offset) {
@@ -245,7 +293,7 @@ static int emrtd_get_asn1_field_length(uint8_t *datain, int datainlen, int offse
     } else if (lenfield == 0x83) {
         return 4;
     }
-    return false;
+    return 0;
 }
 
 static void des_encrypt_ecb(uint8_t *key, uint8_t *input, uint8_t *output) {
@@ -652,19 +700,16 @@ static bool emrtd_lds_get_data_by_tag(uint8_t *datain, size_t datainlen, uint8_t
         offset += emrtd_get_asn1_field_length(datain, datainlen, offset);
     }
 
-    int e_idlen = 0;
-    int e_datalen = 0;
-    int e_fieldlen = 0;
     while (offset < datainlen) {
         PrintAndLogEx(DEBUG, "emrtd_lds_get_data_by_tag, offset: %i, data: %X", offset, *(datain + offset));
         // Determine element ID length to set as offset on asn1datalength
-        e_idlen = emrtd_lds_determine_tag_length(*(datain + offset));
+        int e_idlen = emrtd_lds_determine_tag_length(*(datain + offset));
 
         // Get the length of the element
-        e_datalen = emrtd_get_asn1_data_length(datain + offset, datainlen - offset, e_idlen);
+        int e_datalen = emrtd_get_asn1_data_length(datain + offset, datainlen - offset, e_idlen);
 
         // Get the length of the element's length
-        e_fieldlen = emrtd_get_asn1_field_length(datain + offset, datainlen - offset, e_idlen);
+        int e_fieldlen = emrtd_get_asn1_field_length(datain + offset, datainlen - offset, e_idlen);
 
         PrintAndLogEx(DEBUG, "emrtd_lds_get_data_by_tag, e_idlen: %02X, e_datalen: %02X, e_fieldlen: %02X", e_idlen, e_datalen, e_fieldlen);
 
@@ -718,8 +763,8 @@ static int emrtd_dump_ef_dg2(uint8_t *file_contents, size_t file_length, const c
     // Note: Doing file_length - 6 to account for the longest data we're checking.
     // Checks first byte before the rest to reduce overhead
     for (offset = 0; offset < file_length - 6; offset++) {
-        if ((file_contents[offset] == 0xFF && memcmp(jpeg_header, file_contents + offset, 4) != 0) ||
-                (file_contents[offset] == 0x00 && memcmp(jpeg2k_header, file_contents + offset, 6) != 0)) {
+        if ((file_contents[offset] == 0xFF && memcmp(jpeg_header, file_contents + offset, 4) == 0) ||
+                (file_contents[offset] == 0x00 && memcmp(jpeg2k_header, file_contents + offset, 6) == 0)) {
             datalen = file_length - offset;
             break;
         }
@@ -803,12 +848,13 @@ static int emrtd_dump_ef_sod(uint8_t *file_contents, size_t file_length, const c
 
     if (fieldlen + 1 > EMRTD_MAX_FILE_SIZE) {
         PrintAndLogEx(ERR, "error (emrtd_dump_ef_sod) fieldlen out-of-bounds");
-        return PM3_SUCCESS;
+        return PM3_EOUTOFBOUND;
     }
 
     char *filepath = calloc(strlen(path) + 100, sizeof(char));
     if (filepath == NULL)
         return PM3_EMALLOC;
+
     strcpy(filepath, path);
     strncat(filepath, PATHSEP, 2);
     strcat(filepath, dg_table[EF_SOD].filename);
@@ -828,7 +874,8 @@ static bool emrtd_dump_file(uint8_t *ks_enc, uint8_t *ks_mac, uint8_t *ssc, cons
 
     char *filepath = calloc(strlen(path) + 100, sizeof(char));
     if (filepath == NULL)
-        return PM3_EMALLOC;
+        return false;
+
     strcpy(filepath, path);
     strncat(filepath, PATHSEP, 2);
     strcat(filepath, name);
@@ -996,7 +1043,7 @@ static bool emrtd_do_auth(char *documentnumber, char *dob, char *expiry, bool BA
     // Select EF_COM
     if (emrtd_select_file(EMRTD_P1_SELECT_BY_EF, dg_table[EF_COM].fileid, *use_14b) == false) {
         *BAC = true;
-        PrintAndLogEx(INFO, "Basic Access Control is enforced. Will attempt external authentication.");
+        PrintAndLogEx(INFO, "Authentication is enforced. Will attempt external authentication.");
     } else {
         *BAC = false;
         // Select EF_DG1
@@ -1004,7 +1051,7 @@ static bool emrtd_do_auth(char *documentnumber, char *dob, char *expiry, bool BA
 
         if (emrtd_read_file(response, &resplen, NULL, NULL, NULL, false, *use_14b) == false) {
             *BAC = true;
-            PrintAndLogEx(INFO, "Basic Access Control is enforced. Will attempt external authentication.");
+            PrintAndLogEx(INFO, "Authentication is enforced. Will attempt external authentication.");
         } else {
             *BAC = false;
         }
@@ -1014,7 +1061,7 @@ static bool emrtd_do_auth(char *documentnumber, char *dob, char *expiry, bool BA
     if (*BAC) {
         // If BAC isn't available, exit out and warn user.
         if (!BAC_available) {
-            PrintAndLogEx(ERR, "This eMRTD enforces Basic Access Control, but you didn't supply MRZ data. Cannot proceed.");
+            PrintAndLogEx(ERR, "This eMRTD enforces authentication, but you didn't supply MRZ data. Cannot proceed.");
             PrintAndLogEx(HINT, "Check out hf emrtd info/dump --help, supply data with -n -d and -e.");
             return false;
         }
@@ -1140,11 +1187,12 @@ static void emrtd_print_legal_sex(char *legal_sex) {
 
 static int emrtd_mrz_determine_length(char *mrz, int offset, int max_length) {
     int i;
-    for (i = max_length; i >= 0; i--) {
-        if (mrz[offset + i - 1] != '<') {
+    for (i = max_length - 1; i >= 0; i--) {
+        if (mrz[offset + i] != '<') {
             break;
         }
     }
+    // if not found,  it will return -1
     return i;
 }
 
@@ -1169,6 +1217,9 @@ static void emrtd_mrz_replace_pad(char *data, int datalen, char newchar) {
 
 static void emrtd_print_optional_elements(char *mrz, int offset, int length, bool verify_check_digit) {
     int i = emrtd_mrz_determine_length(mrz, offset, length);
+    if (i == -1) {
+        return;
+    }
 
     // Only print optional elements if they're available
     if (i != 0) {
@@ -1182,6 +1233,9 @@ static void emrtd_print_optional_elements(char *mrz, int offset, int length, boo
 
 static void emrtd_print_document_number(char *mrz, int offset) {
     int i = emrtd_mrz_determine_length(mrz, offset, 9);
+    if (i == -1) {
+        return;
+    }
 
     PrintAndLogEx(SUCCESS, "Document Number.......: " _YELLOW_("%.*s"), i, mrz + offset);
 
@@ -1193,6 +1247,9 @@ static void emrtd_print_document_number(char *mrz, int offset) {
 static void emrtd_print_name(char *mrz, int offset, int max_length, bool localized) {
     char final_name[100] = { 0x00 };
     int namelen = emrtd_mrz_determine_length(mrz, offset, max_length);
+    if (namelen == -1) {
+        return;
+    }
     int sep = emrtd_mrz_determine_separator(mrz, offset, namelen);
 
     // Account for mononyms
@@ -1342,19 +1399,26 @@ static int emrtd_print_ef_dg1_info(uint8_t *data, size_t datalen) {
 
     // Determine and print the document type
     if (mrz[0] == 'I' && mrz[1] == 'P') {
-        td_variant = 1;
         PrintAndLogEx(SUCCESS, "Document Type.........: " _YELLOW_("Passport Card"));
     } else if (mrz[0] == 'I') {
-        td_variant = 1;
         PrintAndLogEx(SUCCESS, "Document Type.........: " _YELLOW_("ID Card"));
     } else if (mrz[0] == 'P') {
-        td_variant = 3;
         PrintAndLogEx(SUCCESS, "Document Type.........: " _YELLOW_("Passport"));
+    } else if (mrz[0] == 'A') {
+        PrintAndLogEx(SUCCESS, "Document Type.........: " _YELLOW_("German Residency Permit"));
     } else {
-        td_variant = 1;
         PrintAndLogEx(SUCCESS, "Document Type.........: " _YELLOW_("Unknown"));
-        PrintAndLogEx(INFO, "Assuming ID-style MRZ.");
     }
+
+    if (mrzlen == 90) {
+        td_variant = 1;
+    } else if (mrzlen == 88) {
+        td_variant = 3;
+    } else {
+        PrintAndLogEx(ERR, "MRZ length (%zu) is wrong.", mrzlen);
+        return PM3_ESOFT;
+    }
+
     PrintAndLogEx(SUCCESS, "Document Form Factor..: " _YELLOW_("TD%i"), td_variant);
 
     // Print the MRZ
@@ -1438,37 +1502,37 @@ static int emrtd_print_ef_dg11_info(uint8_t *data, size_t datalen) {
                     emrtd_print_name((char *) tagdata, 0, tagdatalen, false);
                     break;
                 case 0x10:
-                    PrintAndLogEx(SUCCESS, "Personal Number.......: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Personal Number.......: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x11:
                     // TODO: acc for < separation
-                    PrintAndLogEx(SUCCESS, "Place of Birth........: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Place of Birth........: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x42:
                     // TODO: acc for < separation
-                    PrintAndLogEx(SUCCESS, "Permanent Address.....: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Permanent Address.....: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x12:
-                    PrintAndLogEx(SUCCESS, "Telephone.............: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Telephone.............: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x13:
-                    PrintAndLogEx(SUCCESS, "Profession............: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Profession............: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x14:
-                    PrintAndLogEx(SUCCESS, "Title.................: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Title.................: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x15:
-                    PrintAndLogEx(SUCCESS, "Personal Summary......: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Personal Summary......: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x16:
                     saveFile("ProofOfCitizenship", tagdata[0] == 0xFF ? ".jpg" : ".jp2", tagdata, tagdatalen);
                     break;
                 case 0x17:
                     // TODO: acc for < separation
-                    PrintAndLogEx(SUCCESS, "Other valid TDs nums..: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Other valid TDs nums..: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x18:
-                    PrintAndLogEx(SUCCESS, "Custody Information...: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Custody Information...: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x2b:
                     emrtd_print_dob((char *) tagdata, 0, true, tagdatalen != 4);
@@ -1513,16 +1577,16 @@ static int emrtd_print_ef_dg12_info(uint8_t *data, size_t datalen) {
             // ...and I doubt many states are using them.
             switch (taglist[i + 1]) {
                 case 0x19:
-                    PrintAndLogEx(SUCCESS, "Issuing Authority.....: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Issuing Authority.....: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x26:
                     emrtd_print_issuance((char *) tagdata, tagdatalen != 4);
                     break;
                 case 0x1b:
-                    PrintAndLogEx(SUCCESS, "Endorsements & Observations: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Endorsements & Observations: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x1c:
-                    PrintAndLogEx(SUCCESS, "Tax/Exit Requirements.: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Tax/Exit Requirements.: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x1d:
                     saveFile("FrontOfDocument", tagdata[0] == 0xFF ? ".jpg" : ".jp2", tagdata, tagdatalen);
@@ -1534,7 +1598,7 @@ static int emrtd_print_ef_dg12_info(uint8_t *data, size_t datalen) {
                     emrtd_print_personalization_timestamp(tagdata);
                     break;
                 case 0x56:
-                    PrintAndLogEx(SUCCESS, "Serial of Personalization System: " _YELLOW_("%.*s"), tagdatalen, tagdata);
+                    PrintAndLogEx(SUCCESS, "Serial of Personalization System: " _YELLOW_("%.*s"), (int)tagdatalen, tagdata);
                     break;
                 case 0x85:
                     emrtd_print_unknown_timestamp_5f85(tagdata);
@@ -1624,7 +1688,7 @@ static int emrtd_parse_ef_sod_hash_algo(uint8_t *data, size_t datalen, int *hash
         PrintAndLogEx(DEBUG, "trying: %s", hashalg_table[hashi].name);
         // We're only interested in checking if the length matches to avoid memory shenanigans
         if (hashalg_table[hashi].descriptorlen != hashalgosetlen) {
-            PrintAndLogEx(DEBUG, "len mismatch: %i", hashalgosetlen);
+            PrintAndLogEx(DEBUG, "len mismatch: %zu", hashalgosetlen);
             continue;
         }
 
@@ -1649,8 +1713,6 @@ static int emrtd_parse_ef_sod_hashes(uint8_t *data, size_t datalen, uint8_t *has
 
     size_t emrtdsiglen = 0;
     size_t hashlistlen = 0;
-    size_t e_datalen = 0;
-    size_t e_fieldlen = 0;
     size_t offset = 0;
 
     if (emrtd_ef_sod_extract_signatures(data, datalen, emrtdsig, &emrtdsiglen) != PM3_SUCCESS) {
@@ -1670,10 +1732,10 @@ static int emrtd_parse_ef_sod_hashes(uint8_t *data, size_t datalen, uint8_t *has
 
     while (offset < hashlistlen) {
         // Get the length of the element
-        e_datalen = emrtd_get_asn1_data_length(hashlist + offset, hashlistlen - offset, 1);
+        int e_datalen = emrtd_get_asn1_data_length(hashlist + offset, hashlistlen - offset, 1);
 
         // Get the length of the element's length
-        e_fieldlen = emrtd_get_asn1_field_length(hashlist + offset, hashlistlen - offset, 1);
+        int e_fieldlen = emrtd_get_asn1_field_length(hashlist + offset, hashlistlen - offset, 1);
 
         switch (hashlist[offset]) {
             case 0x30:
@@ -1703,11 +1765,10 @@ static int emrtd_print_ef_sod_info(uint8_t *dg_hashes_calc, uint8_t *dg_hashes_s
         PrintAndLogEx(SUCCESS, "Hash algorithm: " _YELLOW_("%s"), hashalg_table[hash_algo].name);
 
         uint8_t all_zeroes[64] = { 0x00 };
-        bool calc_all_zero, sod_all_zero, hash_matches;
         for (int i = 1; i <= 16; i++) {
-            calc_all_zero = (memcmp(dg_hashes_calc + (i * 64), all_zeroes, hashalg_table[hash_algo].hashlen) == 0);
-            sod_all_zero = (memcmp(dg_hashes_sod + (i * 64), all_zeroes, hashalg_table[hash_algo].hashlen) == 0);
-            hash_matches = (memcmp(dg_hashes_sod + (i * 64), dg_hashes_calc + (i * 64), hashalg_table[hash_algo].hashlen) == 0);
+            bool calc_all_zero = (memcmp(dg_hashes_calc + (i * 64), all_zeroes, hashalg_table[hash_algo].hashlen) == 0);
+            bool sod_all_zero = (memcmp(dg_hashes_sod + (i * 64), all_zeroes, hashalg_table[hash_algo].hashlen) == 0);
+            bool hash_matches = (memcmp(dg_hashes_sod + (i * 64), dg_hashes_calc + (i * 64), hashalg_table[hash_algo].hashlen) == 0);
             // Ignore files we don't haven't read and lack hashes to
             if (calc_all_zero == true && sod_all_zero == true) {
                 continue;
@@ -1726,6 +1787,64 @@ static int emrtd_print_ef_sod_info(uint8_t *dg_hashes_calc, uint8_t *dg_hashes_s
     return PM3_SUCCESS;
 }
 
+static int emrtd_print_ef_cardaccess_info(uint8_t *data, size_t datalen) {
+    uint8_t dataset[100] = { 0x00 };
+    size_t datasetlen = 0;
+    uint8_t datafromtag[100] = { 0x00 };
+    size_t datafromtaglen = 0;
+    uint8_t parsednum = 0;
+
+    PrintAndLogEx(NORMAL, "");
+    PrintAndLogEx(INFO, "----------------- " _CYAN_("EF_CardAccess") " ----------------");
+
+    if (!emrtd_lds_get_data_by_tag(data, datalen, dataset, &datasetlen, 0x30, 0x00, false, true, 0)) {
+        PrintAndLogEx(ERR, "Failed to read set from EF_CardAccess.");
+        return PM3_ESOFT;
+    }
+
+    // Get PACE version
+    if (!emrtd_lds_get_data_by_tag(dataset, datasetlen, datafromtag, &datafromtaglen, 0x02, 0x00, false, false, 0)) {
+        PrintAndLogEx(ERR, "Failed to read PACE version from EF_CardAccess.");
+        return PM3_ESOFT;
+    }
+    // TODO: hack!!!
+    memcpy(&parsednum, datafromtag, datafromtaglen);
+    PrintAndLogEx(SUCCESS, "PACE version..........: " _YELLOW_("%i"), parsednum);
+
+    // Get PACE algorithm
+    if (!emrtd_lds_get_data_by_tag(dataset, datasetlen, datafromtag, &datafromtaglen, 0x06, 0x00, false, false, 0)) {
+        PrintAndLogEx(ERR, "Failed to read PACE algorithm from EF_CardAccess.");
+        return PM3_ESOFT;
+    }
+
+    for (int pacei = 0; pacealg_table[pacei].name != NULL; pacei++) {
+        PrintAndLogEx(DEBUG, "Trying: %s", pacealg_table[pacei].name);
+
+        if (memcmp(pacealg_table[pacei].descriptor, datafromtag, datafromtaglen) == 0) {
+            PrintAndLogEx(SUCCESS, "PACE algorithm........: " _YELLOW_("%s"), pacealg_table[pacei].name);
+        }
+    }
+
+    // Get PACE parameter ID
+    if (!emrtd_lds_get_data_by_tag(dataset, datasetlen, datafromtag, &datafromtaglen, 0x02, 0x00, false, false, 1)) {
+        PrintAndLogEx(ERR, "Failed to read PACE parameter ID from EF_CardAccess.");
+        return PM3_ESOFT;
+    }
+
+    // TODO: hack!!!
+    memcpy(&parsednum, datafromtag, datafromtaglen);
+    for (int pacepari = 0; pacesdp_table[pacepari].id != 32; pacepari++) {
+        PrintAndLogEx(DEBUG, "Trying: %s", pacesdp_table[pacepari].name);
+
+        if (pacesdp_table[pacepari].id == parsednum) {
+            PrintAndLogEx(SUCCESS, "PACE parameter........: " _YELLOW_("%s"), pacesdp_table[pacepari].name);
+        }
+        // TODO: account for RFU
+    }
+
+    return PM3_SUCCESS;
+}
+
 int infoHF_EMRTD(char *documentnumber, char *dob, char *expiry, bool BAC_available) {
     uint8_t response[EMRTD_MAX_FILE_SIZE] = { 0x00 };
     int resplen = 0;
@@ -1733,6 +1852,7 @@ int infoHF_EMRTD(char *documentnumber, char *dob, char *expiry, bool BAC_availab
     uint8_t ks_enc[16] = { 0x00 };
     uint8_t ks_mac[16] = { 0x00 };
     bool BAC = false;
+    bool PACE_available = true;
     bool use_14b = false;
 
     // Select the eMRTD
@@ -1741,20 +1861,32 @@ int infoHF_EMRTD(char *documentnumber, char *dob, char *expiry, bool BAC_availab
         return PM3_ESOFT;
     }
 
+    // Read EF_CardAccess
+    if (!emrtd_select_and_read(response, &resplen, dg_table[EF_CardAccess].fileid, ks_enc, ks_mac, ssc, BAC, use_14b)) {
+        PACE_available = false;
+        PrintAndLogEx(HINT, "The error above this is normal. It just means that your eMRTD lacks PACE.");
+    }
+
     // Select and authenticate with the eMRTD
     bool auth_result = emrtd_do_auth(documentnumber, dob, expiry, BAC_available, &BAC, ssc, ks_enc, ks_mac, &use_14b);
 
     PrintAndLogEx(NORMAL, "");
     PrintAndLogEx(INFO, "------------------ " _CYAN_("Basic Info") " ------------------");
     PrintAndLogEx(SUCCESS, "Communication standard: %s", use_14b ? _YELLOW_("ISO/IEC 14443(B)") : _YELLOW_("ISO/IEC 14443(A)"));
-    PrintAndLogEx(SUCCESS, "BAC...................: %s", BAC ? _GREEN_("Enforced") : _RED_("Not enforced"));
+    PrintAndLogEx(SUCCESS, "Authentication........: %s", BAC ? _GREEN_("Enforced") : _RED_("Not enforced"));
+    PrintAndLogEx(SUCCESS, "PACE..................: %s", PACE_available ? _GREEN_("Available") : _YELLOW_("Not available"));
     PrintAndLogEx(SUCCESS, "Authentication result.: %s", auth_result ? _GREEN_("Successful") : _RED_("Failed"));
+
+    if (PACE_available) {
+        emrtd_print_ef_cardaccess_info(response, resplen);
+    }
 
     if (!auth_result) {
         DropField();
         return PM3_ESOFT;
     }
 
+    // Read EF_COM to get file list
     if (!emrtd_select_and_read(response, &resplen, dg_table[EF_COM].fileid, ks_enc, ks_mac, ssc, BAC, use_14b)) {
         PrintAndLogEx(ERR, "Failed to read EF_COM.");
         DropField();
@@ -1776,7 +1908,7 @@ int infoHF_EMRTD(char *documentnumber, char *dob, char *expiry, bool BAC_availab
         return PM3_ESOFT;
     }
 
-    // Grab the hash list
+    // Grab the hash list from EF_SOD
     uint8_t dg_hashes_sod[17][64] = { { 0 } };
     uint8_t dg_hashes_calc[17][64] = { { 0 } };
     int hash_algo = 0;
@@ -1859,6 +1991,16 @@ int infoHF_EMRTD_offline(const char *path) {
     uint8_t dg_hashes_sod[17][64] = { { 0 } };
     uint8_t dg_hashes_calc[17][64] = { { 0 } };
     int hash_algo = 0;
+
+    strcpy(filepath, path);
+    strncat(filepath, PATHSEP, 2);
+    strcat(filepath, dg_table[EF_CardAccess].filename);
+
+    if (loadFile_safeEx(filepath, ".BIN", (void **)&data, (size_t *)&datalen, false) == PM3_SUCCESS) {
+        emrtd_print_ef_cardaccess_info(data, datalen);
+    } else {
+        PrintAndLogEx(HINT, "The error above this is normal. It just means that your eMRTD lacks PACE.");
+    }
 
     strcpy(filepath, path);
     strncat(filepath, PATHSEP, 2);

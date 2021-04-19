@@ -662,9 +662,11 @@ void MifareUSetPwd(uint8_t arg0, uint8_t *datain) {
 
 // Return 1 if the nonce is invalid else return 0
 static int valid_nonce(uint32_t Nt, uint32_t NtEnc, uint32_t Ks1, uint8_t *parity) {
-    return ((oddparity8((Nt >> 24) & 0xFF) == ((parity[0]) ^ oddparity8((NtEnc >> 24) & 0xFF) ^ BIT(Ks1, 16))) & \
-            (oddparity8((Nt >> 16) & 0xFF) == ((parity[1]) ^ oddparity8((NtEnc >> 16) & 0xFF) ^ BIT(Ks1, 8))) & \
-            (oddparity8((Nt >> 8) & 0xFF) == ((parity[2]) ^ oddparity8((NtEnc >> 8) & 0xFF) ^ BIT(Ks1, 0)))) ? 1 : 0;
+    return (
+               (oddparity8((Nt >> 24) & 0xFF) == ((parity[0]) ^ oddparity8((NtEnc >> 24) & 0xFF) ^ BIT(Ks1, 16))) && \
+               (oddparity8((Nt >> 16) & 0xFF) == ((parity[1]) ^ oddparity8((NtEnc >> 16) & 0xFF) ^ BIT(Ks1, 8))) && \
+               (oddparity8((Nt >> 8) & 0xFF) == ((parity[2]) ^ oddparity8((NtEnc >> 8) & 0xFF) ^ BIT(Ks1, 0)))
+           ) ? 1 : 0;
 }
 
 void MifareAcquireNonces(uint32_t arg0, uint32_t flags) {
@@ -1011,7 +1013,8 @@ void MifareNested(uint8_t blockNo, uint8_t keyType, uint8_t targetBlockNo, uint8
             }
         }
 
-        davg = (davg + (rtr - 1) / 2) / (rtr - 1);
+        if (rtr > 1)
+            davg = (davg + (rtr - 1) / 2) / (rtr - 1);
 
         if (DBGLEVEL >= DBG_DEBUG) Dbprintf("rtr=%d isOK=%d min=%d max=%d avg=%d, delta_time=%d", rtr, isOK, dmin, dmax, davg, delta_time);
 
@@ -2482,8 +2485,7 @@ void MifareGen3UID(uint8_t uidlen, uint8_t *uid) {
     clear_trace();
     set_tracing(true);
 
-    if (!iso14443a_select_card(old_uid, card_info, NULL, true, 0, true)) {
-        if (DBGLEVEL >= DBG_ERROR) Dbprintf("Card not selected");
+    if (iso14443a_select_card(old_uid, card_info, NULL, true, 0, true) == false) {
         retval = PM3_ESOFT;
         goto OUT;
     }
@@ -2518,8 +2520,7 @@ void MifareGen3Blk(uint8_t block_len, uint8_t *block) {
     clear_trace();
     set_tracing(true);
 
-    if (!iso14443a_select_card(uid, card_info, NULL, true, 0, true)) {
-        if (DBGLEVEL >= DBG_ERROR) Dbprintf("Card not selected");
+    if (iso14443a_select_card(uid, card_info, NULL, true, 0, true) == false) {
         retval = PM3_ESOFT;
         goto OUT;
     }
@@ -2555,7 +2556,6 @@ void MifareGen3Blk(uint8_t block_len, uint8_t *block) {
 
         if (doReselect) {
             if (!iso14443a_select_card(uid, NULL, NULL, true, 0, true)) {
-                if (DBGLEVEL >= DBG_ERROR) Dbprintf("Card not selected");
                 retval = PM3_ESOFT;
                 goto OUT;
             }
@@ -2572,16 +2572,15 @@ OUT:
 }
 
 void MifareGen3Freez(void) {
-    int retval = PM3_SUCCESS;
-    uint8_t freeze_cmd[7] = { 0x90, 0xfd, 0x11, 0x11, 0x00, 0xe7, 0x91 };
-    uint8_t *uid = BigBuf_malloc(10);
-
     iso14443a_setup(FPGA_HF_ISO14443A_READER_LISTEN);
     clear_trace();
     set_tracing(true);
 
-    if (!iso14443a_select_card(uid, NULL, NULL, true, 0, true)) {
-        if (DBGLEVEL >= DBG_ERROR) Dbprintf("Card not selected");
+    int retval = PM3_SUCCESS;
+    uint8_t freeze_cmd[7] = { 0x90, 0xfd, 0x11, 0x11, 0x00, 0xe7, 0x91 };
+    uint8_t *uid = BigBuf_malloc(10);
+
+    if (iso14443a_select_card(uid, NULL, NULL, true, 0, true) == false) {
         retval = PM3_ESOFT;
         goto OUT;
     }
@@ -2710,20 +2709,15 @@ void Mifare_DES_Auth2(uint32_t arg0, uint8_t *datain) {
 //
 // Tear-off attack against MFU.
 // - Moebius et al
-void MifareU_Otp_Tearoff(uint8_t arg0, uint32_t tearoff_time, uint8_t *datain) {
-    uint8_t blockNo = arg0;
-    uint8_t data_fullwrite[4] = {0x00};
-    uint8_t data_testwrite[4] = {0x00};
-    memcpy(data_fullwrite, datain, 4);
-    memcpy(data_testwrite, datain + 4, 4);
+void MifareU_Otp_Tearoff(uint8_t blno, uint32_t tearoff_time, uint8_t *data_testwrite) {
+    uint8_t blockNo = blno;
 
     if (DBGLEVEL >= DBG_DEBUG) DbpString("Preparing OTP tear-off");
 
     if (tearoff_time > 43000)
         tearoff_time = 43000;
-
-    MifareUWriteBlockEx(blockNo, 0, data_fullwrite, false);
-
+    tearoff_delay_us = tearoff_time;
+    tearoff_enabled = true;
 
     LEDsoff();
     iso14443a_setup(FPGA_HF_ISO14443A_READER_LISTEN);
@@ -2747,15 +2741,9 @@ void MifareU_Otp_Tearoff(uint8_t arg0, uint32_t tearoff_time, uint8_t *datain) {
         return;
     };
     // send
-    ReaderTransmit(cmd, sizeof(cmd), NULL);
-
-    // Wait before cutting power.  aka tear-off
     LED_D_ON();
-
-    SpinDelayUsPrecision(tearoff_time);
-    if (DBGLEVEL >= DBG_DEBUG) Dbprintf(_YELLOW_("OTP tear-off triggered!"));
-    switch_off();
-
+    ReaderTransmit(cmd, sizeof(cmd), NULL);
+    tearoff_hook();
     reply_ng(CMD_HF_MFU_OTP_TEAROFF, PM3_SUCCESS, NULL, 0);
 }
 

@@ -133,7 +133,7 @@ static uint16_t printHexLine(uint16_t tracepos, uint16_t traceLen, uint8_t *trac
     return ret;
 }
 
-static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *trace, uint8_t protocol, bool showWaitCycles, bool markCRCBytes, uint32_t *prev_eot, bool use_us, 
+static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *trace, uint8_t protocol, bool showWaitCycles, bool markCRCBytes, uint32_t *prev_eot, bool use_us,
                                const uint64_t *mfDicKeys, uint32_t mfDicKeysCount) {
     // sanity check
     if (is_last_record(tracepos, traceLen)) {
@@ -242,7 +242,6 @@ static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *tr
     }
 
     for (int j = 0; j < data_len && j / 18 < 18; j++) {
-
         uint8_t parityBits = parityBytes[j >> 3];
         if (protocol != LEGIC
                 && protocol != ISO_14443B
@@ -256,7 +255,7 @@ static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *tr
                 && protocol != FELICA
                 && protocol != LTO
                 && protocol != PROTO_CRYPTORF
-                && (hdr->isResponse || protocol == ISO_14443A)
+                && (hdr->isResponse || protocol == ISO_14443A || protocol == PROTO_MIFARE)
                 && (oddparity8(frame[j]) != ((parityBits >> (7 - (j & 0x0007))) & 0x01))) {
 
             snprintf(line[j / 18] + ((j % 18) * 4), 120, "%02x! ", frame[j]);
@@ -280,9 +279,9 @@ static uint16_t printTraceLine(uint16_t tracepos, uint16_t traceLen, uint8_t *tr
     if (markCRCBytes) {
         //CRC-command
         if (crcStatus == 0 || crcStatus == 1) {
-            char *pos1 = line[(data_len - 2) / 18] + (((data_len - 2) % 18) * 4);
+            char *pos1 = line[(data_len - 2) / 18] + (((data_len - 2) % 18) * 4) - 1;
             (*pos1) = '[';
-            char *pos2 = line[(data_len) / 18] + (((data_len) % 18) * 4);
+            char *pos2 = line[(data_len) / 18] + (((data_len) % 18) * 4) - 1;
             sprintf(pos2, "%c", ']');
         }
     }
@@ -582,14 +581,44 @@ static int CmdTraceSave(const char *Cmd) {
 
     if (g_traceLen == 0) {
         download_trace();
-    }
-
-    if (g_traceLen == 0) {
-        PrintAndLogEx(WARNING, "trace is empty, nothing to save");
-        return PM3_SUCCESS;
+        if (g_traceLen == 0) {
+            PrintAndLogEx(WARNING, "trace is empty, nothing to save");
+            return PM3_SUCCESS;
+        }
     }
 
     saveFile(filename, ".trace", g_trace, g_traceLen);
+    return PM3_SUCCESS;
+}
+
+int CmdTraceListAlias(const char *Cmd, const char *alias) {
+    CLIParserContext *ctx;
+    char example[200] = {0};
+    sprintf(example,
+            "%s -f                          -> show frame delay times\n"
+            "%s -1                          -> use trace buffer ",
+            alias, alias);
+    CLIParserInit(&ctx, alias,
+                  "Alias of `trace list -t` with selected protocol data to annotate trace buffer\n"
+                  "You can load a trace from file (see `trace load -h`) or it be downloaded from device by default\n"
+                  "It accepts all other arguments of `trace list`. Note that some might not be relevant for this specific protocol",
+                  example
+                 );
+
+    void *argtable[] = {
+        arg_param_begin,
+        arg_lit0("1", "buffer", "use data from trace buffer"),
+        arg_lit0("f", NULL, "show frame delay times"),
+        arg_lit0("c", NULL, "mark CRC bytes"),
+        arg_lit0("r", NULL, "show relative times (gap and duration)"),
+        arg_lit0("u", NULL, "display times in microseconds instead of clock cycles"),
+        arg_lit0("x", NULL, "show hexdump to convert to pcap(ng)\n"
+                 "                                   or to import into Wireshark using encapsulation type \"ISO 14443\""),
+        arg_strx0(NULL, "dict", "<file>", "use dictionary keys file"),
+        arg_param_end
+    };
+    CLIExecWithReturn(ctx, Cmd, argtable, true);
+    CLIParserFree(ctx);
     return PM3_SUCCESS;
 }
 
@@ -680,8 +709,11 @@ int CmdTraceList(const char *Cmd) {
     else if (strcmp(type, "cryptorf") == 0) protocol = PROTO_CRYPTORF;
     else if (strcmp(type, "raw") == 0)      protocol = -1;
 
-    if (use_buffer == false || (g_traceLen == 0)) {
+    if (use_buffer == false) {
         download_trace();
+    } else if (g_traceLen == 0) {
+        PrintAndLogEx(FAILED, "You requested a trace list in offline mode but there is no trace, consider using 'trace load' or removing parameter '1'");
+        return PM3_EINVARG;
     }
 
     PrintAndLogEx(SUCCESS, "Recorded activity (trace len = " _YELLOW_("%lu") " bytes)", g_traceLen);

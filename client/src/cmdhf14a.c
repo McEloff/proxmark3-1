@@ -171,12 +171,13 @@ static uint16_t frameLength = 0;
 uint16_t atsFSC[] = {16, 24, 32, 40, 48, 64, 96, 128, 256};
 
 static int CmdHF14AList(const char *Cmd) {
-    char args[128] = {0};
-    if (strlen(Cmd) == 0) {
-        snprintf(args, sizeof(args), "-t 14a");
-    } else {
-        strncpy(args, Cmd, sizeof(args) - 1);
+    int ret = CmdTraceListAlias(Cmd, "hf 14a list");
+    if (ret != PM3_SUCCESS) {
+        return ret;
     }
+    char args[128] = {0};
+    snprintf(args, sizeof(args), "-t 14a ");
+    strncat(args, Cmd, sizeof(args) - strlen(args));
     return CmdTraceList(args);
 }
 
@@ -218,23 +219,23 @@ static int hf_14a_config_example(void) {
     PrintAndLogEx(NORMAL, "\nExamples to revive Gen2/DirectWrite magic cards failing at anticollision:");
     PrintAndLogEx(NORMAL, _CYAN_("    MFC 1k 4b UID")":");
     PrintAndLogEx(NORMAL, _YELLOW_("          hf 14a config --atqa force --bcc ignore --cl2 skip --rats skip"));
-    PrintAndLogEx(NORMAL, _YELLOW_("          hf mf wrbl 0 A FFFFFFFFFFFF 11223344440804006263646566676869"));
+    PrintAndLogEx(NORMAL, _YELLOW_("          hf mf wrbl --blk 0 -k FFFFFFFFFFFF -d 11223344440804006263646566676869"));
     PrintAndLogEx(NORMAL, _YELLOW_("          hf 14a config --std"));
     PrintAndLogEx(NORMAL, _CYAN_("    MFC 4k 4b UID")":");
     PrintAndLogEx(NORMAL, _YELLOW_("          hf 14a config --atqa force --bcc ignore --cl2 skip --rats skip"));
-    PrintAndLogEx(NORMAL, _YELLOW_("          hf mf wrbl 0 A FFFFFFFFFFFF 11223344441802006263646566676869"));
+    PrintAndLogEx(NORMAL, _YELLOW_("          hf mf wrbl --blk 0 -k FFFFFFFFFFFF -d 11223344441802006263646566676869"));
     PrintAndLogEx(NORMAL, _YELLOW_("          hf 14a config --std"));
     PrintAndLogEx(NORMAL, _CYAN_("    MFC 1k 7b UID")":");
     PrintAndLogEx(NORMAL, _YELLOW_("          hf 14a config --atqa force --bcc ignore --cl2 force --cl3 skip --rats skip"));
-    PrintAndLogEx(NORMAL, _YELLOW_("          hf mf wrbl 0 A FFFFFFFFFFFF 04112233445566084400626364656667"));
+    PrintAndLogEx(NORMAL, _YELLOW_("          hf mf wrbl --blk 0 -k FFFFFFFFFFFF -d 04112233445566084400626364656667"));
     PrintAndLogEx(NORMAL, _YELLOW_("          hf 14a config --std"));
     PrintAndLogEx(NORMAL, _CYAN_("    MFC 4k 7b UID")":");
     PrintAndLogEx(NORMAL, _YELLOW_("          hf 14a config --atqa forcce --bcc ignore --cl2 force --cl3 skip --rats skip"));
-    PrintAndLogEx(NORMAL, _YELLOW_("          hf mf wrbl 0 A FFFFFFFFFFFF 04112233445566184200626364656667"));
+    PrintAndLogEx(NORMAL, _YELLOW_("          hf mf wrbl --blk 0 -k FFFFFFFFFFFF -d 04112233445566184200626364656667"));
     PrintAndLogEx(NORMAL, _YELLOW_("          hf 14a config --std"));
     PrintAndLogEx(NORMAL, _CYAN_("    MFUL ")"/" _CYAN_(" MFUL EV1 ")"/" _CYAN_(" MFULC")":");
     PrintAndLogEx(NORMAL, _YELLOW_("          hf 14a config --atqa force --bcc ignore --cl2 force --cl3 skip -rats skip"));
-    PrintAndLogEx(NORMAL, _YELLOW_("          hf mfu setuid 04112233445566"));
+    PrintAndLogEx(NORMAL, _YELLOW_("          hf mfu setuid --uid 04112233445566"));
     PrintAndLogEx(NORMAL, _YELLOW_("          hf 14a config --std"));
     return PM3_SUCCESS;
 }
@@ -404,7 +405,7 @@ static int CmdHF14AReader(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf 14a reader",
                   "Reader for ISO 14443A based tags",
-                  "hf 14a reader -@ <- Continuous mode");
+                  "hf 14a reader -@   -> Continuous mode");
 
     void *argtable[] = {
         arg_param_begin,
@@ -412,7 +413,7 @@ static int CmdHF14AReader(const char *Cmd) {
         arg_lit0("s", "silent", "silent (no messages)"),
         arg_lit0(NULL, "drop", "just drop the signal field"),
         arg_lit0(NULL, "skip", "ISO14443-3 select only (skip RATS)"),
-        arg_lit0("@", NULL, "optional - continuous reader mode"),
+        arg_lit0("@", NULL, "continuous reader mode"),
         arg_param_end
     };
     CLIExecWithReturn(ctx, Cmd, argtable, true);
@@ -557,7 +558,7 @@ static int CmdHF14ACUIDs(const char *Cmd) {
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf 14a cuids",
                   "Collect n>0 ISO14443-a UIDs in one go",
-                  "hf 14a cuids -n 5 <-- Collect 5 UIDs");
+                  "hf 14a cuids -n 5   --> Collect 5 UIDs");
 
     void *argtable[] = {
         arg_param_begin,
@@ -627,7 +628,7 @@ int CmdHF14ASim(const char *Cmd) {
         arg_int1("t", "type", "<1-10> ", "Simulation type to use"),
         arg_str0("u", "uid", "<hex>", "4, 7 or 10 byte UID"),
         arg_int0("n", "num", "<dec>", "Exit simulation after <numreads> blocks have been read by reader. 0 = infinite"),
-        arg_lit0(NULL, "nr", "Performs the 'reader attack', nr/ar attack against a reader"),
+        arg_lit0("x",  NULL, "Performs the 'reader attack', nr/ar attack against a reader"),
         arg_lit0(NULL, "sk", "Fill simulator keys from found keys"),
         arg_lit0("v", "verbose", "verbose output"),
         arg_lit0("s", "silent", "silent, no trace log saves"),
@@ -1210,7 +1211,7 @@ static int CmdHF14ACmdRaw(const char *Cmd) {
 
     CLIParserContext *ctx;
     CLIParserInit(&ctx, "hf 14a raw",
-                  "Sends an raw bytes over ISO14443a. With option to use TOPAZ 14a mode.",
+                  "Sends raw bytes over ISO14443a. With option to use TOPAZ 14a mode.",
                   "hf 14a raw -sc 3000     -> select, crc, where 3000 == 'read block 00'\n"
                   "hf 14a raw -ak -b 7 40  -> send 7 bit byte 0x40\n"
                  );
@@ -1434,7 +1435,8 @@ typedef enum {
     MTDESFIRE = 4,
     MTPLUS = 8,
     MTULTRALIGHT = 16,
-    MTOTHER = 32
+    HID_SEOS = 32,
+    MTOTHER = 64
 } nxp_mifare_type_t;
 
 // Based on NXP AN10833 Rev 3.6 and NXP AN10834 Rev 4.1
@@ -1537,11 +1539,17 @@ static int detect_nxp_card(uint8_t sak, uint16_t atqa, uint64_t select_status) {
                         type |= MTPLUS;
                     }
                 } else {
-                    printTag("MIFARE Plus EV1 2K/4K in SL3");
-                    printTag("MIFARE Plus S 2K/4K in SL3");
-                    printTag("MIFARE Plus X 2K/4K in SL3");
-                    printTag("MIFARE Plus SE 1K");
-                    type |= MTPLUS;
+
+                    if ((atqa & 0x0001) == 0x0001) {
+                        printTag("HID SEOS (smartmx / javacard)");
+                        type |= HID_SEOS;
+                    } else {
+                        printTag("MIFARE Plus EV1 2K/4K in SL3");
+                        printTag("MIFARE Plus S 2K/4K in SL3");
+                        printTag("MIFARE Plus X 2K/4K in SL3");
+                        printTag("MIFARE Plus SE 1K");
+                        type |= MTPLUS;
+                    }
                 }
 
                 printTag("NTAG 4xx");
@@ -1633,8 +1641,7 @@ int infoHF14A(bool verbose, bool do_nack_test, bool do_aid_search) {
     }
 
     if (verbose) {
-        PrintAndLogEx(SUCCESS, "------ " _CYAN_("ISO14443-a Information") "------------------");
-        PrintAndLogEx(SUCCESS, "-------------------------------------------------------------");
+        PrintAndLogEx(INFO, "--- " _CYAN_("ISO14443-a Information") "---------------------");
     }
 
     PrintAndLogEx(SUCCESS, " UID: " _GREEN_("%s"), sprint_hex(card.uid, card.uidlen));
@@ -1646,6 +1653,7 @@ int infoHF14A(bool verbose, bool do_nack_test, bool do_aid_search) {
     bool isMifarePlus = false;
     bool isMifareUltralight = false;
     bool isST = false;
+    bool isEMV = false;
     int nxptype = MTNONE;
 
     if (card.uidlen <= 4) {
@@ -1662,7 +1670,7 @@ int infoHF14A(bool verbose, bool do_nack_test, bool do_aid_search) {
     } else {
 
         // Double & triple sized UID, can be mapped to a manufacturer.
-        PrintAndLogEx(SUCCESS, "MANUFACTURER:    " _YELLOW_("%s"), getTagInfo(card.uid[0]));
+        PrintAndLogEx(SUCCESS, "MANUFACTURER: " _YELLOW_("%s"), getTagInfo(card.uid[0]));
 
         switch (card.uid[0]) {
             case 0x02: // ST
@@ -1994,7 +2002,7 @@ int infoHF14A(bool verbose, bool do_nack_test, bool do_aid_search) {
             PrintAndLogEx(INFO, "-------------------- " _CYAN_("AID Search") " --------------------");
 
             bool found = false;
-            int elmindx = 0;
+            size_t elmindx = 0;
             json_t *root = AIDSearchInit(verbose);
             if (root != NULL) {
                 bool ActivateField = true;
@@ -2060,6 +2068,7 @@ int infoHF14A(bool verbose, bool do_nack_test, bool do_aid_search) {
 
                         if (verbose) PrintAndLogEx(SUCCESS, "----------------------------------------------------");
                         found = true;
+                        isEMV = true;
                     }
 
                 }
@@ -2104,19 +2113,30 @@ int infoHF14A(bool verbose, bool do_nack_test, bool do_aid_search) {
             if (do_nack_test)
                 detect_classic_nackbug(false);
         }
+
+        uint8_t signature[32] = {0};
+        res = detect_mfc_ev1_signature(signature);
+        if (res == PM3_SUCCESS) {
+            mfc_ev1_print_signature(card.uid, card.uidlen, signature, sizeof(signature));
+        }
+
+        PrintAndLogEx(HINT, "Hint: try " _YELLOW_("`hf mf`") " commands");
     }
 
     if (isMifareUltralight)
         PrintAndLogEx(HINT, "Hint: try " _YELLOW_("`hf mfu info`"));
 
-    if (isMifarePlus && isMagic == 0)
+    if (isMifarePlus && isMagic == 0 && isEMV == false)
         PrintAndLogEx(HINT, "Hint: try " _YELLOW_("`hf mfp info`"));
 
-    if (isMifareDESFire && isMagic == 0)
+    if (isMifareDESFire && isMagic == 0 && isEMV == false)
         PrintAndLogEx(HINT, "Hint: try " _YELLOW_("`hf mfdes info`"));
 
     if (isST)
         PrintAndLogEx(HINT, "Hint: try " _YELLOW_("`hf st info`"));
+
+    if (isEMV)
+        PrintAndLogEx(HINT, "Hint: try " _YELLOW_("`emv search -s`"));
 
     PrintAndLogEx(NORMAL, "");
     DropField();
@@ -2321,7 +2341,7 @@ static command_t CommandTable[] = {
     {"raw",         CmdHF14ACmdRaw,       IfPm3Iso14443a,  "Send raw hex data to tag"},
     {"antifuzz",    CmdHF14AAntiFuzz,     IfPm3Iso14443a,  "Fuzzing the anticollision phase.  Warning! Readers may react strange"},
     {"config",      CmdHf14AConfig,       IfPm3Iso14443a,  "Configure 14a settings (use with caution)"},
-    {"apdufind",    CmdHf14AFindapdu,     IfPm3Iso14443a,  "Enuerate APDUs - CLA/INS/P1P2"},
+    {"apdufind",    CmdHf14AFindapdu,     IfPm3Iso14443a,  "Enumerate APDUs - CLA/INS/P1P2"},
     {NULL, NULL, NULL, NULL}
 };
 

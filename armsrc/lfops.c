@@ -874,8 +874,8 @@ void SimulateTagLowFrequencyEx(int period, int gap, bool ledcontrol, int numcycl
         //wait until SSC_CLK goes LOW
         while (AT91C_BASE_PIOA->PIO_PDSR & GPIO_SSC_CLK) {
             WDT_HIT();
-            if (check == 1000) {
-                if (data_available() || BUTTON_PRESS())
+            if (check == 2000) {
+                if (BUTTON_PRESS() || data_available())
                     goto OUT;
                 check = 0;
             }
@@ -1011,7 +1011,7 @@ void CmdFSKsimTAGEx(uint8_t fchigh, uint8_t fclow, uint8_t separator, uint8_t cl
 
     WDT_HIT();
 
-    Dbprintf("Simulating with fcHigh: %d, fcLow: %d, clk: %d, STT: %d, n: %d", fchigh, fclow, clk, separator, n);
+    Dbprintf("FSK simulating with rf/%d, fc high %d, fc low %d, STT %d, n %d", clk, fchigh, fclow, separator, n);
 
     if (ledcontrol) LED_A_ON();
     SimulateTagLowFrequencyEx(n, 0, ledcontrol, numcycles);
@@ -1124,10 +1124,10 @@ void CmdASKsimTAG(uint8_t encoding, uint8_t invert, uint8_t separator, uint8_t c
 
     WDT_HIT();
 
-    Dbprintf("Simulating with clk: %d, invert: %d, encoding: %s (%d), separator: %d, n: %d"
+    Dbprintf("ASK simulating with rf/%d, invert %d, encoding %s (%d), separator %d, n %d"
              , clk
              , invert
-             , (encoding == 2) ? "BI" : (encoding == 1) ? "ASK" : "RAW"
+             , (encoding == 2) ? "ASK/BI" : (encoding == 1) ? "ASK/MAN" : "RAW/MAN"
              , encoding
              , separator
              , n
@@ -1178,7 +1178,7 @@ void CmdPSKsimTAG(uint8_t carrier, uint8_t invert, uint8_t clk, uint16_t size, u
 
     WDT_HIT();
 
-    Dbprintf("Simulating with Carrier: %d, clk: %d, invert: %d, n: %d", carrier, clk, invert, n);
+    Dbprintf("PSK simulating with rf/%d, fc/%d, invert %d, n %d", clk, carrier, invert, n);
 
     if (ledcontrol) LED_A_ON();
     SimulateTagLowFrequency(n, 0, ledcontrol);
@@ -1222,7 +1222,7 @@ void CmdNRZsimTAG(uint8_t invert, uint8_t separator, uint8_t clk, uint16_t size,
 
     WDT_HIT();
 
-    Dbprintf("Simulating with clk: %d, invert: %d, separator: %d, n: %d"
+    Dbprintf("NRZ simulating with rf/%d, invert %d, separator %d, n %d"
              , clk
              , invert
              , separator
@@ -1253,20 +1253,13 @@ int lf_hid_watch(int findone, uint32_t *high, uint32_t *low) {
     BigBuf_Clear_keep_EM();
 
     int res = PM3_SUCCESS;
-    uint16_t interval = 0;
-    while (BUTTON_PRESS() == false) {
+    for (;;) {
 
         WDT_HIT();
 
-        // cancel w usb command.
-        if (interval == 4000) {
-            if (data_available()) {
-                res = PM3_EOPABORTED;
-                break;
-            }
-            interval = 0;
-        } else {
-            interval++;
+        if (data_available() || BUTTON_PRESS()) {
+            res = PM3_EOPABORTED;
+            break;
         }
 
         DoAcquisition_default(-1, false);
@@ -1362,20 +1355,13 @@ int lf_awid_watch(int findone, uint32_t *high, uint32_t *low) {
     LFSetupFPGAForADC(LF_DIVISOR_125, true);
 
     int res = PM3_SUCCESS;
-    uint16_t interval = 0;
-    while (BUTTON_PRESS() == false) {
+    for (;;) {
 
         WDT_HIT();
 
-        // cancel w usb command.
-        if (interval == 4000) {
-            if (data_available()) {
-                res = PM3_EOPABORTED;
-                break;
-            }
-            interval = 0;
-        } else {
-            interval++;
+        if (data_available() || BUTTON_PRESS()) {
+            res = PM3_EOPABORTED;
+            break;
         }
 
         DoAcquisition_default(-1, false);
@@ -1467,19 +1453,12 @@ int lf_em410x_watch(int findone, uint32_t *high, uint64_t *low) {
     LFSetupFPGAForADC(LF_DIVISOR_125, true);
 
     int res = PM3_SUCCESS;
-    uint16_t interval = 0;
-    while (BUTTON_PRESS() == false) {
+    for (;;) {
         WDT_HIT();
 
-        // cancel w usb command.
-        if (interval == 4000) {
-            if (data_available()) {
-                res = PM3_EOPABORTED;
-                break;
-            }
-            interval = 0;
-        } else {
-            interval++;
+        if (data_available() || BUTTON_PRESS()) {
+            res = PM3_EOPABORTED;
+            break;
         }
 
         DoAcquisition_default(-1, false);
@@ -1543,20 +1522,13 @@ int lf_io_watch(int findone, uint32_t *high, uint32_t *low) {
     LFSetupFPGAForADC(LF_DIVISOR_125, true);
 
     int res = PM3_SUCCESS;
-    uint16_t interval = 0;
-    while (BUTTON_PRESS() == false) {
+    for (;;) {
 
         WDT_HIT();
 
-        // cancel w usb command.
-        if (interval == 4000) {
-            if (data_available()) {
-                res = PM3_EOPABORTED;
-                break;
-            }
-            interval = 0;
-        } else {
-            interval++;
+        if (data_available() || BUTTON_PRESS()) {
+            res = PM3_EOPABORTED;
+            break;
         }
 
         DoAcquisition_default(-1, false);
@@ -2137,7 +2109,7 @@ void T55xx_ChkPwds(uint8_t flags) {
 
 #endif
 
-    uint64_t curr = 0, prev = 0;
+    uint64_t curr, prev = 0;
     int32_t idx = -1;
 
     for (uint32_t i = 0; i < pwd_count; i++) {
@@ -2669,7 +2641,7 @@ void EM4xWriteWord(uint8_t addr, uint32_t data, uint32_t pwd, uint8_t usepwd) {
 
     SendForward(len, false);
 
-    if (tearoff_hook() == PM3_ETEAROFF) { // tearoff occured
+    if (tearoff_hook() == PM3_ETEAROFF) { // tearoff occurred
         StopTicks();
         reply_ng(CMD_LF_EM4X_WRITEWORD, PM3_ETEAROFF, NULL, 0);
     } else {
@@ -2711,7 +2683,7 @@ void EM4xProtectWord(uint32_t data, uint32_t pwd, uint8_t usepwd) {
 
     SendForward(len, false);
 
-    if (tearoff_hook() == PM3_ETEAROFF) { // tearoff occured
+    if (tearoff_hook() == PM3_ETEAROFF) { // tearoff occurred
         StopTicks();
         reply_ng(CMD_LF_EM4X_PROTECTWORD, PM3_ETEAROFF, NULL, 0);
     } else {

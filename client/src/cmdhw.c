@@ -24,6 +24,8 @@
 #include "cmddata.h"
 #include "commonutil.h"
 #include "pm3_cmd.h"
+#include "pmflash.h"      // rdv40validation_t
+#include "cmdflashmem.h"  // get_signature..
 
 static int CmdHelp(const char *Cmd);
 
@@ -89,7 +91,8 @@ static void lookupChipID(uint32_t iChipID, uint32_t mem_used) {
             sprintf(asBuff, "AT91SAM7S16 Rev A");
             break;
     }
-    PrintAndLogEx(NORMAL, "  --= uC: %s", asBuff);
+    PrintAndLogEx(NORMAL, "  --= uC: " _YELLOW_("%s"), asBuff);
+
     switch ((iChipID & 0xE0) >> 5) {
         case 1:
             sprintf(asBuff, "ARM946ES");
@@ -105,84 +108,7 @@ static void lookupChipID(uint32_t iChipID, uint32_t mem_used) {
             break;
     }
     PrintAndLogEx(NORMAL, "  --= Embedded Processor: %s", asBuff);
-    switch ((iChipID & 0xF00) >> 8) {
-        case 0:
-            mem_avail = 0;
-            break;
-        case 1:
-            mem_avail = 8;
-            break;
-        case 2:
-            mem_avail = 16;
-            break;
-        case 3:
-            mem_avail = 32;
-            break;
-        case 5:
-            mem_avail = 64;
-            break;
-        case 7:
-            mem_avail = 128;
-            break;
-        case 9:
-            mem_avail = 256;
-            break;
-        case 10:
-            mem_avail = 512;
-            break;
-        case 12:
-            mem_avail = 1024;
-            break;
-        case 14:
-            mem_avail = 2048;
-            break;
-    }
 
-    uint32_t mem_left = 0;
-    if (mem_avail > 0)
-        mem_left = (mem_avail * 1024) - mem_used;
-
-    PrintAndLogEx(NORMAL, "  --= Nonvolatile Program Memory Size: %uK bytes, Used: %u bytes (%2.0f%%) Free: %u bytes (%2.0f%%)",
-                  mem_avail,
-                  mem_used,
-                  mem_avail == 0 ? 0.0f : (float)mem_used / (mem_avail * 1024) * 100,
-                  mem_left,
-                  mem_avail == 0 ? 0.0f : (float)mem_left / (mem_avail * 1024) * 100
-                 );
-
-    switch ((iChipID & 0xF000) >> 12) {
-        case 0:
-            sprintf(asBuff, "None");
-            break;
-        case 1:
-            sprintf(asBuff, "8K bytes");
-            break;
-        case 2:
-            sprintf(asBuff, "16K bytes");
-            break;
-        case 3:
-            sprintf(asBuff, "32K bytes");
-            break;
-        case 5:
-            sprintf(asBuff, "64K bytes");
-            break;
-        case 7:
-            sprintf(asBuff, "128K bytes");
-            break;
-        case 9:
-            sprintf(asBuff, "256K bytes");
-            break;
-        case 10:
-            sprintf(asBuff, "512K bytes");
-            break;
-        case 12:
-            sprintf(asBuff, "1024K bytes");
-            break;
-        case 14:
-            sprintf(asBuff, "2048K bytes");
-            break;
-    }
-    PrintAndLogEx(NORMAL, "  --= Second Nonvolatile Program Memory Size: %s", asBuff);
     switch ((iChipID & 0xF0000) >> 16) {
         case 1:
             sprintf(asBuff, "1K bytes");
@@ -230,7 +156,8 @@ static void lookupChipID(uint32_t iChipID, uint32_t mem_used) {
             sprintf(asBuff, "512K bytes");
             break;
     }
-    PrintAndLogEx(NORMAL, "  --= Internal SRAM Size: %s", asBuff);
+    PrintAndLogEx(NORMAL, "  --= Internal SRAM size: %s", asBuff);
+
     switch ((iChipID & 0xFF00000) >> 20) {
         case 0x19:
             sprintf(asBuff, "AT91SAM9xx Series");
@@ -290,7 +217,8 @@ static void lookupChipID(uint32_t iChipID, uint32_t mem_used) {
             sprintf(asBuff, "AT75Cxx Series");
             break;
     }
-    PrintAndLogEx(NORMAL, "  --= Architecture Identifier: %s", asBuff);
+    PrintAndLogEx(NORMAL, "  --= Architecture identifier: %s", asBuff);
+
     switch ((iChipID & 0x70000000) >> 28) {
         case 0:
             sprintf(asBuff, "ROM");
@@ -299,16 +227,89 @@ static void lookupChipID(uint32_t iChipID, uint32_t mem_used) {
             sprintf(asBuff, "ROMless or on-chip Flash");
             break;
         case 2:
-            sprintf(asBuff, "Embedded Flash Memory");
+            sprintf(asBuff, "Embedded flash memory");
             break;
         case 3:
-            sprintf(asBuff, "ROM and Embedded Flash Memory\nNVPSIZ is ROM size\nNVPSIZ2 is Flash size");
+            sprintf(asBuff, "ROM and Embedded flash memory\nNVPSIZ is ROM size\nNVPSIZ2 is Flash size");
             break;
         case 4:
             sprintf(asBuff, "SRAM emulating ROM");
             break;
     }
-    PrintAndLogEx(NORMAL, "  --= Nonvolatile Program Memory Type: %s", asBuff);
+    switch ((iChipID & 0xF00) >> 8) {
+        case 0:
+            mem_avail = 0;
+            break;
+        case 1:
+            mem_avail = 8;
+            break;
+        case 2:
+            mem_avail = 16;
+            break;
+        case 3:
+            mem_avail = 32;
+            break;
+        case 5:
+            mem_avail = 64;
+            break;
+        case 7:
+            mem_avail = 128;
+            break;
+        case 9:
+            mem_avail = 256;
+            break;
+        case 10:
+            mem_avail = 512;
+            break;
+        case 12:
+            mem_avail = 1024;
+            break;
+        case 14:
+            mem_avail = 2048;
+            break;
+    }
+
+    PrintAndLogEx(NORMAL, "  --= %s " _YELLOW_("%uK") " bytes ( " _YELLOW_("%2.0f%%") " used )"
+                  , asBuff
+                  , mem_avail
+                  , mem_avail == 0 ? 0.0f : (float)mem_used / (mem_avail * 1024) * 100
+                 );
+
+    /*
+    switch ((iChipID & 0xF000) >> 12) {
+        case 0:
+            sprintf(asBuff, "None");
+            break;
+        case 1:
+            sprintf(asBuff, "8K bytes");
+            break;
+        case 2:
+            sprintf(asBuff, "16K bytes");
+            break;
+        case 3:
+            sprintf(asBuff, "32K bytes");
+            break;
+        case 5:
+            sprintf(asBuff, "64K bytes");
+            break;
+        case 7:
+            sprintf(asBuff, "128K bytes");
+            break;
+        case 9:
+            sprintf(asBuff, "256K bytes");
+            break;
+        case 10:
+            sprintf(asBuff, "512K bytes");
+            break;
+        case 12:
+            sprintf(asBuff, "1024K bytes");
+            break;
+        case 14:
+            sprintf(asBuff, "2048K bytes");
+            break;
+    }
+    PrintAndLogEx(NORMAL, "  --= Second nonvolatile program memory size: %s", asBuff);
+    */
 }
 
 static int CmdDbg(const char *Cmd) {
@@ -333,8 +334,8 @@ static int CmdDbg(const char *Cmd) {
     bool lv0 = arg_get_lit(ctx, 1);
     bool lv1 = arg_get_lit(ctx, 2);
     bool lv2 = arg_get_lit(ctx, 3);
-    bool lv3 = arg_get_lit(ctx, 3);
-    bool lv4 = arg_get_lit(ctx, 4);
+    bool lv3 = arg_get_lit(ctx, 4);
+    bool lv4 = arg_get_lit(ctx, 5);
     CLIParserFree(ctx);
 
     if ((lv0 + lv1 + lv2 + lv3 + lv4) > 1) {
@@ -851,9 +852,30 @@ static int CmdConnect(const char *Cmd) {
     return PM3_SUCCESS;
 }
 
+static int CmdBreak(const char *Cmd) {
+
+    CLIParserContext *ctx;
+    CLIParserInit(&ctx, "hw break",
+                  "send break loop package",
+                  "hw break\n"
+                 );
+
+    void *argtable[] = {
+        arg_param_begin,
+        arg_param_end
+    };
+    CLIExecWithReturn(ctx, Cmd, argtable, true);
+    CLIParserFree(ctx);
+    clearCommandBuffer();
+    SendCommandNG(CMD_BREAK_LOOP, NULL, 0);
+    return PM3_SUCCESS;
+}
+
+
 static command_t CommandTable[] = {
     {"-------------", CmdHelp,         AlwaysAvailable, "----------------------- " _CYAN_("Hardware") " -----------------------"},
     {"help",          CmdHelp,         AlwaysAvailable, "This help"},
+    {"break",         CmdBreak,        IfPm3Present,    "Send break loop usb command"},
     {"connect",       CmdConnect,      AlwaysAvailable, "Connect Proxmark3 to serial port"},
     {"dbg",           CmdDbg,          IfPm3Present,    "Set Proxmark3 debug level"},
     {"detectreader",  CmdDetectReader, IfPm3Present,    "Detect external reader field"},
@@ -963,17 +985,29 @@ void pm3_version(bool verbose, bool oneliner) {
         PrintAndLogEx(NORMAL, "  compiled with " PM3CLIENTCOMPILER __VERSION__ PM3HOSTOS PM3HOSTARCH);
 
         PrintAndLogEx(NORMAL, "\n [ " _YELLOW_("PROXMARK3") " ]");
-        if (IfPm3Rdv4Fw() == false) {
-            PrintAndLogEx(NORMAL, "  firmware.................. %s", _YELLOW_("PM3GENERIC"));
-            if (IfPm3FpcUsartHost()) {
-                PrintAndLogEx(NORMAL, "  FPC USART for BT add-on... %s", _GREEN_("present"));
+        if (IfPm3Rdv4Fw()) {
+
+            bool is_genuine_rdv4 = false;
+            // validate signature data
+            rdv40_validation_t mem;
+            if (rdv4_get_signature(&mem) == PM3_SUCCESS) {
+                if (rdv4_validate(&mem) == PM3_SUCCESS) {
+                    is_genuine_rdv4 = true;
+                }
             }
-        } else {
-            PrintAndLogEx(NORMAL, "  firmware.................. %s", _YELLOW_("PM3RDV4"));
+
+            PrintAndLogEx(NORMAL, "  device.................... %s", (is_genuine_rdv4) ? _GREEN_("RDV4") : _RED_("device / fw mismatch"));
+            PrintAndLogEx(NORMAL, "  firmware.................. %s", (is_genuine_rdv4) ? _GREEN_("RDV4") : _YELLOW_("RDV4"));
             PrintAndLogEx(NORMAL, "  external flash............ %s", IfPm3Flash() ? _GREEN_("present") : _YELLOW_("absent"));
             PrintAndLogEx(NORMAL, "  smartcard reader.......... %s", IfPm3Smartcard() ? _GREEN_("present") : _YELLOW_("absent"));
             PrintAndLogEx(NORMAL, "  FPC USART for BT add-on... %s", IfPm3FpcUsartHost() ? _GREEN_("present") : _YELLOW_("absent"));
+        } else {
+            PrintAndLogEx(NORMAL, "  firmware.................. %s", _YELLOW_("PM3 GENERIC"));
+            if (IfPm3FpcUsartHost()) {
+                PrintAndLogEx(NORMAL, "  FPC USART for BT add-on... %s", _GREEN_("present"));
+            }
         }
+
         if (IfPm3FpcUsartDevFromUsb()) {
             PrintAndLogEx(NORMAL, "  FPC USART for developer... %s", _GREEN_("present"));
         }
@@ -990,10 +1024,13 @@ void pm3_version(bool verbose, bool oneliner) {
         struct p *payload = (struct p *)&resp.data.asBytes;
 
         PrintAndLogEx(NORMAL,  payload->versionstr);
+        if (strstr(payload->versionstr, "2s30vq100") == NULL) {
+            PrintAndLogEx(NORMAL, "  FPGA firmware... %s", _RED_("chip mismatch"));
+        }
 
         lookupChipID(payload->id, payload->section_size);
     }
-    PrintAndLogEx(NORMAL, "\n");
+    PrintAndLogEx(NORMAL, "");
 }
 
 void pm3_get_standalone_done_status(void) {

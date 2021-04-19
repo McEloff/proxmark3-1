@@ -77,12 +77,15 @@ uint8_t param_isdec(const char *line, int paramnum);
 int param_gethex(const char *line, int paramnum, uint8_t *data, int hexcnt);
 int param_gethex_ex(const char *line, int paramnum, uint8_t *data, int *hexcnt);
 int param_gethex_to_eol(const char *line, int paramnum, uint8_t *data, int maxdatalen, int *datalen);
+int param_getbin_to_eol(const char *line, int paramnum, uint8_t *data, int maxdatalen, int *datalen);
 int param_getstr(const char *line, int paramnum, char *str, size_t buffersize);
 
 int hextobinarray(char *target, char *source);
 int hextobinstring(char *target, char *source);
 int binarraytohex(char *target, const size_t targetlen, char *source, size_t srclen);
 void binarraytobinstring(char *target,  char *source, int length);
+int binstring2binarray(uint8_t *target, char *source, int length);
+
 uint8_t GetParity(uint8_t *bits, uint8_t type, int length);
 void wiegand_add_parity(uint8_t *target, uint8_t *source, uint8_t length);
 void wiegand_add_parity_swapped(uint8_t *target, uint8_t *source, uint8_t length);
@@ -103,6 +106,8 @@ void strcreplace(char *buf, size_t len, char from, char to);
 char *str_dup(const char *src);
 char *str_ndup(const char *src, size_t len);
 int hexstring_to_u96(uint32_t *hi2, uint32_t *hi, uint32_t *lo, const char *str);
+int binstring_to_u96(uint32_t *hi2, uint32_t *hi, uint32_t *lo, const char *str);
+int binarray_to_u96(uint32_t *hi2, uint32_t *hi, uint32_t *lo, uint8_t *arr, int arrlen);
 
 uint32_t bitcount32(uint32_t a);
 uint64_t bitcount64(uint64_t a);

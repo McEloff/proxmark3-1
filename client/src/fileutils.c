@@ -78,6 +78,44 @@ struct wave_info_t {
 } PACKED;
 
 /**
+ * @brief detects if file is of a supported filetype based on extension
+ * @param filename
+ * @return o
+ */
+DumpFileType_t getfiletype(const char *filename) {
+    // assume unknown file is BINARY
+    DumpFileType_t o = BIN;
+    if (filename == NULL) {
+        return o;
+    }
+
+    size_t len = strlen(filename);
+    if (len > 4) {
+        //  check if valid file extension and attempt to load data
+        char s[FILE_PATH_SIZE];
+        memset(s, 0, sizeof(s));
+        memcpy(s, filename, len);
+        str_lower(s);
+
+        if (str_endswith(s, "bin")) {
+            o = BIN;
+        } else if (str_endswith(s, "eml")) {
+            o = EML;
+        } else if (str_endswith(s, "json")) {
+            o = JSON;
+        } else if (str_endswith(s, "dic")) {
+            o = DICTIONARY;
+        } else {
+            // mfd, trc, trace is binary
+            o = BIN;
+            // log is text
+            // .pm3 is text values of signal data
+        }
+    }
+    return o;
+}
+
+/**
  * @brief checks if a file exists
  * @param filename
  * @return
@@ -428,13 +466,13 @@ int saveFileJSONex(const char *preferredName, JSONFileType ftype, uint8_t *data,
         case jsfIclass: {
             JsonSaveStr(root, "FileType", "iclass");
 
-            picopass_hdr *hdr = (picopass_hdr *)data;
+            picopass_hdr_t *hdr = (picopass_hdr_t *)data;
             JsonSaveBufAsHexCompact(root, "$.Card.CSN", hdr->csn, sizeof(hdr->csn));
             JsonSaveBufAsHexCompact(root, "$.Card.Configuration", (uint8_t *)&hdr->conf, sizeof(hdr->conf));
 
             uint8_t pagemap = get_pagemap(hdr);
             if (pagemap == PICOPASS_NON_SECURE_PAGEMODE) {
-                picopass_ns_hdr *ns_hdr = (picopass_ns_hdr *)data;
+                picopass_ns_hdr_t *ns_hdr = (picopass_ns_hdr_t *)data;
                 JsonSaveBufAsHexCompact(root, "$.Card.AIA", ns_hdr->app_issuer_area, sizeof(ns_hdr->app_issuer_area));
             } else {
                 JsonSaveBufAsHexCompact(root, "$.Card.Epurse", hdr->epurse, sizeof(hdr->epurse));
@@ -1172,6 +1210,10 @@ int loadFileJSONex(const char *preferredName, void *data, size_t maxdatalen, siz
         *datalen = sptr;
     }
 
+    if (!strcmp(ctype, "15693")) {
+        JsonLoadBufAsHex(root, "$.raw", udata, maxdatalen, datalen);
+    }
+
 out:
 
     if (callback != NULL) {
@@ -1767,7 +1809,7 @@ int searchFile(char **foundpath, const char *pm3dir, const char *searchname, con
     int res = searchFinalFile(foundpath, pm3dir, filename, silent);
     if (res != PM3_SUCCESS) {
         if ((res == PM3_EFILE) && (!silent))
-            PrintAndLogEx(FAILED, "Error - can't find %s", filename);
+            PrintAndLogEx(FAILED, "Error - can't find `" _YELLOW_("%s") "`", filename);
         free(filename);
         return res;
     }

@@ -469,6 +469,7 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
     uint8_t cardAUTHKEY = AUTHKEYNONE;  // no authentication
     uint32_t cardRr = 0;
     uint32_t ans = 0;
+    int counter = 0;
 
     uint32_t cardINTREG = 0;
     uint8_t cardINTBLOCK = 0;
@@ -531,7 +532,13 @@ void Mifare1ksim(uint16_t flags, uint8_t exitAfterNReads, uint8_t exitAfterNWrit
 
         // find reader field
         if (cardSTATE == MFEMUL_NOFIELD) {
-            button_pushed = BUTTON_PRESS() || data_available();
+            button_pushed = BUTTON_PRESS();
+            if (counter == 3000) {
+                button_pushed = button_pushed || data_available();
+                counter = 0;
+            } else {
+                counter++;
+            }
             if (button_pushed) {
                 if (DBGLEVEL >= DBG_EXTENDED)
                     Dbprintf("----------- " _GREEN_("BREAKING") " ----------");

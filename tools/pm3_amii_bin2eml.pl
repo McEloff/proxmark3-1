@@ -6,7 +6,7 @@
 #
 # -samy kamkar 05/28/2017
 #
-# hf mf eload u FILENAME_MINUS_EML
+# hf mf eload --ul FILENAME_MINUS_EML
 # hf 14a sim -t 7 -u UID
 
 # perl -lne 'chomp; s/\s+(\S+)$//;$f=$1;if($f=~s/-(\S+)//){$g=hex($1);}else{$g=hex($f)}$f=hex($f); for$m($f..$g){print "0x" . substr(unpack("H4",pack("n",$m)),1) ." => \"$_\","}' /tmp/game  >> game2
@@ -14,8 +14,8 @@
 
 my $UIDLOC = -540; # UID is 540 bytes from the end
 my $BLOCKSIZE = 4; # in bytes
-my $AMIITOOL = '../client/amiitool/amiitool'; # path to amiitool (unless in $PATH)
-my $KEYFILE = '../client/amiitool/key_retail.bin'; # path to retail key file
+my $AMIITOOL = '../client/deps/amiitool/amiitool'; # path to amiitool (unless in $PATH)
+my $KEYFILE = '../client/resources/key_retail.bin'; # path to retail key file
 my $ADDHDR = 1; # add 56 byte header?
 my $FIXPWD = 1; # recalculate PWD if dump value is 0
 my $FIXACK = 1; # set ACK if dump value is 0
@@ -684,7 +684,7 @@ print STDERR "\n";
 $uid = uc $uid;
 #print STDERR "amiitool -d -k ../client/amiitool/key_retail.bin -i $input -o $input.decrypted\n";
 $input =~ s/\....$//;
-print STDERR "hf mf eload u $input\n";
+print STDERR "hf mfu eload --u $input\n";
 print STDERR "hf 14a sim -t 7 -u $uid\n";
 
 
